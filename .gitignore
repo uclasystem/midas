@@ -33,3 +33,4 @@
 
 # Clangd index
 **/.cache/*
+**/compile_commands.json
