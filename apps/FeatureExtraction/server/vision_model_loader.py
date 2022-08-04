@@ -1,11 +1,6 @@
-from PIL import Image
 import torch
-import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
-import numpy as np
-import socketserver
-import threading
 
 class Img2Vec():
     RESNET_OUTPUT_SIZES = {
@@ -198,77 +193,3 @@ class Img2Vec():
 
         else:
             raise KeyError('Model %s was not found' % model_name)
-
-# img2vec = Img2Vec(model='efficientnet_b5', cuda=True)
-img2vec = Img2Vec(model='efficientnet_b0', cuda=True)
-
-def extractFeat(img_name):
-    img = Image.open(img_name).convert('RGB')
-    feat = img2vec.get_vec(img)
-
-    return feat;
-
-# print(extractFeat(sys.argv[1]))
-
-class MyTCPSocketHandler(socketserver.BaseRequestHandler):
-    """
-    The RequestHandler class for our server.
-
-    It is instantiated once per connection to the server, and must
-    override the handle() method to implement communication to the
-    client.
-    """
-    def handle(self):
-        # self.request is the TCP socket connected to the client
-        self.data = ""
-        remainder = ""
-        while str(self.data) != "end":
-            self.data = self.request.recv(1024).strip()
-            # print("{} wrote:".format(self.client_address[0]))
-            # print(self.data)
-
-            raw_data = remainder + self.data.decode('ascii')
-            pos = raw_data.find('.jpg')
-            while pos != -1:
-                filename = raw_data[:pos+len('.jpg')]
-                # print(filename)
-                extractFeat(filename)
-                # just send back the same data, but upper-cased
-                self.request.send(b'feature_vec')
-                raw_data = raw_data[pos+len('.jpg'):]
-                pos = raw_data.find('.jpg')
-            remainder = raw_data
-    # def handle(self):
-    #     # self.request is the TCP socket connected to the client
-    #     self.data = self.request.recv(1024).strip()
-    #     print("{} wrote:".format(self.client_address[0]))
-    #     print(self.data)
-
-    #     filename = self.data
-    #     print(filename)
-    #     extractFeat(filename)
-    #     # just send back the same data, but upper-cased
-    #     self.request.sendall(self.data[:1])
-
-
-def simpleServer():
-    host, port = "localhost", 10080
-    server = socketserver.TCPServer((host, port), MyTCPSocketHandler)
-    print("Server is listening at {}:{}".format(host, port))
-    server.serve_forever()
-
-def threadedServer():
-    host, port = "localhost", 10080
-    server = socketserver.ThreadingTCPServer((host, port), MyTCPSocketHandler)
-    print("Server is listening at {}:{}".format(host, port))
-    with server:
-        server_thread = threading.Thread(target=server.serve_forever)
-        # Exit the server thread when the main thread terminates
-        # server_thread.daemon = True
-        server_thread.start()
-        print("Server loop running in thread:", server_thread.name)
-
-        server_thread.join()
-        server.shutdown()
-
-threadedServer()
