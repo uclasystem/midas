@@ -17,24 +17,48 @@
 
 class Client {
 public:
-  Client(uint64_t id) : _id(id), status(ClientStatusCode::INIT) { connect(); }
+  Client(uint64_t id_)
+      : status(ClientStatusCode::INIT), id(id_), _region_cnt(0) {
+    connect();
+  }
 
+  ~Client() {
+    unmap_regions();
+  }
+
+  inline uint64_t new_region_id() noexcept {
+    return _region_cnt++;
+  }
+
+  uint64_t id;
   ClientStatusCode status;
   std::shared_ptr<boost::interprocess::message_queue> tx_conn;
   std::shared_ptr<boost::interprocess::message_queue> rx_conn;
+  std::unordered_map<uint64_t,
+                     std::shared_ptr<boost::interprocess::shared_memory_object>>
+      regions;
+
 private:
   void connect();
+  void unmap_regions();
 
-  uint64_t _id;
+  uint64_t _region_cnt;
 };
 
 void Client::connect() {
   /** Daemon connects its tx queue to the client's recvq, and its rx queue to
    * the client's sendq, respectively. */
   tx_conn = std::make_shared<boost::interprocess::message_queue>(
-      boost::interprocess::open_only, get_recvq_name(_id).c_str());
+      boost::interprocess::open_only, get_recvq_name(id).c_str());
   rx_conn = std::make_shared<boost::interprocess::message_queue>(
-      boost::interprocess::open_only, get_sendq_name(_id).c_str());
+      boost::interprocess::open_only, get_sendq_name(id).c_str());
+}
+
+void Client::unmap_regions() {
+  for (const auto &kv : regions) {
+    const std::string name = get_region_name(id, kv.first);
+    boost::interprocess::shared_memory_object::remove(name.c_str());
+  }
 }
 
 class Daemon {
@@ -61,14 +85,14 @@ private:
 
 int Daemon::do_connect(const CtrlMsg &msg) {
   try {
-    if (_clients.find(msg.id) != _clients.end()) {
+    if (_clients.find(msg.id) != _clients.cend()) {
       std::cerr << "Client " << msg.id << " connected twice!" << std::endl;
       return -1;
     }
     // _clients[msg.id] = std::move(Client(msg.id));
     _clients.insert(std::make_pair(msg.id, Client(msg.id)));
     auto client = _clients.find(msg.id);
-    assert(client != _clients.end());
+    assert(client != _clients.cend());
     std::cout << "Client " << msg.id << " connected." << std::endl;
 
     CtrlMsg ret_msg { .op = CtrlOpCode::CONNECT, .ret = CtrlRetCode::CONN_SUCC };
@@ -100,7 +124,30 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
   return 0;
 }
 
-int Daemon::do_alloc(const CtrlMsg &msg) { return 0; }
+int Daemon::do_alloc(const CtrlMsg &msg) {
+  auto client = _clients.find(msg.id);
+  if (client == _clients.cend()) {
+    std::cerr << "Client " << msg.id << " didn't exist!" << std::endl;
+    return -1;
+  }
+
+  uint64_t region_id = client->second.new_region_id();
+  size_t region_size = kPageChunkSize;
+  const auto rwmode = boost::interprocess::read_write;
+  const std::string chunkname = get_region_name(client->second.id, region_id);
+  client->second.regions.insert(std::make_pair(
+      region_id,
+      std::make_shared<boost::interprocess::shared_memory_object>(
+          boost::interprocess::create_only, chunkname.c_str(), rwmode)));
+  client->second.regions.find(region_id)->second->truncate(region_size);
+
+  CtrlMsg ret_msg{.op = CtrlOpCode::ALLOC,
+                  .ret = CtrlRetCode::MEM_SUCC,
+                  .mmsg{.region_id = region_id, .size = region_size}};
+  client->second.tx_conn->send(&ret_msg, sizeof(ret_msg), 0);
+
+  return 0;
+}
 
 int Daemon::do_free(const CtrlMsg &msg) { return 0; }
 
