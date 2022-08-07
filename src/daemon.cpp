@@ -20,7 +20,7 @@ std::set<pid_t> clients;
 
 int do_connect(const CtrlMsg &msg) {
   try {
-    std::string q_name = "recv-" + std::to_string(msg.pid);
+    std::string q_name = get_recvq_name(msg.pid);
     message_queue q(open_only, q_name.c_str());
 
     if (clients.find(msg.pid) != clients.cend()) {
@@ -43,7 +43,7 @@ int do_connect(const CtrlMsg &msg) {
 
 int do_disconnect(const CtrlMsg &msg) {
   try {
-    std::string q_name = "recv-" + std::to_string(msg.pid);
+    std::string q_name = get_recvq_name(msg.pid);
     message_queue q(open_only, q_name.c_str());
 
     auto client = clients.find(msg.pid);
@@ -76,8 +76,8 @@ int do_free(const CtrlMsg &msg) {
 
 int server() {
   struct shm_remove {
-    shm_remove() { shared_memory_object::remove(kNameCtrlQ); }
-    ~shm_remove() { shared_memory_object::remove(kNameCtrlQ); }
+    shm_remove() { message_queue::remove(kNameCtrlQ); }
+    ~shm_remove() { message_queue::remove(kNameCtrlQ); }
   } remover;
   message_queue mq(open_or_create, kNameCtrlQ, kDaemonQDepth, sizeof(CtrlMsg));
 

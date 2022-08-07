@@ -32,3 +32,12 @@ struct CtrlMsg {
   CtrlRetCode ret;
   MemMsg mmsg;
 };
+
+
+static inline const std::string get_sendq_name(uint64_t id) {
+  return "sendq-" + std::to_string(id);
+}
+
+static inline const std::string get_recvq_name(uint64_t id) {
+  return "recvq-" + std::to_string(id);
+}
