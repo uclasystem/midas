@@ -1,5 +1,3 @@
-#include "boost/interprocess/detail/os_thread_functions.hpp"
-#include "boost/interprocess/exceptions.hpp"
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
@@ -16,49 +14,49 @@
 
 #include "utils.hpp"
 
-using namespace boost::interprocess;
-
 static inline uint64_t get_unique_id() {
-  auto pid = ipcdetail::get_current_process_id();
-  auto creation_time = ipcdetail::get_current_process_creation_time();
+  auto pid = boost::interprocess::ipcdetail::get_current_process_id();
+  auto creation_time = boost::interprocess::ipcdetail::get_current_process_creation_time();
 
   return static_cast<uint64_t>(pid);
 }
 
-class Client {
+class ResourceManager {
 public:
-  Client(const std::string &daemon_name = kNameCtrlQ) {
+  ResourceManager(const std::string &daemon_name = kNameCtrlQ) {
+    id = get_unique_id();
+    ctrlq = std::make_shared<boost::interprocess::message_queue>(
+        boost::interprocess::open_only, daemon_name.c_str());
+    sendq = std::make_shared<boost::interprocess::message_queue>(
+        boost::interprocess::create_only, get_sendq_name(id).c_str(), kClientQDepth,
+        sizeof(CtrlMsg));
+    recvq = std::make_shared<boost::interprocess::message_queue>(
+        boost::interprocess::create_only, get_recvq_name(id).c_str(), kClientQDepth,
+        sizeof(CtrlMsg));
     connect(daemon_name);
   };
-  ~Client() {
+  ~ResourceManager() {
     disconnect();
+    boost::interprocess::message_queue::remove(get_sendq_name(id).c_str());
+    boost::interprocess::message_queue::remove(get_recvq_name(id).c_str());
   }
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ);
   int disconnect();
 
   uint64_t id;
-  std::shared_ptr<message_queue> ctrlq;
-  std::shared_ptr<message_queue> sendq;
-  std::shared_ptr<message_queue> recvq;
+  std::shared_ptr<boost::interprocess::message_queue> ctrlq;
+  std::shared_ptr<boost::interprocess::message_queue> sendq;
+  std::shared_ptr<boost::interprocess::message_queue> recvq;
 };
 
-int Client::connect(const std::string &daemon_name) {
-  id = get_unique_id();
+int ResourceManager::connect(const std::string &daemon_name) {
   try {
-
-    // auto ctime = ipcdetail::get_current_process_creation_time();
-    ctrlq = std::make_shared<message_queue>(open_only, daemon_name.c_str());
-    sendq = std::make_shared<message_queue>(create_only, get_sendq_name(id).c_str(), kClientQDepth, sizeof(CtrlMsg));
-    recvq = std::make_shared<message_queue>(create_only, get_recvq_name(id).c_str(), kClientQDepth, sizeof(CtrlMsg));
-
     unsigned int prio = 0;
-    CtrlMsg msg;
-    msg.pid = ipcdetail::get_current_process_id();
-    msg.op = CtrlOpCode::CONNECT;
-    ctrlq->send(&msg, sizeof(CtrlMsg), prio);
-
     size_t recvd_size;
+    CtrlMsg msg {.id = id, .op = CtrlOpCode::CONNECT };
+
+    ctrlq->send(&msg, sizeof(CtrlMsg), prio);
     recvq->receive(&msg, sizeof(CtrlMsg), recvd_size, prio);
     if (recvd_size != sizeof(CtrlMsg)) {
       return -1;
@@ -69,22 +67,20 @@ int Client::connect(const std::string &daemon_name) {
       std::cerr << "Connection failed." << std::endl;
       exit(1);
     }
-  } catch (interprocess_exception &e) {
+  } catch (boost::interprocess::interprocess_exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
   return 0;
 }
 
-int Client::disconnect() {
+int ResourceManager::disconnect() {
   try{
     unsigned int prio = 0;
-    CtrlMsg msg;
-    msg.pid = id;
-    msg.op = CtrlOpCode::DISCONNECT;
-    ctrlq->send(&msg, sizeof(CtrlMsg), prio);
-
     size_t recvd_size;
+    CtrlMsg msg { .id = id, .op = CtrlOpCode::DISCONNECT };
+
+    ctrlq->send(&msg, sizeof(CtrlMsg), prio);
     recvq->receive(&msg, sizeof(CtrlMsg), recvd_size, prio);
     if (recvd_size != sizeof(CtrlMsg)) {
       return -1;
@@ -93,11 +89,9 @@ int Client::disconnect() {
       std::cout << "Connection destroyed." << std::endl;
     else {
       std::cerr << "Disconnection failed." << std::endl;
-      exit(1);
+      return -1;
     }
-    message_queue::remove(get_sendq_name(id).c_str());
-    message_queue::remove(get_recvq_name(id).c_str());
-  } catch (interprocess_exception &e) {
+  } catch (boost::interprocess::interprocess_exception &e) {
     std::cerr << e.what() << std::endl;
   }
 
@@ -105,6 +99,6 @@ int Client::disconnect() {
 }
 
 int main(int argc, char *argv[]) {
-  Client client;
+  ResourceManager rmanager;
   return 0;
 }
