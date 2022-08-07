@@ -81,8 +81,8 @@ public:
     MsgQueue::remove(get_recvq_name(_id).c_str());
   }
 
-  int Alloc(size_t size);
-  int Free(size_t size);
+  int AllocRegion(size_t size);
+  int FreeRegion(size_t size);
 
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ);
@@ -145,7 +145,7 @@ int ResourceManager::disconnect() {
   return 0;
 }
 
-int ResourceManager::Alloc(size_t size) {
+int ResourceManager::AllocRegion(size_t size) {
   CtrlMsg msg{.id = _id,
               .op = CtrlOpCode::ALLOC,
               .mmsg = {.size = static_cast<int64_t>(size)}};
@@ -178,7 +178,7 @@ int ResourceManager::Alloc(size_t size) {
   return 0;
 }
 
-int ResourceManager::Free(size_t size) {
+int ResourceManager::FreeRegion(size_t size) {
   size_t total_freed = 0;
   int nr_freed_chunks = 0;
   while (!_page_chunk_map.empty()) {
@@ -213,10 +213,10 @@ int main(int argc, char *argv[]) {
   cachebank::ResourceManager rmanager;
 
   for (int i = 0; i < 10; i++) {
-    rmanager.Alloc(cachebank::kPageChunkSize);
+    rmanager.AllocRegion(cachebank::kPageChunkSize);
   }
   for (int i = 0; i < 10; i++) {
-    rmanager.Free(cachebank::kPageChunkSize);
+    rmanager.FreeRegion(cachebank::kPageChunkSize);
   }
   return 0;
 }
