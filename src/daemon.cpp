@@ -15,6 +15,8 @@
 
 #include "utils.hpp"
 
+namespace cachebank {
+
 class Client {
 public:
   Client(uint64_t id_)
@@ -182,9 +184,10 @@ void Daemon::serve() {
     }
   }
 }
+}
 
 int main(int argc, char *argv[]) {
-  Daemon daemon;
+  cachebank::Daemon daemon;
   daemon.serve();
 
   return 0;

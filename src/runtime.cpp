@@ -15,6 +15,8 @@
 
 #include "utils.hpp"
 
+namespace cachebank {
+
 static inline uint64_t get_unique_id() {
   auto pid = boost::interprocess::ipcdetail::get_current_process_id();
   auto creation_time =
@@ -199,11 +201,16 @@ size_t ResourceManager::free_pagechunk(uint64_t region_id) {
   std::cout << "page_chunk_map size: " << _page_chunk_map.size() << std::endl;
   return size;
 }
+}
 
 int main(int argc, char *argv[]) {
-  ResourceManager rmanager;
+  cachebank::ResourceManager rmanager;
 
-  rmanager.Alloc(kPageChunkSize);
-  rmanager.Free(kPageChunkSize);
+  for (int i = 0; i < 10; i++) {
+    rmanager.Alloc(cachebank::kPageChunkSize);
+  }
+  for (int i = 0; i < 10; i++) {
+    rmanager.Free(cachebank::kPageChunkSize);
+  }
   return 0;
 }

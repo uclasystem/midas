@@ -2,6 +2,9 @@
 
 #include <cstdint>
 #include <sys/types.h>
+#include <string>
+
+namespace cachebank {
 
 constexpr static uint32_t kDaemonQDepth = 1024;
 constexpr static uint32_t kClientQDepth = 128;
@@ -43,8 +46,6 @@ struct CtrlMsg {
   MemMsg mmsg;
 };
 
-#include <string>
-
 static inline const std::string get_sendq_name(uint64_t id) {
   return "sendq-" + std::to_string(id);
 }
@@ -55,4 +56,5 @@ static inline const std::string get_recvq_name(uint64_t id) {
 
 static inline const std::string get_region_name(uint64_t pid, uint64_t rid) {
   return "region-" + std::to_string(pid) + "-" + std::to_string(rid);
+}
 }
