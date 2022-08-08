@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <string>
-#include <sys/types.h>
 
 namespace cachebank {
 
