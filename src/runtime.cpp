@@ -31,9 +31,9 @@ static inline uint64_t get_unique_id() {
   return static_cast<uint64_t>(pid);
 }
 
-class PageChunk {
+class Region {
 public:
-  PageChunk(uint64_t pid, uint64_t region_id)
+  Region(uint64_t pid, uint64_t region_id) noexcept
       : _pid(pid), _region_id(region_id), _alloc_bytes(0) {
     const auto rwmode = boost::interprocess::read_write;
     const std::string _shm_name = get_region_name(_pid, _region_id);
@@ -43,14 +43,14 @@ public:
     _shm_obj->get_size(_size);
   }
 
-  friend bool operator<(const PageChunk &lhs, const PageChunk &rhs) {
+  friend bool operator<(const Region &lhs, const Region &rhs) noexcept {
     return lhs._region_id < rhs._region_id;
   }
 
   inline void *Addr() const noexcept { return _shm_region->get_address(); }
-  inline uint64_t RegionID() const noexcept { return _region_id; }
+  inline uint64_t ID() const noexcept { return _region_id; }
   inline int64_t Size() const noexcept { return _size; }
-  inline int64_t AllocBytes() const noexcept { return _alloc_bytes; }
+  inline int64_t GetAllocBytes() const noexcept { return _alloc_bytes; }
 
 private:
   uint64_t _pid;
@@ -63,7 +63,7 @@ private:
 
 class ResourceManager {
 public:
-  ResourceManager(const std::string &daemon_name = kNameCtrlQ) {
+  ResourceManager(const std::string &daemon_name = kNameCtrlQ) noexcept {
     _id = get_unique_id();
     _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::open_only,
                                         daemon_name.c_str());
@@ -75,29 +75,29 @@ public:
                                         kClientQDepth, sizeof(CtrlMsg));
     connect(daemon_name);
   };
-  ~ResourceManager() {
+  ~ResourceManager() noexcept {
     disconnect();
     MsgQueue::remove(get_sendq_name(_id).c_str());
     MsgQueue::remove(get_recvq_name(_id).c_str());
   }
 
-  int AllocRegion(size_t size);
-  int FreeRegion(size_t size);
+  int AllocRegion(size_t size) noexcept;
+  int FreeRegion(size_t size) noexcept;
 
 private:
-  int connect(const std::string &daemon_name = kNameCtrlQ);
-  int disconnect();
-  size_t free_pagechunk(uint64_t region_id);
+  int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;
+  int disconnect() noexcept;
+  size_t free_Region(uint64_t region_id) noexcept;
 
   uint64_t _id;
   std::shared_ptr<MsgQueue> _ctrlq;
   std::shared_ptr<MsgQueue> _sendq;
   std::shared_ptr<MsgQueue> _recvq;
 
-  std::map<uint64_t, std::shared_ptr<PageChunk>> _page_chunk_map;
+  std::map<uint64_t, std::shared_ptr<Region>> _region_map;
 };
 
-int ResourceManager::connect(const std::string &daemon_name) {
+int ResourceManager::connect(const std::string &daemon_name) noexcept {
   try {
     unsigned int prio = 0;
     size_t recvd_size;
@@ -121,7 +121,7 @@ int ResourceManager::connect(const std::string &daemon_name) {
   return 0;
 }
 
-int ResourceManager::disconnect() {
+int ResourceManager::disconnect() noexcept {
   try {
     unsigned int prio = 0;
     size_t recvd_size;
@@ -145,7 +145,7 @@ int ResourceManager::disconnect() {
   return 0;
 }
 
-int ResourceManager::AllocRegion(size_t size) {
+int ResourceManager::AllocRegion(size_t size) noexcept {
   CtrlMsg msg{.id = _id,
               .op = CtrlOpCode::ALLOC,
               .mmsg = {.size = static_cast<int64_t>(size)}};
@@ -165,25 +165,24 @@ int ResourceManager::AllocRegion(size_t size) {
     return -1;
   }
 
-  assert(_page_chunk_map.find(ret_msg.mmsg.region_id) ==
-         _page_chunk_map.cend());
-  _page_chunk_map.insert(
-      std::make_pair(ret_msg.mmsg.region_id,
-                     std::make_shared<PageChunk>(_id, ret_msg.mmsg.region_id)));
-  auto pagechunk = _page_chunk_map[ret_msg.mmsg.region_id];
-  assert(pagechunk->Size() == ret_msg.mmsg.size);
+  assert(_region_map.find(ret_msg.mmsg.region_id) ==
+         _region_map.cend());
 
-  std::cout << "Allocated a page chunk: " << pagechunk->Addr() << " ["
-            << pagechunk->Size() << "]" << std::endl;
+  auto region = std::make_shared<Region>(_id, ret_msg.mmsg.region_id);
+  _region_map[ret_msg.mmsg.region_id] = region;
+  assert(region->Size() == ret_msg.mmsg.size);
+
+  std::cout << "Allocated a page chunk: " << region->Addr() << " ["
+            << region->Size() << "]" << std::endl;
   return 0;
 }
 
-int ResourceManager::FreeRegion(size_t size) {
+int ResourceManager::FreeRegion(size_t size) noexcept {
   size_t total_freed = 0;
   int nr_freed_chunks = 0;
-  while (!_page_chunk_map.empty()) {
-    auto pagechunk = _page_chunk_map.begin();
-    size_t freed_bytes = free_pagechunk(pagechunk->second->RegionID());
+  while (!_region_map.empty()) {
+    auto region_iter = _region_map.begin();
+    size_t freed_bytes = free_Region(region_iter->second->ID());
     total_freed += freed_bytes;
     nr_freed_chunks++;
     if (total_freed >= size)
@@ -194,17 +193,17 @@ int ResourceManager::FreeRegion(size_t size) {
   return 0;
 }
 
-size_t ResourceManager::free_pagechunk(uint64_t region_id) {
+size_t ResourceManager::free_Region(uint64_t region_id) noexcept {
   size_t size = 0;
-  auto pagechunk = _page_chunk_map.find(region_id);
-  if (pagechunk == _page_chunk_map.cend()) {
+  auto region_iter = _region_map.find(region_id);
+  if (region_iter == _region_map.cend()) {
     std::cerr << "Invalid region_id " << region_id << std::endl;
     return -1;
   }
 
-  _page_chunk_map.erase(region_id);
-  size = pagechunk->second->Size();
-  std::cout << "page_chunk_map size: " << _page_chunk_map.size() << std::endl;
+  _region_map.erase(region_id);
+  size = region_iter->second->Size();
+  std::cout << "page_chunk_map size: " << _region_map.size() << std::endl;
   return size;
 }
 } // namespace cachebank
