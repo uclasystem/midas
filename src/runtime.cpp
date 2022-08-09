@@ -36,7 +36,7 @@ public:
   Region(uint64_t pid, uint64_t region_id) noexcept
       : _pid(pid), _region_id(region_id), _alloc_bytes(0) {
     const auto rwmode = boost::interprocess::read_write;
-    const std::string _shm_name = get_region_name(_pid, _region_id);
+    const std::string _shm_name = utils::get_region_name(_pid, _region_id);
     _shm_obj = std::make_shared<SharedMemObj>(boost::interprocess::open_only,
                                               _shm_name.c_str(), rwmode);
     _shm_region = std::make_shared<MappedRegion>(*_shm_obj, rwmode);
@@ -68,17 +68,17 @@ public:
     _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::open_only,
                                         daemon_name.c_str());
     _sendq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                        get_sendq_name(_id).c_str(),
+                                        utils::get_sendq_name(_id).c_str(),
                                         kClientQDepth, sizeof(CtrlMsg));
     _recvq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                        get_recvq_name(_id).c_str(),
+                                        utils::get_recvq_name(_id).c_str(),
                                         kClientQDepth, sizeof(CtrlMsg));
     connect(daemon_name);
   };
   ~ResourceManager() noexcept {
     disconnect();
-    MsgQueue::remove(get_sendq_name(_id).c_str());
-    MsgQueue::remove(get_recvq_name(_id).c_str());
+    MsgQueue::remove(utils::get_sendq_name(_id).c_str());
+    MsgQueue::remove(utils::get_recvq_name(_id).c_str());
   }
 
   int AllocRegion(size_t size) noexcept;
@@ -165,8 +165,7 @@ int ResourceManager::AllocRegion(size_t size) noexcept {
     return -1;
   }
 
-  assert(_region_map.find(ret_msg.mmsg.region_id) ==
-         _region_map.cend());
+  assert(_region_map.find(ret_msg.mmsg.region_id) == _region_map.cend());
 
   auto region = std::make_shared<Region>(_id, ret_msg.mmsg.region_id);
   _region_map[ret_msg.mmsg.region_id] = region;

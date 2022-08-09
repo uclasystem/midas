@@ -45,6 +45,9 @@ struct CtrlMsg {
   MemMsg mmsg;
 };
 
+
+namespace utils {
+
 static inline const std::string get_sendq_name(uint64_t id) {
   return "sendq-" + std::to_string(id);
 }
@@ -56,4 +59,6 @@ static inline const std::string get_recvq_name(uint64_t id) {
 static inline const std::string get_region_name(uint64_t pid, uint64_t rid) {
   return "region-" + std::to_string(pid) + "-" + std::to_string(rid);
 }
+
+} // namespace utils
 } // namespace cachebank

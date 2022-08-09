@@ -51,9 +51,9 @@ void Client::connect() {
   /** Daemon connects its tx queue to the client's recvq, and its rx queue to
    * the client's sendq, respectively. */
   tx_conn = std::make_shared<MsgQueue>(boost::interprocess::open_only,
-                                       get_recvq_name(id).c_str());
+                                       utils::get_recvq_name(id).c_str());
   rx_conn = std::make_shared<MsgQueue>(boost::interprocess::open_only,
-                                       get_sendq_name(id).c_str());
+                                       utils::get_sendq_name(id).c_str());
 }
 
 std::pair<CtrlRetCode, MemMsg> Client::alloc_region(size_t size) {
@@ -62,7 +62,7 @@ std::pair<CtrlRetCode, MemMsg> Client::alloc_region(size_t size) {
 
   int64_t region_id = new_region_id();
   const auto rwmode = boost::interprocess::read_write;
-  const std::string chunkname = get_region_name(id, region_id);
+  const std::string chunkname = utils::get_region_name(id, region_id);
 
   if (regions.find(region_id) == regions.cend()) {
     int64_t actual_size;
@@ -114,7 +114,7 @@ std::pair<CtrlRetCode, MemMsg> Client::free_region(int64_t region_id) {
 
 void Client::unmap_regions() {
   for (const auto &kv : regions) {
-    const std::string name = get_region_name(id, kv.first);
+    const std::string name = utils::get_region_name(id, kv.first);
     SharedMemObj::remove(name.c_str());
   }
 }
@@ -217,7 +217,7 @@ int Daemon::do_free(const CtrlMsg &msg) {
 
   uint64_t region_id = msg.mmsg.region_id;
   size_t region_size = msg.mmsg.size;
-  const std::string chunkname = get_region_name(msg.id, region_id);
+  const std::string chunkname = utils::get_region_name(msg.id, region_id);
   auto &client = client_iter->second;
 
   auto ret_mmsg = client.free_region(region_id);
