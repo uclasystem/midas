@@ -1,14 +1,43 @@
-all: daemon runtime
-
+# CXXFLAGS += -std=gnu++20
 CXX = g++
+LDXX = g++
 
 INC += -Iinc
 INC += -I/home/yifan/tools/boost_1_79_0
 
-# CXXFLAGS += -std=gnu++20
+override LDFLAGS += -lrt -lpthread
 
-daemon: src/daemon.cpp
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ $^ -lrt -pthread
+lib_src = $(wildcard src/*.cpp)
+lib_src := $(filter-out $(wildcard src/*main.cpp),$(lib_src))
+lib_src := $(filter-out $(wildcard src/*slab.cpp),$(lib_src))
+lib_obj = $(lib_src:.cpp=.o)
 
-runtime: src/runtime.cpp
-	$(CXX) $(CXXFLAGS) $(INC) -o $@ $^ -lrt -pthread
+src = $(lib_src)
+obj = $(src:.cpp=.o)
+dep = $(obj:.o=.d)
+
+daemon_main_src = src/daemon_main.cpp
+daemon_main_obj = $(daemon_main_src:.cpp=.o)
+test_resource_manager_src = test/test_resource_manager.cpp
+test_resource_manager_obj = $(test_resource_manager_src:.cpp=.o)
+
+all: bin/daemon_main bin/test_resource_manager
+
+%.d: %.cpp
+	$(CXX) $(CXXFLAGS) $(INC) $< -MM -MT $(@:.d=.o) >$@
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS)  $(INC) -c $< -o $@
+
+bin/daemon_main: $(daemon_main_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_resource_manager: $(test_resource_manager_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $(dep)
+endif
+
+.PHONY: clean
+clean:
+	rm -f $(dep) src/*.o bin/*
