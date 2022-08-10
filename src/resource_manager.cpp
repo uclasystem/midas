@@ -16,6 +16,7 @@
 namespace cachebank {
 
 int ResourceManager::connect(const std::string &daemon_name) noexcept {
+  std::unique_lock<std::mutex> lk(_mtx);
   try {
     unsigned int prio = 0;
     size_t recvd_size;
@@ -40,6 +41,7 @@ int ResourceManager::connect(const std::string &daemon_name) noexcept {
 }
 
 int ResourceManager::disconnect() noexcept {
+  std::unique_lock<std::mutex> lk(_mtx);
   try {
     unsigned int prio = 0;
     size_t recvd_size;
@@ -64,6 +66,7 @@ int ResourceManager::disconnect() noexcept {
 }
 
 int64_t ResourceManager::AllocRegion(size_t size) noexcept {
+  std::unique_lock<std::mutex> lk(_mtx);
   CtrlMsg msg{.id = _id,
               .op = CtrlOpCode::ALLOC,
               .mmsg = {.size = static_cast<int64_t>(size)}};
@@ -89,6 +92,8 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
   auto region = std::make_shared<Region>(_id, region_id);
   _region_map[region_id] = region;
   assert(region->Size() == ret_msg.mmsg.size);
+  assert((reinterpret_cast<uint64_t>(region->Addr()) & kPageChunkAlignMask) ==
+         0);
 
   std::cout << "Allocated a page chunk: " << region->Addr() << " ["
             << region->Size() << "]" << std::endl;
@@ -96,6 +101,7 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
 }
 
 int64_t ResourceManager::FreeRegion(size_t size) noexcept {
+  std::unique_lock<std::mutex> lk(_mtx);
   size_t total_freed = 0;
   int nr_freed_chunks = 0;
   while (!_region_map.empty()) {
@@ -111,7 +117,8 @@ int64_t ResourceManager::FreeRegion(size_t size) noexcept {
   return 0;
 }
 
-size_t ResourceManager::free_region(uint64_t region_id) noexcept {
+/** This function is supposed to be called inside a locked section */
+inline size_t ResourceManager::free_region(uint64_t region_id) noexcept {
   size_t size = 0;
   auto region_iter = _region_map.find(region_id);
   if (region_iter == _region_map.cend()) {
@@ -124,4 +131,5 @@ size_t ResourceManager::free_region(uint64_t region_id) noexcept {
   std::cout << "page_chunk_map size: " << _region_map.size() << std::endl;
   return size;
 }
+
 } // namespace cachebank

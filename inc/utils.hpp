@@ -12,6 +12,8 @@ constexpr static char kNameCtrlQ[] = "daemon_ctrl_mq";
 constexpr static uint32_t kShmObjNameLen = 128;
 constexpr static uint32_t kPageSize = 4096;            // 4KB
 constexpr static uint32_t kPageChunkSize = 512 * 4096; // 2MB
+constexpr static uint32_t kPageChunkAlignMask = kPageChunkSize - 1;
+constexpr static uint64_t kVolatileSttAddr = 0x1'000'000'000;
 
 enum CtrlOpCode {
   CONNECT,

@@ -3,7 +3,10 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
+#include <cstddef>
 #include <map>
+#include <memory>
+#include <mutex>
 
 #include "utils.hpp"
 
@@ -31,8 +34,11 @@ public:
     const std::string _shm_name = utils::get_region_name(_pid, _region_id);
     _shm_obj = std::make_shared<SharedMemObj>(boost::interprocess::open_only,
                                               _shm_name.c_str(), rwmode);
-    _shm_region = std::make_shared<MappedRegion>(*_shm_obj, rwmode);
     _shm_obj->get_size(_size);
+    void *addr = reinterpret_cast<void *>(kVolatileSttAddr +
+                                          _region_id * kPageChunkSize);
+    _shm_region =
+        std::make_shared<MappedRegion>(*_shm_obj, rwmode, 0, _size, addr);
   }
 
   friend bool operator<(const Region &lhs, const Region &rhs) noexcept {
@@ -73,8 +79,30 @@ public:
     MsgQueue::remove(utils::get_recvq_name(_id).c_str());
   }
 
-  int64_t AllocRegion(size_t size) noexcept;
-  int64_t FreeRegion(size_t size) noexcept;
+  int64_t AllocRegion(size_t size = kPageChunkSize) noexcept;
+  int64_t FreeRegion(size_t size = kPageChunkSize) noexcept;
+  inline VRange GetRegion(int64_t region_id) noexcept {
+    std::unique_lock<std::mutex> lk(_mtx);
+    if (_region_map.find(region_id) == _region_map.cend())
+      return VRange();
+    auto &region = _region_map[region_id];
+    return VRange(region->Addr(), region->Size());
+  }
+
+  /* A thread safe way to create a global manager and get its reference. */
+  static inline ResourceManager *global_manager() noexcept {
+    static std::mutex _mtx;
+    static std::unique_ptr<ResourceManager> _rmanager(nullptr);
+
+    if (likely(_rmanager.get() != nullptr))
+      return _rmanager.get();
+    std::unique_lock<std::mutex> lk(_mtx);
+    if (unlikely(_rmanager.get() != nullptr))
+      return _rmanager.get();
+
+    _rmanager = std::make_unique<ResourceManager>();
+    return _rmanager.get();
+  }
 
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;
@@ -82,10 +110,13 @@ private:
   size_t free_region(uint64_t region_id) noexcept;
 
   uint64_t _id;
+  std::mutex _mtx;
+
   std::shared_ptr<MsgQueue> _ctrlq;
   std::shared_ptr<MsgQueue> _sendq;
   std::shared_ptr<MsgQueue> _recvq;
 
   std::map<int64_t, std::shared_ptr<Region>> _region_map;
 };
+
 } // namespace cachebank
