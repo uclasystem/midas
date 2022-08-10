@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
         rmanager->AllocRegion(cachebank::kPageChunkSize);
       }
       for (int i = 0; i < kNumRegions; i++) {
-        rmanager->FreeRegion(cachebank::kPageChunkSize);
+        rmanager->FreeRegions(cachebank::kPageChunkSize);
       }
     }));
   }

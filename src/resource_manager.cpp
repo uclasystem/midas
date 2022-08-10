@@ -131,13 +131,19 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
   return region_id;
 }
 
-int64_t ResourceManager::FreeRegion(size_t size) noexcept {
+void ResourceManager::FreeRegions(size_t size) noexcept {
   std::unique_lock<std::mutex> lk(_mtx);
   size_t total_freed = 0;
   int nr_freed_chunks = 0;
   while (!_region_map.empty()) {
     auto region_iter = _region_map.begin();
-    size_t freed_bytes = free_region(region_iter->second->ID());
+    int64_t freed_bytes = free_region(region_iter->second->ID());
+    if (freed_bytes == -1) {
+      std::cout << "Failed to free region " << region_iter->second->ID()
+                << std::endl;
+      // continue;
+      break;
+    }
     total_freed += freed_bytes;
     nr_freed_chunks++;
     if (total_freed >= size)
@@ -145,20 +151,37 @@ int64_t ResourceManager::FreeRegion(size_t size) noexcept {
   }
   std::cout << "Freed " << nr_freed_chunks << " page chunks (" << total_freed
             << "bytes)" << std::endl;
-  return 0;
 }
 
 /** This function is supposed to be called inside a locked section */
-inline size_t ResourceManager::free_region(uint64_t region_id) noexcept {
-  size_t size = 0;
+inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
   auto region_iter = _region_map.find(region_id);
   if (region_iter == _region_map.cend()) {
     std::cerr << "Invalid region_id " << region_id << std::endl;
     return -1;
   }
 
+  int64_t size = region_iter->second->Size();
+  try {
+    CtrlMsg msg{.id = _id,
+                .op = CtrlOpCode::FREE,
+                .mmsg = {.region_id = region_id, .size = size}};
+    _ctrlq->send(&msg, sizeof(msg), 0);
+
+    std::cout << "Free region " << region_id << std::endl;
+
+    CtrlMsg ack;
+    size_t recvd_size;
+    unsigned prio;
+    _recvq->receive(&ack, sizeof(ack), recvd_size, prio);
+    assert(recvd_size == sizeof(ack));
+    if (ack.op != CtrlOpCode::FREE || ack.ret != CtrlRetCode::MEM_SUCC)
+      return -1;
+  } catch (boost::interprocess::interprocess_exception &e) {
+    std::cerr << __LINE__ << ": " << e.what() << std::endl;
+  }
+
   _region_map.erase(region_id);
-  size = region_iter->second->Size();
   std::cout << "page_chunk_map size: " << _region_map.size() << std::endl;
   return size;
 }

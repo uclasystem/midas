@@ -34,11 +34,11 @@ public:
   ClientStatusCode status;
   std::shared_ptr<MsgQueue> tx_conn;
   std::shared_ptr<MsgQueue> rx_conn;
-  std::unordered_map<uint64_t, std::shared_ptr<SharedMemObj>> regions;
+  std::unordered_map<int64_t, std::shared_ptr<SharedMemObj>> regions;
 
 private:
   friend class Daemon;
-  inline uint64_t new_region_id() noexcept { return _region_cnt++; }
+  inline int64_t new_region_id() noexcept { return _region_cnt++; }
   void connect();
   std::pair<CtrlRetCode, MemMsg> alloc_region(size_t size);
   std::pair<CtrlRetCode, MemMsg> free_region(int64_t region_id);
@@ -68,7 +68,8 @@ std::pair<CtrlRetCode, MemMsg> Client::alloc_region(size_t size) {
     int64_t actual_size;
     auto region = std::make_shared<SharedMemObj>(
         boost::interprocess::create_only, chunkname.c_str(), rwmode);
-    regions.insert(std::make_pair(region_id, region));
+    regions[region_id] = region;
+
     region->truncate(size);
     region->get_size(actual_size);
 
@@ -91,12 +92,9 @@ std::pair<CtrlRetCode, MemMsg> Client::free_region(int64_t region_id) {
   int64_t actual_size;
 
   auto region_iter = regions.find(region_id);
-  assert(region_iter != regions.cend());
-  region_iter->second->get_size(actual_size);
-  regions.erase(region_id);
-
-  if (regions.find(region_id) != regions.cend()) {
+  if (region_iter != regions.end()) {
     /* Successfully find the region to be freed */
+    region_iter->second->get_size(actual_size);
     regions.erase(region_id);
 
     ret = CtrlRetCode::MEM_SUCC;

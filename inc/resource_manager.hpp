@@ -44,7 +44,7 @@ public:
   ~ResourceManager() noexcept;
 
   int64_t AllocRegion(size_t size = kPageChunkSize) noexcept;
-  int64_t FreeRegion(size_t size = kPageChunkSize) noexcept;
+  void FreeRegions(size_t size = kPageChunkSize) noexcept;
   inline VRange GetRegion(int64_t region_id) noexcept;
 
   static inline ResourceManager *global_manager() noexcept;
@@ -52,7 +52,7 @@ public:
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;
   int disconnect() noexcept;
-  size_t free_region(uint64_t region_id) noexcept;
+  size_t free_region(int64_t region_id) noexcept;
 
   uint64_t _id;
   std::mutex _mtx;
