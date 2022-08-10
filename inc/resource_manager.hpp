@@ -16,30 +16,9 @@ using SharedMemObj = boost::interprocess::shared_memory_object;
 using MsgQueue = boost::interprocess::message_queue;
 using MappedRegion = boost::interprocess::mapped_region;
 
-static inline uint64_t get_unique_id() {
-  auto pid = boost::interprocess::ipcdetail::get_current_process_id();
-  auto creation_time =
-      boost::interprocess::ipcdetail::get_current_process_creation_time();
-
-  // TODO: unique id should be the hash of pid and creation_time to avoid pid
-  // collision.
-  return static_cast<uint64_t>(pid);
-}
-
 class Region {
 public:
-  Region(uint64_t pid, uint64_t region_id) noexcept
-      : _pid(pid), _region_id(region_id), _alloc_bytes(0) {
-    const auto rwmode = boost::interprocess::read_write;
-    const std::string _shm_name = utils::get_region_name(_pid, _region_id);
-    _shm_obj = std::make_shared<SharedMemObj>(boost::interprocess::open_only,
-                                              _shm_name.c_str(), rwmode);
-    _shm_obj->get_size(_size);
-    void *addr = reinterpret_cast<void *>(kVolatileSttAddr +
-                                          _region_id * kPageChunkSize);
-    _shm_region =
-        std::make_shared<MappedRegion>(*_shm_obj, rwmode, 0, _size, addr);
-  }
+  Region(uint64_t pid, uint64_t region_id) noexcept;
 
   friend bool operator<(const Region &lhs, const Region &rhs) noexcept {
     return lhs._region_id < rhs._region_id;
@@ -61,48 +40,14 @@ private:
 
 class ResourceManager {
 public:
-  ResourceManager(const std::string &daemon_name = kNameCtrlQ) noexcept {
-    _id = get_unique_id();
-    _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::open_only,
-                                        daemon_name.c_str());
-    _sendq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                        utils::get_sendq_name(_id).c_str(),
-                                        kClientQDepth, sizeof(CtrlMsg));
-    _recvq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                        utils::get_recvq_name(_id).c_str(),
-                                        kClientQDepth, sizeof(CtrlMsg));
-    connect(daemon_name);
-  };
-  ~ResourceManager() noexcept {
-    disconnect();
-    MsgQueue::remove(utils::get_sendq_name(_id).c_str());
-    MsgQueue::remove(utils::get_recvq_name(_id).c_str());
-  }
+  ResourceManager(const std::string &daemon_name = kNameCtrlQ) noexcept;
+  ~ResourceManager() noexcept;
 
   int64_t AllocRegion(size_t size = kPageChunkSize) noexcept;
   int64_t FreeRegion(size_t size = kPageChunkSize) noexcept;
-  inline VRange GetRegion(int64_t region_id) noexcept {
-    std::unique_lock<std::mutex> lk(_mtx);
-    if (_region_map.find(region_id) == _region_map.cend())
-      return VRange();
-    auto &region = _region_map[region_id];
-    return VRange(region->Addr(), region->Size());
-  }
+  inline VRange GetRegion(int64_t region_id) noexcept;
 
-  /* A thread safe way to create a global manager and get its reference. */
-  static inline ResourceManager *global_manager() noexcept {
-    static std::mutex _mtx;
-    static std::unique_ptr<ResourceManager> _rmanager(nullptr);
-
-    if (likely(_rmanager.get() != nullptr))
-      return _rmanager.get();
-    std::unique_lock<std::mutex> lk(_mtx);
-    if (unlikely(_rmanager.get() != nullptr))
-      return _rmanager.get();
-
-    _rmanager = std::make_unique<ResourceManager>();
-    return _rmanager.get();
-  }
+  static inline ResourceManager *global_manager() noexcept;
 
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;
@@ -119,4 +64,5 @@ private:
   std::map<int64_t, std::shared_ptr<Region>> _region_map;
 };
 
+#include "impl/resource_manager.ipp"
 } // namespace cachebank

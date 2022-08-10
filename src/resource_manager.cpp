@@ -15,6 +15,37 @@
 
 namespace cachebank {
 
+Region::Region(uint64_t pid, uint64_t region_id) noexcept
+    : _pid(pid), _region_id(region_id), _alloc_bytes(0) {
+  const auto rwmode = boost::interprocess::read_write;
+  const std::string _shm_name = utils::get_region_name(_pid, _region_id);
+  _shm_obj = std::make_shared<SharedMemObj>(boost::interprocess::open_only,
+                                            _shm_name.c_str(), rwmode);
+  _shm_obj->get_size(_size);
+  void *addr =
+      reinterpret_cast<void *>(kVolatileSttAddr + _region_id * kPageChunkSize);
+  _shm_region =
+      std::make_shared<MappedRegion>(*_shm_obj, rwmode, 0, _size, addr);
+}
+
+ResourceManager::ResourceManager(const std::string &daemon_name) noexcept {
+  _id = get_unique_id();
+  _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::open_only,
+                                      daemon_name.c_str());
+  _sendq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
+                                      utils::get_sendq_name(_id).c_str(),
+                                      kClientQDepth, sizeof(CtrlMsg));
+  _recvq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
+                                      utils::get_recvq_name(_id).c_str(),
+                                      kClientQDepth, sizeof(CtrlMsg));
+  connect(daemon_name);
+};
+ResourceManager::~ResourceManager() noexcept {
+  disconnect();
+  MsgQueue::remove(utils::get_sendq_name(_id).c_str());
+  MsgQueue::remove(utils::get_recvq_name(_id).c_str());
+}
+
 int ResourceManager::connect(const std::string &daemon_name) noexcept {
   std::unique_lock<std::mutex> lk(_mtx);
   try {
