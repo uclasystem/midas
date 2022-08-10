@@ -124,7 +124,7 @@ public:
   Daemon(const std::string ctrlq_name = kNameCtrlQ) : _ctrlq_name(ctrlq_name) {
     MsgQueue::remove(_ctrlq_name.c_str());
     _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                        ctrlq_name.c_str(), kDaemonQDepth,
+                                        _ctrlq_name.c_str(), kDaemonQDepth,
                                         sizeof(CtrlMsg));
   }
   ~Daemon() { MsgQueue::remove(_ctrlq_name.c_str()); }
