@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "utils.hpp"
+#include "qpair.hpp"
 
 namespace cachebank {
 
@@ -25,36 +26,27 @@ class Daemon;
 class Client {
 public:
   Client(uint64_t id_)
-      : status(ClientStatusCode::INIT), id(id_), _region_cnt(0) {
-    connect();
+      : status(ClientStatusCode::INIT), id(id_), _region_cnt(0),
+      cq(utils::get_ackq_name(kNameCtrlQ, id), false),
+      txqp(std::to_string(id), false) {
   }
   ~Client() { unmap_regions(); }
 
   uint64_t id;
   ClientStatusCode status;
-  std::shared_ptr<MsgQueue> tx_conn;
-  std::shared_ptr<MsgQueue> rx_conn;
+  QSingle cq; // per-client completion queue for the ctrl queue
+  QPair txqp;
   std::unordered_map<int64_t, std::shared_ptr<SharedMemObj>> regions;
 
 private:
   friend class Daemon;
   inline int64_t new_region_id() noexcept { return _region_cnt++; }
-  void connect();
   std::pair<CtrlRetCode, MemMsg> alloc_region(size_t size);
   std::pair<CtrlRetCode, MemMsg> free_region(int64_t region_id);
   void unmap_regions();
 
   uint64_t _region_cnt;
 };
-
-void Client::connect() {
-  /** Daemon connects its tx queue to the client's recvq, and its rx queue to
-   * the client's sendq, respectively. */
-  tx_conn = std::make_shared<MsgQueue>(boost::interprocess::open_only,
-                                       utils::get_recvq_name(id).c_str());
-  rx_conn = std::make_shared<MsgQueue>(boost::interprocess::open_only,
-                                       utils::get_sendq_name(id).c_str());
-}
 
 std::pair<CtrlRetCode, MemMsg> Client::alloc_region(size_t size) {
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
@@ -119,7 +111,8 @@ void Client::unmap_regions() {
 
 class Daemon {
 public:
-  Daemon(const std::string ctrlq_name = kNameCtrlQ) : _ctrlq_name(ctrlq_name) {
+  Daemon(const std::string ctrlq_name = kNameCtrlQ)
+      : _ctrlq_name(utils::get_rq_name(ctrlq_name, true)) {
     MsgQueue::remove(_ctrlq_name.c_str());
     _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
                                         _ctrlq_name.c_str(), kDaemonQDepth,
@@ -155,7 +148,7 @@ int Daemon::do_connect(const CtrlMsg &msg) {
     std::cout << "Client " << msg.id << " connected." << std::endl;
 
     CtrlMsg ack{.op = CtrlOpCode::CONNECT, .ret = CtrlRetCode::CONN_SUCC};
-    client.tx_conn->send(&ack, sizeof(ack), 0);
+    client.cq.send(&ack, sizeof(ack));
   } catch (boost::interprocess::interprocess_exception &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -165,17 +158,17 @@ int Daemon::do_connect(const CtrlMsg &msg) {
 
 int Daemon::do_disconnect(const CtrlMsg &msg) {
   try {
-    auto client = _clients.find(msg.id);
-    if (client == _clients.cend()) {
+    auto client_iter = _clients.find(msg.id);
+    if (client_iter == _clients.cend()) {
       /* TODO: this might be some unregistered client. Probably we could try to
        * connect to it and send the ack back */
-      std::cerr << "Client " << msg.id << " didn't exist!" << std::endl;
+      std::cerr << "Client " << msg.id << " doesn't exist!" << std::endl;
       return -1;
     }
 
     CtrlMsg ret_msg{.op = CtrlOpCode::DISCONNECT,
                     .ret = CtrlRetCode::CONN_SUCC};
-    client->second.tx_conn->send(&ret_msg, sizeof(ret_msg), 0);
+    client_iter->second.cq.send(&ret_msg, sizeof(ret_msg));
 
     _clients.erase(msg.id);
     std::cout << "Client " << msg.id << " disconnected!" << std::endl;
@@ -200,7 +193,7 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
   auto ret_mmsg = client.alloc_region(msg.mmsg.size);
   CtrlMsg ret_msg{
       .op = CtrlOpCode::ALLOC, .ret = ret_mmsg.first, .mmsg = ret_mmsg.second};
-  client.tx_conn->send(&ret_msg, sizeof(ret_msg), 0);
+  client_iter->second.cq.send(&ret_msg, sizeof(ret_msg));
 
   return 0;
 }
@@ -221,7 +214,7 @@ int Daemon::do_free(const CtrlMsg &msg) {
   auto ret_mmsg = client.free_region(region_id);
   CtrlMsg ack{
       .op = CtrlOpCode::FREE, .ret = ret_mmsg.first, .mmsg = ret_mmsg.second};
-  client.tx_conn->send(&ack, sizeof(ack), 0);
+  client_iter->second.cq.send(&ack, sizeof(ack));
 
   return 0;
 }

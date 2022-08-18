@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 
+#include "qpair.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -19,8 +20,9 @@ using MappedRegion = boost::interprocess::mapped_region;
 class Region {
 public:
   Region(uint64_t pid, uint64_t region_id) noexcept;
+  ~Region() noexcept;
 
-  friend bool operator<(const Region &lhs, const Region &rhs) noexcept {
+  inline friend bool operator<(const Region &lhs, const Region &rhs) noexcept {
     return lhs._region_id < rhs._region_id;
   }
 
@@ -57,9 +59,8 @@ private:
   uint64_t _id;
   std::mutex _mtx;
 
-  std::shared_ptr<MsgQueue> _ctrlq;
-  std::shared_ptr<MsgQueue> _sendq;
-  std::shared_ptr<MsgQueue> _recvq;
+  QPair _txqp;
+  QPair _rxqp;
 
   std::map<int64_t, std::shared_ptr<Region>> _region_map;
 };

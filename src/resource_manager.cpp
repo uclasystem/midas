@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <thread>
 
+#include "qpair.hpp"
 #include "resource_manager.hpp"
 #include "utils.hpp"
 
@@ -28,34 +29,36 @@ Region::Region(uint64_t pid, uint64_t region_id) noexcept
       std::make_shared<MappedRegion>(*_shm_obj, rwmode, 0, _size, addr);
 }
 
-ResourceManager::ResourceManager(const std::string &daemon_name) noexcept {
-  _id = get_unique_id();
-  _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::open_only,
-                                      daemon_name.c_str());
-  _sendq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                      utils::get_sendq_name(_id).c_str(),
-                                      kClientQDepth, sizeof(CtrlMsg));
-  _recvq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                      utils::get_recvq_name(_id).c_str(),
-                                      kClientQDepth, sizeof(CtrlMsg));
+Region::~Region() {
+  SharedMemObj::remove(utils::get_region_name(_pid, _region_id).c_str());
+}
+
+ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
+    : _id(get_unique_id()),
+      _txqp(std::make_shared<QSingle>(utils::get_sq_name(daemon_name, false),
+                                      false),
+            std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, _id),
+                                      true)),
+      _rxqp(std::to_string(_id), true) {
+
   connect(daemon_name);
-};
+}
+
 ResourceManager::~ResourceManager() noexcept {
   disconnect();
-  MsgQueue::remove(utils::get_sendq_name(_id).c_str());
-  MsgQueue::remove(utils::get_recvq_name(_id).c_str());
+  _rxqp.destroy();
+  _txqp.RecvQ().destroy();
 }
 
 int ResourceManager::connect(const std::string &daemon_name) noexcept {
   std::unique_lock<std::mutex> lk(_mtx);
   try {
     unsigned int prio = 0;
-    size_t recvd_size;
     CtrlMsg msg{.id = _id, .op = CtrlOpCode::CONNECT};
 
-    _ctrlq->send(&msg, sizeof(CtrlMsg), prio);
-    _recvq->receive(&msg, sizeof(CtrlMsg), recvd_size, prio);
-    if (recvd_size != sizeof(CtrlMsg)) {
+    _txqp.send(&msg, sizeof(CtrlMsg));
+    int ret = _txqp.recv(&msg, sizeof(CtrlMsg));
+    if (ret) {
       return -1;
     }
     if (msg.op == CtrlOpCode::CONNECT && msg.ret == CtrlRetCode::CONN_SUCC)
@@ -75,12 +78,11 @@ int ResourceManager::disconnect() noexcept {
   std::unique_lock<std::mutex> lk(_mtx);
   try {
     unsigned int prio = 0;
-    size_t recvd_size;
     CtrlMsg msg{.id = _id, .op = CtrlOpCode::DISCONNECT};
 
-    _ctrlq->send(&msg, sizeof(CtrlMsg), prio);
-    _recvq->receive(&msg, sizeof(CtrlMsg), recvd_size, prio);
-    if (recvd_size != sizeof(CtrlMsg)) {
+    _txqp.send(&msg, sizeof(CtrlMsg));
+    int ret = _txqp.recv(&msg, sizeof(CtrlMsg));
+    if (ret) {
       return -1;
     }
     if (msg.op == CtrlOpCode::DISCONNECT && msg.ret == CtrlRetCode::CONN_SUCC)
@@ -101,15 +103,14 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
   CtrlMsg msg{.id = _id,
               .op = CtrlOpCode::ALLOC,
               .mmsg = {.size = static_cast<int64_t>(size)}};
-  _ctrlq->send(&msg, sizeof(msg), 0);
+  _txqp.send(&msg, sizeof(msg));
 
   unsigned prio;
-  size_t recvd_size;
   CtrlMsg ret_msg;
-  _recvq->receive(&ret_msg, sizeof(ret_msg), recvd_size, prio);
-  if (recvd_size != sizeof(ret_msg)) {
-    std::cerr << "ERROR [" << __LINE__ << "] : in recv msg, " << recvd_size
-              << " != " << sizeof(ret_msg) << std::endl;
+  int ret = _txqp.recv(&ret_msg, sizeof(ret_msg));
+  if (ret) {
+    std::cerr << "ERROR [" << __LINE__ << "] : in recv msg, ret: " << ret
+              << std::endl;
     return -1;
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
@@ -166,15 +167,14 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
     CtrlMsg msg{.id = _id,
                 .op = CtrlOpCode::FREE,
                 .mmsg = {.region_id = region_id, .size = size}};
-    _ctrlq->send(&msg, sizeof(msg), 0);
+    _txqp.send(&msg, sizeof(msg));
 
     std::cout << "Free region " << region_id << std::endl;
 
     CtrlMsg ack;
-    size_t recvd_size;
     unsigned prio;
-    _recvq->receive(&ack, sizeof(ack), recvd_size, prio);
-    assert(recvd_size == sizeof(ack));
+    int ret = _txqp.recv(&ack, sizeof(ack));
+    assert(ret == 0);
     if (ack.op != CtrlOpCode::FREE || ack.ret != CtrlRetCode::MEM_SUCC)
       return -1;
   } catch (boost::interprocess::interprocess_exception &e) {
@@ -185,5 +185,7 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
   std::cout << "page_chunk_map size: " << _region_map.size() << std::endl;
   return size;
 }
+
+#include "impl/resource_manager.ipp"
 
 } // namespace cachebank
