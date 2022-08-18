@@ -1,8 +1,10 @@
-#include "slab.hpp"
-#include "resource_manager.hpp"
-#include "utils.hpp"
 #include <cstddef>
 #include <iostream>
+
+#include "logging.hpp"
+#include "resource_manager.hpp"
+#include "slab.hpp"
+#include "utils.hpp"
 
 namespace cachebank {
 
@@ -40,7 +42,7 @@ inline void SlabRegion::push(void *addr) {
   slots = slot;
   nr_alloced--;
 
-  // std::cout << "push " << addr << std::endl;
+  LOG(kDebug) << "push " << addr;
 }
 
 inline void *SlabRegion::pop() {
@@ -62,10 +64,10 @@ void *SlabAllocator::alloc(uint32_t size) {
   uint32_t slab_size = get_slab_size(idx);
   assert(idx < kNumSlabClasses);
 
-  std::cout << slab_size << " " << idx << std::endl;
+  LOG(kDebug) << slab_size << " " << idx;
 
   for (auto &region : slab_regions[idx]) {
-    std::cout << region.full() << std::endl;
+    LOG(kDebug) << region.full();
     if (!region.full())
       return region.pop();
   }
@@ -93,7 +95,7 @@ void SlabAllocator::free(void *addr) {
       return;
     }
   }
-  std::cerr << "Impossible reach here!" << std::endl;
+  LOG(kError) << "Impossible reach here!";
 }
 
 thread_local std::vector<SlabRegion>

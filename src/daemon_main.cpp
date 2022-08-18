@@ -13,8 +13,9 @@
 #include <unordered_map>
 #include <utility>
 
-#include "utils.hpp"
+#include "logging.hpp"
 #include "qpair.hpp"
+#include "utils.hpp"
 
 namespace cachebank {
 
@@ -27,9 +28,8 @@ class Client {
 public:
   Client(uint64_t id_)
       : status(ClientStatusCode::INIT), id(id_), _region_cnt(0),
-      cq(utils::get_ackq_name(kNameCtrlQ, id), false),
-      txqp(std::to_string(id), false) {
-  }
+        cq(utils::get_ackq_name(kNameCtrlQ, id), false),
+        txqp(std::to_string(id), false) {}
   ~Client() { unmap_regions(); }
 
   uint64_t id;
@@ -70,8 +70,8 @@ std::pair<CtrlRetCode, MemMsg> Client::alloc_region(size_t size) {
     mm.size = actual_size;
   } else {
     /* Failed to find corresponding region */
-    std::cerr << "Client " << id << " has already allocated region "
-              << region_id << std::endl;
+    LOG(kError) << "Client " << id << " has already allocated region "
+                << region_id;
 
     ret = CtrlRetCode::MEM_FAIL;
   }
@@ -94,8 +94,7 @@ std::pair<CtrlRetCode, MemMsg> Client::free_region(int64_t region_id) {
     mm.size = actual_size;
   } else {
     /* Failed to find corresponding region */
-    std::cerr << "Client " << id << " doesn't have region " << region_id
-              << std::endl;
+    LOG(kError) << "Client " << id << " doesn't have region " << region_id;
     ret = CtrlRetCode::MEM_FAIL;
   }
 
@@ -135,7 +134,7 @@ private:
 int Daemon::do_connect(const CtrlMsg &msg) {
   try {
     if (_clients.find(msg.id) != _clients.cend()) {
-      std::cerr << "Client " << msg.id << " connected twice!" << std::endl;
+      LOG(kError) << "Client " << msg.id << " connected twice!";
       /* TODO: this might be some stale client. Probably we could try to
        * send the ack back */
       return -1;
@@ -145,12 +144,12 @@ int Daemon::do_connect(const CtrlMsg &msg) {
     auto client_iter = _clients.find(msg.id);
     assert(client_iter != _clients.cend());
     auto &client = client_iter->second;
-    std::cout << "Client " << msg.id << " connected." << std::endl;
+    LOG(kInfo) << "Client " << msg.id << " connected.";
 
     CtrlMsg ack{.op = CtrlOpCode::CONNECT, .ret = CtrlRetCode::CONN_SUCC};
     client.cq.send(&ack, sizeof(ack));
   } catch (boost::interprocess::interprocess_exception &e) {
-    std::cerr << e.what() << std::endl;
+    LOG(kError) << e.what();
   }
 
   return 0;
@@ -162,7 +161,7 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
     if (client_iter == _clients.cend()) {
       /* TODO: this might be some unregistered client. Probably we could try to
        * connect to it and send the ack back */
-      std::cerr << "Client " << msg.id << " doesn't exist!" << std::endl;
+      LOG(kError) << "Client " << msg.id << " doesn't exist!";
       return -1;
     }
 
@@ -171,9 +170,9 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
     client_iter->second.cq.send(&ret_msg, sizeof(ret_msg));
 
     _clients.erase(msg.id);
-    std::cout << "Client " << msg.id << " disconnected!" << std::endl;
+    LOG(kInfo) << "Client " << msg.id << " disconnected!";
   } catch (boost::interprocess::interprocess_exception &e) {
-    std::cerr << e.what() << std::endl;
+    LOG(kError) << e.what();
   }
 
   return 0;
@@ -184,7 +183,7 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
   auto client_iter = _clients.find(msg.id);
   if (client_iter == _clients.cend()) {
     /* TODO: same as in do_disconnect */
-    std::cerr << "Client " << msg.id << " doesn't exist!" << std::endl;
+    LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
   }
   auto &client = client_iter->second;
@@ -202,7 +201,7 @@ int Daemon::do_free(const CtrlMsg &msg) {
   auto client_iter = _clients.find(msg.id);
   if (client_iter == _clients.cend()) {
     /* TODO: same as in do_disconnect */
-    std::cerr << "Client " << msg.id << " doesn't exist!" << std::endl;
+    LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
   }
 
@@ -220,7 +219,7 @@ int Daemon::do_free(const CtrlMsg &msg) {
 }
 
 void Daemon::serve() {
-  std::cout << "Daemon starts listening..." << std::endl;
+  LOG(kInfo) << "Daemon starts listening...";
 
   while (true) {
     CtrlMsg msg;
@@ -231,7 +230,7 @@ void Daemon::serve() {
     if (recvd_size != sizeof(CtrlMsg)) {
       break;
     }
-    std::cout << "Daemon recved msg " << msg.op << std::endl;
+    LOG(kInfo) << "Daemon recved msg " << msg.op;
     switch (msg.op) {
     case CONNECT:
       do_connect(msg);
@@ -246,7 +245,7 @@ void Daemon::serve() {
       do_free(msg);
       break;
     default:
-      std::cerr << "Recved unknown message: " << msg.op << std::endl;
+      LOG(kError) << "Recved unknown message: " << msg.op;
     }
   }
 }
