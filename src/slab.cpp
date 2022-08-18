@@ -18,7 +18,7 @@ uint32_t SlabRegion::init() {
   hdr->slab_size = this->slab_size;
   // init freelist
   uint32_t i;
-  char *ptr = static_cast<char *>(stt_addr);
+  char *ptr = reinterpret_cast<char *>(stt_addr);
   ptr += slab_size;
   for (uint32_t i = 0; i < capacity; i++, ptr += slab_size) {
     push(ptr);

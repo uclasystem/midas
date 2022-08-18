@@ -55,7 +55,7 @@ struct VRange {
   size_t size;
 
   bool contains(const void *ptr) const noexcept {
-    return ptr > stt_addr && ptr < static_cast<char *>(stt_addr) + size;
+    return ptr > stt_addr && ptr < reinterpret_cast<char *>(stt_addr) + size;
   }
 };
 
