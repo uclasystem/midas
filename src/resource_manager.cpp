@@ -30,7 +30,7 @@ Region::Region(uint64_t pid, uint64_t region_id) noexcept
       std::make_shared<MappedRegion>(*_shm_obj, rwmode, 0, _size, addr);
 }
 
-Region::~Region() {
+Region::~Region() noexcept {
   SharedMemObj::remove(utils::get_region_name(_pid, _region_id).c_str());
 }
 
