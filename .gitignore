@@ -27,6 +27,7 @@
 *.lib
 
 # Executables
+bin/*
 *.exe
 *.out
 *.app
@@ -34,3 +35,6 @@
 # Clangd index
 **/.cache/*
 **/compile_commands.json
+
+# vscode
+**/.vscode/*
