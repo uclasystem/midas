@@ -42,7 +42,7 @@ inline void SlabRegion::push(void *addr) {
   slots = slot;
   nr_alloced--;
 
-  LOG(kDebug) << "push " << addr;
+  // LOG(kDebug) << "push " << addr;
 }
 
 inline void *SlabRegion::pop() {

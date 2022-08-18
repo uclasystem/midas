@@ -13,6 +13,7 @@
 #include "logging.hpp"
 #include "qpair.hpp"
 #include "resource_manager.hpp"
+#include "slab.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -40,7 +41,8 @@ ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, _id),
                                       true)),
-      _rxqp(std::to_string(_id), true) {
+      _rxqp(std::to_string(_id), true),
+      _allocator(std::make_shared<SlabAllocator>()) {
 
   connect(daemon_name);
 }
@@ -89,7 +91,7 @@ int ResourceManager::disconnect() noexcept {
     if (msg.op == CtrlOpCode::DISCONNECT && msg.ret == CtrlRetCode::CONN_SUCC)
       LOG(kInfo) << "Connection destroyed.";
     else {
-      LOG(kError)<< "Disconnection failed.";
+      LOG(kError) << "Disconnection failed.";
       return -1;
     }
   } catch (boost::interprocess::interprocess_exception &e) {
@@ -150,7 +152,7 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
       break;
   }
   LOG(kInfo) << "Freed " << nr_freed_chunks << " page chunks (" << total_freed
-            << "bytes)";
+             << "bytes)";
 }
 
 /** This function is supposed to be called inside a locked section */

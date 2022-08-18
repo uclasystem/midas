@@ -40,6 +40,8 @@ private:
   int64_t _alloc_bytes;
 };
 
+class SlabAllocator; /* defined in slab.hpp */
+
 class ResourceManager {
 public:
   ResourceManager(const std::string &daemon_name = kNameCtrlQ) noexcept;
@@ -50,6 +52,7 @@ public:
   inline VRange GetRegion(int64_t region_id) noexcept;
 
   static inline ResourceManager *global_manager() noexcept;
+  static inline SlabAllocator *global_allocator() noexcept;
 
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;
@@ -62,6 +65,7 @@ private:
   QPair _txqp;
   QPair _rxqp;
 
+  std::shared_ptr<SlabAllocator> _allocator;
   std::map<int64_t, std::shared_ptr<Region>> _region_map;
 };
 

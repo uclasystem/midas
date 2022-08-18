@@ -35,3 +35,7 @@ inline ResourceManager *ResourceManager::global_manager() noexcept {
   _rmanager = std::make_unique<ResourceManager>();
   return _rmanager.get();
 }
+
+inline SlabAllocator *ResourceManager::global_allocator() noexcept {
+  return global_manager()->_allocator.get();
+}
