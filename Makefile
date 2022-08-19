@@ -44,4 +44,4 @@ endif
 
 .PHONY: clean
 clean:
-	rm -f $(dep) src/*.o bin/*
+	rm -f $(dep) src/*.o test/*.o bin/*
