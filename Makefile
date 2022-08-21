@@ -21,8 +21,10 @@ test_resource_manager_src = test/test_resource_manager.cpp
 test_resource_manager_obj = $(test_resource_manager_src:.cpp=.o)
 test_slab_src = test/test_slab.cpp
 test_slab_obj = $(test_slab_src:.cpp=.o)
+test_sync_hashmap_src = test/test_sync_hashmap.cpp
+test_sync_hashmap_obj = $(test_sync_hashmap_src:.cpp=.o)
 
-all: bin/daemon_main bin/test_resource_manager bin/test_slab
+all: bin/daemon_main bin/test_resource_manager bin/test_slab bin/test_sync_hashmap
 
 %.d: %.cpp
 	$(CXX) $(CXXFLAGS) $(INC) $< -MM -MT $(@:.d=.o) >$@
@@ -36,6 +38,9 @@ bin/test_resource_manager: $(test_resource_manager_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_slab: $(test_slab_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_sync_hashmap: $(test_sync_hashmap_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 ifneq ($(MAKECMDGOALS),clean)
