@@ -57,24 +57,43 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(K1 k, V1 v) {
   auto *bucket_node = &_buckets[bucket_idx];
   BucketNode **prev_next = nullptr;
   auto &lock = _locks[bucket_idx];
+  auto *allocator = ResourceManager::global_allocator();
   lock.lock();
 
   while (bucket_node && bucket_node->pair) {
     if (key_hash == bucket_node->key_hash) {
       auto *pair = reinterpret_cast<Pair *>(bucket_node->pair);
       if (equaler(k, pair->first)) {
-        // replace the value with the new one
-        pair->second = std::forward<V1>(v);
-        lock.unlock();
-        return true;
+        // cannot replace in place because V1's size might change
+        if (!prev_next) {
+          if (!bucket_node->next) {
+            bucket_node->pair = nullptr;
+          } else {
+            auto *next = bucket_node->next;
+            *bucket_node = *next;
+            if (next->pair) {
+              next->pair->~Pair();
+              allocator->free(next->pair);
+            }
+            delete next;
+          }
+        } else {
+          *prev_next = bucket_node->next;
+          if (bucket_node->pair) {
+            bucket_node->pair->~Pair();
+            allocator->free(bucket_node->pair);
+          }
+          delete bucket_node;
+        }
       }
     }
     prev_next = &bucket_node->next;
     bucket_node = bucket_node->next;
   }
 
-  auto *allocator = ResourceManager::global_allocator();
-  auto *pair = allocator->alloc<Pair>(1);
+  // allocate 8 bytes more in case std::pair align K1 and V1
+  auto *pair =
+      reinterpret_cast<Pair *>(allocator->alloc(sizeof(k) + sizeof(v) + 8));
   if (!pair) {
     lock.unlock();
     return false;

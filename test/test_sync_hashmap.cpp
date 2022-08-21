@@ -12,15 +12,12 @@
 
 constexpr int kNBuckets = (1 << 20);
 constexpr int kNumThds = 10;
-constexpr int kNumObjs = 1024;
+constexpr int kNumObjs = 10240;
 constexpr int kKLen = 20;
-constexpr int kVLen = 2;
+constexpr int kVLen = 28;
 
-std::random_device rd;
-std::mt19937 mt(rd());
-std::uniform_int_distribution<int> dist('A', 'z');
-
-std::string random_str(uint32_t len) {
+std::string random_str(std::mt19937 &mt,
+                       std::uniform_int_distribution<int> &dist, uint32_t len) {
   std::string str = "";
   for (uint32_t i = 0; i < len; i++) {
     str += dist(mt);
@@ -42,10 +39,14 @@ int main(int argc, char *argv[]) {
   std::vector<std::thread> thds;
   for (int tid = 0; tid < kNumThds; tid++) {
     thds.push_back(std::thread([&, tid = tid]() {
+      std::random_device rd;
+      std::mt19937 mt(rd());
+      std::uniform_int_distribution<int> dist('A', 'z');
+
       std::unordered_map<K, V> kvs;
       for (int i = 0; i < kNumObjs; i++) {
-        K k = random_str(kKLen);
-        std::string v = random_str(kVLen);
+        K k = random_str(mt, dist, kKLen);
+        V v = random_str(mt, dist, kVLen);
         // K k = i + tid * kNumObjs;
         // V v = 1;
         kvs[k] = v;
@@ -58,10 +59,12 @@ int main(int argc, char *argv[]) {
         const K &k = pair.first;
         V &v = pair.second;
         V *v2 = hashmap->get(k);
-        // if (!v2 || *v2 != v)
-        //   std::cout << "Hash map get failed, key = " << k << "values: " <<
-        //   *v2
-        //             << " != " << v << std::endl;
+        if (!v2 || *v2 != v)
+          std::cout << "Hash map get failed, key = "
+                    << k
+                    << " values: " << *v2
+                    << " != " << v
+                    << std::endl;
       }
       for (auto &pair : kvs) {
         const K &k = pair.first;
