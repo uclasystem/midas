@@ -18,7 +18,7 @@ enum LogVerbosity {
 
 constexpr LogVerbosity kGlobalVerbose = kAll;
 constexpr bool kLogFlagTime = false;
-constexpr bool kLogFlagLoc = false;
+constexpr bool kLogFlagLoc = true;
 
 class Logger {
 public:
@@ -34,7 +34,7 @@ public:
     }
     std::cerr << "[" << verbose_str << "]";
     if (kLogFlagLoc) {
-      std::cerr << "(" << file << "/" << func << ":" << line << "):";
+      std::cerr << "(" << file << ":" << std::dec << line << ", in " << func << "()):";
     }
     std::cerr << " ";
   }
