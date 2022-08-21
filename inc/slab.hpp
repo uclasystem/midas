@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <sys/types.h>
 #include <vector>
 
@@ -9,12 +10,14 @@
 
 namespace cachebank {
 
+class SlabRegion;
 struct SlabHeader {
   uint32_t slab_id;
   uint32_t slab_size;
+  SlabRegion *region;
 };
 
-constexpr static uint32_t kAlignment = 8;
+constexpr static uint32_t kAlignment = 16;
 static_assert(sizeof(SlabHeader) % kAlignment == 0,
               "SlabHeader is not aligned correctly");
 
@@ -25,7 +28,9 @@ public:
       : VRange(addr, region_size), slab_id(slab_id_), slab_size(slab_size_),
         capacity(region_size / slab_size -
                  1 /* the first element is for SlabHeader */),
-        nr_alloced(capacity) {
+        nr_alloced(capacity), nr_freed(0),
+        ret_mtx(std::make_shared<std::mutex>()) {
+    // TODO: lazily init to save memory
     init();
   }
   void push(void *addr);
@@ -34,7 +39,10 @@ public:
   inline bool full() const noexcept { return nr_alloced == capacity; }
   inline uint32_t size() const noexcept { return nr_alloced; }
 
+  void evacuate(SlabRegion *dst) {}
+
   using VRange::contains;
+  friend class SlabAllocator;
 
 private:
   uint32_t init();
@@ -42,10 +50,15 @@ private:
   const uint32_t slab_size;
   const uint32_t capacity;
   uint32_t nr_alloced;
+  uint32_t nr_freed;
   struct FreeSlot {
     void *addr;
     FreeSlot *next;
-  } * slots;
+  };
+  FreeSlot *slots;
+
+  std::shared_ptr<std::mutex> ret_mtx;
+  FreeSlot *ret_slots;
 };
 
 class SlabAllocator {
@@ -59,15 +72,20 @@ public:
   static_assert(sizeof(SlabHeader) <= kMinSlabSize,
                 "SlabHeader is larger than kMinSlabSize");
 
-  static void *alloc(uint32_t size);
-  static void free(void *addr);
+  void *alloc(uint32_t size);
+  template <typename T> T *alloc(uint32_t cnt);
+  void free(void *addr);
+
+  void FreeRegion() {}
 
 private:
+  void *_alloc(uint32_t size);
   static inline uint32_t get_slab_idx(uint32_t size) noexcept;
   static inline uint32_t get_slab_size(uint32_t idx) noexcept;
-  static thread_local std::vector<SlabRegion> slab_regions[kNumSlabClasses];
+  static thread_local std::vector<std::shared_ptr<SlabRegion>>
+      slab_regions[kNumSlabClasses];
 };
 
-#include "impl/slab.ipp"
-
 } // namespace cachebank
+
+#include "impl/slab.ipp"

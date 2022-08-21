@@ -1,7 +1,6 @@
 #pragma once
 
-#include "utils.hpp"
-
+namespace cachebank {
 inline uint32_t SlabAllocator::get_slab_idx(uint32_t size) noexcept {
   uint32_t rounded_size = utils::round_up_power_of_two(size);
   assert(rounded_size <= kMaxSlabSize);
@@ -11,3 +10,9 @@ inline uint32_t SlabAllocator::get_slab_idx(uint32_t size) noexcept {
 inline uint32_t SlabAllocator::get_slab_size(uint32_t idx) noexcept {
   return kMinSlabSize << idx;
 }
+
+template <typename T> T *SlabAllocator::alloc(uint32_t cnt) {
+  return reinterpret_cast<T *>(_alloc(sizeof(T) * cnt));
+}
+
+} // namespace cachebank

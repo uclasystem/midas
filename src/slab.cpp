@@ -18,11 +18,13 @@ uint32_t SlabRegion::init() {
   SlabHeader *hdr = slab_header(stt_addr);
   hdr->slab_id = this->slab_id;
   hdr->slab_size = this->slab_size;
+  hdr->region = this;
+  // LOG(kDebug) << this;
   // init freelist
   uint32_t i;
   char *ptr = reinterpret_cast<char *>(stt_addr);
   ptr += slab_size;
-  for (uint32_t i = 0; i < capacity; i++, ptr += slab_size) {
+  for (i = 0; i < capacity; i++, ptr += slab_size) {
     push(ptr);
   }
 
@@ -36,18 +38,31 @@ inline void SlabRegion::push(void *addr) {
   /* YIFAN: this is actually unnecessary for the in-place slot list. Leave it
    * here in case later we change the design */
   slot->addr = addr;
-  slot->next = slots;
 
   /* Push the new slot into the front */
-  slots = slot;
-  nr_alloced--;
+  ret_mtx->lock();
+  slot->next = ret_slots;
+  ret_slots = slot;
+  nr_freed++;
+  ret_mtx->unlock();
 
   // LOG(kDebug) << "push " << addr;
 }
 
 inline void *SlabRegion::pop() {
-  if (unlikely(!slots || nr_alloced == capacity))
-    return nullptr;
+  if (unlikely(!slots || nr_alloced == capacity)) {
+    if (unlikely(!ret_slots))
+      return nullptr;
+    else { // slow path
+      ret_mtx->lock();
+      slots = ret_slots;
+      ret_slots = nullptr;
+      nr_alloced -= nr_freed;
+      nr_freed = 0;
+      ret_mtx->unlock();
+    }
+  }
+
   FreeSlot *slot = slots;
   slots = slot->next;
 
@@ -60,16 +75,20 @@ inline void *SlabRegion::pop() {
 }
 
 void *SlabAllocator::alloc(uint32_t size) {
+  return _alloc(size);
+}
+
+void *SlabAllocator::_alloc(uint32_t size) {
   uint32_t idx = get_slab_idx(size);
   uint32_t slab_size = get_slab_size(idx);
   assert(idx < kNumSlabClasses);
 
-  LOG(kDebug) << slab_size << " " << idx;
+  // LOG(kDebug) << slab_size << " " << idx;
 
   for (auto &region : slab_regions[idx]) {
-    LOG(kDebug) << region.full();
-    if (!region.full())
-      return region.pop();
+    // LOG(kDebug) << region.full();
+    if (!region->full())
+      return region->pop();
   }
 
   /* Slow path: allocate a new region */
@@ -79,25 +98,20 @@ void *SlabAllocator::alloc(uint32_t size) {
     return nullptr;
   VRange range = rmanager->GetRegion(rid);
   slab_regions[idx].push_back(
-      SlabRegion(idx, slab_size, range.stt_addr, range.size));
+      std::make_shared<SlabRegion>(idx, slab_size, range.stt_addr, range.size));
 
-  return slab_regions[idx].back().pop();
+  return slab_regions[idx].back()->pop();
 }
 
 void SlabAllocator::free(void *addr) {
   /* cannot equal since the first slot is the slab header */
   assert(reinterpret_cast<int64_t>(addr) > kVolatileSttAddr);
   SlabHeader *hdr = slab_header(addr);
-  uint32_t idx = hdr->slab_id;
-  for (auto &region : slab_regions[idx]) {
-    if (region.contains(addr)) {
-      region.push(addr);
-      return;
-    }
-  }
-  LOG(kError) << "Impossible reach here!";
+  auto *region = hdr->region;
+  // LOG(kDebug) << region;
+  region->push(addr);
 }
 
-thread_local std::vector<SlabRegion>
+thread_local std::vector<std::shared_ptr<SlabRegion>>
     SlabAllocator::slab_regions[kNumSlabClasses];
 } // namespace cachebank
