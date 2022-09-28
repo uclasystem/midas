@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace cachebank {
 
@@ -10,6 +11,7 @@ public:
   TransientPtr(void *ptr, size_t size);
   bool is_valid() const;
   bool set(void *ptr, size_t size); /* point to a transient addr. */
+  TransientPtr slice(int64_t offset, size_t size) const;
   /**
    * Ops with single transient reference (this).
    */

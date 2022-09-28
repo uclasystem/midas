@@ -5,13 +5,16 @@
 
 namespace cachebank {
 
+constexpr static uint32_t kNumCPUs = 128;
+
 constexpr static uint32_t kDaemonQDepth = 1024;
 constexpr static uint32_t kClientQDepth = 128;
 constexpr static char kNameCtrlQ[] = "daemon_ctrl_mq";
 
 constexpr static uint32_t kShmObjNameLen = 128;
 constexpr static uint32_t kPageSize = 4096;            // 4KB
-constexpr static uint32_t kPageChunkSize = 512 * 4096; // 2MB
+constexpr static uint32_t kPageChunkSize = 512 * 4096; // 2MB == Huge Page
+constexpr static uint32_t kRegionSize = kPageChunkSize;
 constexpr static uint64_t kPageChunkAlignMask = ~(kPageChunkSize - 1ull);
 constexpr static uint64_t kVolatileSttAddr = 0x01f'000'000'000;
 
@@ -61,6 +64,16 @@ struct VRange {
 
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
+
+// align must be power of 2.
+#define round_up_to_align(val, align) (((val) + ((align)-1)) & ~((align)-1))
+#define ptr_offset(ptr, offset) (reinterpret_cast<char *>(ptr) + (offset))
+
+#define get_bit32(word, bit) ((word) & (reinterpret_cast<uint32_t>(1) << (bit)))
+#define set_bit32(word, bit)                                                   \
+  ((word) | ~(reinterpret_cast<uint32_t>(1) << (bit)))
+#define clr_bit32(word, bit)                                                   \
+  ((word) & ~(reinterpret_cast<uint32_t>(1) << (bit)))
 
 namespace utils {
 

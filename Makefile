@@ -1,9 +1,10 @@
 # CXXFLAGS += -std=gnu++20
-CXX = g++
-LDXX = g++
+# CXXFLAGS += -g
+CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
+LDXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
 
 INC += -Iinc
-INC += -I/home/yifan/tools/boost_1_79_0
+INC += -I/mnt/ssd/yifan/tools/boost_1_79_0
 
 override LDFLAGS += -lrt -lpthread
 
@@ -23,8 +24,10 @@ test_slab_src = test/test_slab.cpp
 test_slab_obj = $(test_slab_src:.cpp=.o)
 test_sync_hashmap_src = test/test_sync_hashmap.cpp
 test_sync_hashmap_obj = $(test_sync_hashmap_src:.cpp=.o)
+test_log_src = test/test_log.cpp
+test_log_obj = $(test_log_src:.cpp=.o)
 
-all: bin/daemon_main bin/test_resource_manager bin/test_slab bin/test_sync_hashmap
+all: bin/daemon_main bin/test_resource_manager bin/test_slab bin/test_sync_hashmap bin/test_log
 
 %.d: %.cpp
 	$(CXX) $(CXXFLAGS) $(INC) $< -MM -MT $(@:.d=.o) >$@
@@ -41,6 +44,9 @@ bin/test_slab: $(test_slab_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_sync_hashmap: $(test_sync_hashmap_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_log: $(test_log_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 ifneq ($(MAKECMDGOALS),clean)
