@@ -26,7 +26,7 @@ Region::Region(uint64_t pid, uint64_t region_id) noexcept
                                             _shm_name.c_str(), rwmode);
   _shm_obj->get_size(_size);
   void *addr =
-      reinterpret_cast<void *>(kVolatileSttAddr + _region_id * kPageChunkSize);
+      reinterpret_cast<void *>(kVolatileSttAddr + _region_id * kRegionSize);
   _shm_region =
       std::make_shared<MappedRegion>(*_shm_obj, rwmode, 0, _size, addr);
 }

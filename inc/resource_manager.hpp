@@ -47,8 +47,8 @@ public:
   ResourceManager(const std::string &daemon_name = kNameCtrlQ) noexcept;
   ~ResourceManager() noexcept;
 
-  int64_t AllocRegion(size_t size = kPageChunkSize) noexcept;
-  void FreeRegions(size_t size = kPageChunkSize) noexcept;
+  int64_t AllocRegion(size_t size = kRegionSize) noexcept;
+  void FreeRegions(size_t size = kRegionSize) noexcept;
   inline VRange GetRegion(int64_t region_id) noexcept;
 
   static inline ResourceManager *global_manager() noexcept;
@@ -69,5 +69,6 @@ private:
   std::map<int64_t, std::shared_ptr<Region>> _region_map;
 };
 
-#include "impl/resource_manager.ipp"
 } // namespace cachebank
+
+#include "impl/resource_manager.ipp"
