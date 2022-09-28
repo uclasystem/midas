@@ -1,12 +1,13 @@
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 
 #include "log.hpp"
 
 namespace cachebank {
 
-inline TransientPtr LogChunk::alloc(size_t size) {
+inline std::optional<TransientPtr> LogChunk::alloc(size_t size) {
   if (pos_ + kObjHdrSize + size > start_addr_ + kLogChunkSize)
     goto failed;
   else {
@@ -22,7 +23,7 @@ inline TransientPtr LogChunk::alloc(size_t size) {
   }
 
 failed:
-  return TransientPtr();
+  return std::nullopt;
 }
 
 inline bool LogChunk::free(size_t addr) {
@@ -46,8 +47,8 @@ uint64_t LogRegion::allocChunk() {
   return addr;
 }
 
+// must be called under lock protection
 bool LogAllocator::allocRegion() {
-  std::unique_lock<std::mutex> ul(lock_);
   auto *rmanager = ResourceManager::global_manager();
   int rid = rmanager->AllocRegion();
   if (rid == -1)
@@ -63,46 +64,48 @@ failed:
   return false;
 }
 
-bool LogAllocator::allocChunk() {
-retry:
-  std::unique_lock<std::mutex> ul(lock_);
-  if (curr_region_ >= vRegions_.size()) {
-    ul.unlock();
-    allocRegion();
-    goto retry;
-  }
-  uint64_t chunk_addr = vRegions_[curr_region_]->allocChunk();
-  if (chunk_addr == -ENOMEM) {
-    curr_region_++;
-    ul.unlock();
-    goto retry;
-  }
+inline bool LogAllocator::_allocChunk() {
+  if (vRegions_.empty())
+    return false;
+  uint64_t chunk_addr = vRegions_.back().get()->allocChunk();
+  if (chunk_addr == -ENOMEM)
+    return false;
   vLogChunks_.push_back(std::make_shared<LogChunk>(chunk_addr));
   return true;
-
-failed:
-  return false;
 }
 
-TransientPtr LogAllocator::alloc(size_t size) {
-retry:
-  if (curr_chunk_ >= vLogChunks_.size()) {
-    allocChunk();
-    goto retry;
+bool LogAllocator::allocChunk() {
+  std::unique_lock<std::mutex> ul(lock_);
+  if (_allocChunk())
+    return true;
+  if (!allocRegion() || !_allocChunk())
+    return false;
+  pcab = vLogChunks_.back();
+  return true;
+}
+
+std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
+  if (pcab.get()) {
+    auto ret = pcab->alloc(size);
+    if (ret)
+      return ret;
+    else
+      pcab->seal();
   }
-  auto chunk = vLogChunks_[curr_chunk_];
-  auto tptr = chunk->alloc(size);
-  if (!tptr.is_valid()) {
-    curr_chunk_++;
-    goto retry;
-  }
-  return tptr;
+
+  if (!allocChunk())
+    return std::nullopt;
+
+  auto ret = pcab->alloc(size);
+  assert(ret);
+  return ret;
 }
 
 bool LogAllocator::free(TransientPtr &ptr) {
   if (!ptr.is_valid())
     goto failed;
   else {
+    // get object header with offse
     TransientPtr hdrPtr = ptr.slice(-sizeof(ObjectHdr), sizeof(ObjectHdr));
     uint32_t flags = 1 << ObjectHdr::kInvalidFlags;
     if (!hdrPtr.copy_from(&flags, sizeof(flags), offsetof(ObjectHdr, flags)))
@@ -112,5 +115,7 @@ bool LogAllocator::free(TransientPtr &ptr) {
 failed:
   return false;
 }
+
+thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;
 
 } // namespace cachebank

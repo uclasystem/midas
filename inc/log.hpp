@@ -6,6 +6,7 @@
 #include <memory>
 #include <sys/types.h>
 #include <vector>
+#include <optional>
 
 #include "resource_manager.hpp"
 #include "utils.hpp"
@@ -16,8 +17,10 @@ namespace cachebank {
 class LogChunk {
 public:
   LogChunk(uint64_t start_addr);
-  TransientPtr alloc(size_t size);
+  std::optional<TransientPtr> alloc(size_t size);
   bool free(uint64_t ptr);
+  void seal() noexcept;
+  bool full() const noexcept;
 
 private:
   void init(uint64_t start_addr);
@@ -31,22 +34,23 @@ private:
                 "Object header size must large than sizeof(ObjectHdr)");
 
   std::mutex lock_;
+  bool full_;
   uint64_t start_addr_;
   uint64_t pos_;
 };
 
 class LogRegion {
 public:
-  LogRegion(uint64_t addr) : start_addr_(addr), pos_(addr) { init(); }
+  LogRegion(uint64_t addr);
   uint64_t allocChunk();
 
-  inline bool full() const noexcept { return pos_ == start_addr_ + kRegionSize; }
-  inline uint32_t size() const noexcept { return pos_ / kPageChunkSize; }
+  inline bool full() const noexcept;
+  inline uint32_t size() const noexcept;
 
   void evacuate(LogRegion *dst) {}
 
 private:
-  uint32_t init() { return 0; };
+  void init();
   uint64_t start_addr_;
   uint64_t pos_;
 };
@@ -54,12 +58,13 @@ private:
 class LogAllocator {
 public:
   LogAllocator();
-  TransientPtr alloc(size_t size);
+  std::optional<TransientPtr> alloc(size_t size);
   bool free(TransientPtr &ptr);
 
 private:
   bool allocRegion();
   bool allocChunk();
+  bool _allocChunk();
 
   std::mutex lock_;
   std::vector<std::shared_ptr<LogRegion>> vRegions_;
