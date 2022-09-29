@@ -5,6 +5,8 @@
 
 #include "slab.hpp"
 
+#ifdef ENABLE_SLAB
+
 constexpr int kNumThds = 10;
 constexpr int kNumObjs = 1024;
 
@@ -35,3 +37,11 @@ int main(int argc, char *argv[]) {
     thd.join();
   return 0;
 }
+
+#else // !ENABLE_SLAB
+
+int main() {
+  return 0;
+}
+
+#endif // ENABLE_SLAB

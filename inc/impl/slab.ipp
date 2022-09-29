@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef ENABLE_SLAB
+
 namespace cachebank {
 inline uint32_t SlabAllocator::get_slab_idx(uint32_t size) noexcept {
   uint32_t rounded_size = utils::round_up_power_of_two(size);
@@ -33,3 +35,5 @@ inline SlabAllocator *SlabAllocator::global_allocator() {
   return _allocator.get();
 }
 } // namespace cachebank
+
+#endif // ENABLE_SLAB

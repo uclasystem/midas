@@ -6,6 +6,8 @@
 #include "slab.hpp"
 #include "utils.hpp"
 
+#ifdef ENABLE_SLAB
+
 namespace cachebank {
 
 static inline SlabHeader *slab_header(const void *ptr) noexcept {
@@ -112,3 +114,5 @@ thread_local std::vector<std::shared_ptr<SlabRegion>>
     SlabAllocator::slab_regions[kNumSlabClasses];
 
 } // namespace cachebank
+
+#endif // ENABLE_SLAB

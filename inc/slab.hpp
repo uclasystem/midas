@@ -1,3 +1,9 @@
+#pragma once
+// #define ENABLE_SLAB
+#undef ENABLE_SLAB // disable slab allocator by default
+
+#ifdef ENABLE_SLAB
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -91,3 +97,5 @@ private:
 } // namespace cachebank
 
 #include "impl/slab.ipp"
+
+#endif // ENABLE_SLAB
