@@ -38,8 +38,4 @@ inline ResourceManager *ResourceManager::global_manager() noexcept {
   return _rmanager.get();
 }
 
-inline SlabAllocator *ResourceManager::global_allocator() noexcept {
-  return global_manager()->_allocator.get();
-}
-
 } // namespace cachebank

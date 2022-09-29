@@ -13,7 +13,6 @@
 #include "logging.hpp"
 #include "qpair.hpp"
 #include "resource_manager.hpp"
-#include "slab.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -41,9 +40,7 @@ ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, _id),
                                       true)),
-      _rxqp(std::to_string(_id), true),
-      _allocator(std::make_shared<SlabAllocator>()) {
-
+      _rxqp(std::to_string(_id), true) {
   connect(daemon_name);
 }
 

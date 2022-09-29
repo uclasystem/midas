@@ -74,10 +74,6 @@ inline void *SlabRegion::pop() {
   return slot;
 }
 
-void *SlabAllocator::alloc(uint32_t size) {
-  return _alloc(size);
-}
-
 void *SlabAllocator::_alloc(uint32_t size) {
   uint32_t idx = get_slab_idx(size);
   uint32_t slab_size = get_slab_size(idx);
@@ -114,4 +110,5 @@ void SlabAllocator::free(void *addr) {
 
 thread_local std::vector<std::shared_ptr<SlabRegion>>
     SlabAllocator::slab_regions[kNumSlabClasses];
+
 } // namespace cachebank

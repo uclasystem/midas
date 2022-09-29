@@ -78,6 +78,8 @@ public:
 
   void FreeRegion() {}
 
+  static inline SlabAllocator *global_allocator();
+
 private:
   void *_alloc(uint32_t size);
   static inline uint32_t get_slab_idx(uint32_t size) noexcept;

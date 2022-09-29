@@ -3,15 +3,13 @@
 #include <thread>
 #include <vector>
 
-#include "resource_manager.hpp"
 #include "slab.hpp"
 
 constexpr int kNumThds = 10;
 constexpr int kNumObjs = 1024;
 
 int main(int argc, char *argv[]) {
-  auto *rmanager = cachebank::ResourceManager::global_manager();
-  auto *allocator = cachebank::ResourceManager::global_allocator();
+  auto *allocator = cachebank::SlabAllocator::global_allocator();
 
   std::random_device rd;
   std::mt19937 rand(rd());
