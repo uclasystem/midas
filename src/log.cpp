@@ -4,6 +4,7 @@
 #include <mutex>
 
 #include "log.hpp"
+#include "object.hpp"
 
 namespace cachebank {
 
@@ -30,8 +31,11 @@ inline bool LogChunk::free(size_t addr) {
   auto hdrPtr =
       TransientPtr(reinterpret_cast<ObjectHdr *>(addr - sizeof(ObjectHdr)),
                    sizeof(ObjectHdr));
-  uint32_t flags = ObjectHdr::kInvalidFlags;
-  if (!hdrPtr.copy_from(&flags, sizeof(flags), offsetof(ObjectHdr, flags)))
+  ObjectHdr hdr;
+  if (!hdrPtr.copy_to(&hdr, sizeof(ObjectHdr)))
+    goto failed;
+  hdr.clr_present();
+  if (!hdrPtr.copy_from(&hdr, sizeof(ObjectHdr)))
     goto failed;
 
 failed:
@@ -48,40 +52,51 @@ uint64_t LogRegion::allocChunk() {
 }
 
 // must be called under lock protection
-bool LogAllocator::allocRegion() {
+std::shared_ptr<LogRegion> LogAllocator::getRegion() {
+  if (!vRegions_.empty()) {
+    auto region = vRegions_.back();
+    if (!region->full())
+      return region;
+  }
+
+  // alloc a new region
   auto *rmanager = ResourceManager::global_manager();
   int rid = rmanager->AllocRegion();
   if (rid == -1)
-    goto failed;
-  else {
-    VRange range = rmanager->GetRegion(rid);
-    vRegions_.push_back(std::make_shared<LogRegion>(
-        reinterpret_cast<uint64_t>(range.stt_addr)));
+    return nullptr;
+  VRange range = rmanager->GetRegion(rid);
+
+  auto region =
+      std::make_shared<LogRegion>(reinterpret_cast<uint64_t>(range.stt_addr));
+  vRegions_.push_back(region);
+
+  return region;
+}
+
+std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
+  std::unique_lock<std::mutex> ul(lock_);
+  uint64_t chunk_addr = -ENOMEM;
+  auto region = getRegion();
+  if (region) {
+    chunk_addr = region->allocChunk();
+    if (chunk_addr == -ENOMEM)
+      region->seal();
+    else
+      goto done;
   }
 
-  return true;
-failed:
-  return false;
-}
+  region = getRegion();
+  if (!region)
+    return nullptr;
 
-inline bool LogAllocator::_allocChunk() {
-  if (vRegions_.empty())
-    return false;
-  uint64_t chunk_addr = vRegions_.back().get()->allocChunk();
+  chunk_addr = region->allocChunk();
   if (chunk_addr == -ENOMEM)
-    return false;
-  vLogChunks_.push_back(std::make_shared<LogChunk>(chunk_addr));
-  return true;
-}
+    return nullptr;
 
-bool LogAllocator::allocChunk() {
-  std::unique_lock<std::mutex> ul(lock_);
-  if (_allocChunk())
-    return true;
-  if (!allocRegion() || !_allocChunk())
-    return false;
-  pcab = vLogChunks_.back();
-  return true;
+done:
+  auto chunk = std::make_shared<LogChunk>(chunk_addr);
+  vLogChunks_.push_back(chunk);
+  return chunk;
 }
 
 std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
@@ -89,13 +104,15 @@ std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
     auto ret = pcab->alloc(size);
     if (ret)
       return ret;
-    else
-      pcab->seal();
+    // current pcab is full
+    pcab->seal();
   }
-
-  if (!allocChunk())
+  // slowpath
+  auto chunk = allocChunk();
+  if (!chunk)
     return std::nullopt;
 
+  pcab = chunk;
   auto ret = pcab->alloc(size);
   assert(ret);
   return ret;
@@ -103,17 +120,17 @@ std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
 
 bool LogAllocator::free(TransientPtr &ptr) {
   if (!ptr.is_valid())
-    goto failed;
-  else {
-    // get object header with offse
-    TransientPtr hdrPtr = ptr.slice(-sizeof(ObjectHdr), sizeof(ObjectHdr));
-    uint32_t flags = 1 << ObjectHdr::kInvalidFlags;
-    if (!hdrPtr.copy_from(&flags, sizeof(flags), offsetof(ObjectHdr, flags)))
-      goto failed;
-    return true;
-  }
-failed:
-  return false;
+    return false;
+  // get object header with offset
+  TransientPtr hdrPtr = ptr.slice(-sizeof(ObjectHdr), sizeof(ObjectHdr));
+  // uint32_t flags = 1 << ObjectHdr::kInvalidFlags;
+  ObjectHdr hdr;
+  if (!hdrPtr.copy_to(&hdr, sizeof(ObjectHdr)))
+    return false;
+  hdr.clr_present();
+  if (!hdrPtr.copy_from(&hdr, sizeof(ObjectHdr)))
+    return false;
+  return true;
 }
 
 thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;

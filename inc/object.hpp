@@ -9,12 +9,15 @@ struct ObjectHdr {
   uint32_t size;
   uint32_t flags;
 
-  void init();
-  void set(uint32_t size_);
+  void init() noexcept;
+  void set(uint32_t size_) noexcept;
 
-  void set_rref(uint64_t addr);
-  uint64_t get_rref() const;
+  void set_rref(uint64_t addr) noexcept;
+  uint64_t get_rref() const noexcept;
 
+  void clr_present() noexcept;
+
+private:
   constexpr static uint32_t kInvalidHdr = 0x1f1f1f1f;
   constexpr static uint32_t kInvalidFlags = 0x0;
   constexpr static uint32_t kPresentBit = 0;

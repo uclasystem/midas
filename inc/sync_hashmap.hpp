@@ -1,7 +1,10 @@
 #pragma once
 
 #include <mutex>
+#include <utility>
 #include <vector>
+
+#include "transient_ptr.hpp"
 
 namespace cachebank {
 
@@ -14,7 +17,8 @@ public:
   SyncHashMap();
 
   using Pair = std::pair<const Key, Tp>;
-  template <typename K1> Tp *get(K1 &&key);
+  template <typename K1> std::unique_ptr<Tp> get(K1 &&key);
+  // template <typename K1> bool get(K1 &&key, Tp &v);
   template <typename K1, typename Tp1> bool set(K1 key, Tp1 v);
   template <typename K1> bool remove(K1 &&key);
   // std::vector<Pair> get_all_pairs();
@@ -22,7 +26,7 @@ public:
 private:
   struct BucketNode {
     uint64_t key_hash;
-    Pair *pair;
+    TransientPtr pair;
     BucketNode *next;
   };
   Lock _locks[NBuckets];

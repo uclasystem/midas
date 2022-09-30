@@ -1,6 +1,8 @@
 #pragma once
 
-#include "resource_manager.hpp"
+#include <memory>
+
+#include "log.hpp"
 
 namespace cachebank {
 
@@ -10,7 +12,7 @@ template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap() {
   for (size_t i = 0; i < NBuckets; i++) {
-    _buckets[i].pair = nullptr;
+    _buckets[i].pair.reset();
     _buckets[i].next = nullptr;
   }
 }
@@ -18,27 +20,56 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap() {
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 template <typename K1>
-Tp *SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
+std::unique_ptr<Tp>
+SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
   auto hasher = Hash();
   auto key_hash = hasher(k);
-  // return get_with_hash(std::forward<K1>(k), key_hash);
 
   auto equaler = Pred();
   auto bucket_idx = key_hash % NBuckets;
+  BucketNode **prev_next = nullptr;
   auto *bucket_node = &_buckets[bucket_idx];
   auto &lock = _locks[bucket_idx];
-  lock.lock();
 
-  while (bucket_node && bucket_node->pair) {
+  std::aligned_storage_t<sizeof(Key), alignof(Key)> k_buf;
+  auto stored_k = std::launder(reinterpret_cast<Key *>(&k_buf));
+  std::unique_ptr<Tp> stored_v =
+      std::unique_ptr<Tp>(reinterpret_cast<Tp *>(::operator new(sizeof(Tp))));
+  lock.lock();
+  while (bucket_node && bucket_node->pair.is_valid()) {
     if (key_hash == bucket_node->key_hash) {
-      auto *pair = reinterpret_cast<Pair *>(bucket_node->pair);
-      if (equaler(k, pair->first)) {
-        auto ret = &pair->second;
-        lock.unlock();
-        return ret;
+      if (!bucket_node->pair.copy_to(stored_k, sizeof(Key))) {
+        goto invalid;
+      }
+      if (equaler(k, *stored_k)) {
+        if (bucket_node->pair.copy_to(stored_v.get(), sizeof(Tp),
+                                      sizeof(Key))) {
+          lock.unlock();
+          return std::move(stored_v);
+        } else {
+          lock.unlock();
+          return nullptr;
+        }
       }
     }
+    prev_next = &bucket_node->next;
     bucket_node = bucket_node->next;
+    continue;
+  invalid:
+    // remove bucket_node from the list
+    if (!prev_next) {
+      if (!bucket_node->next) {
+        bucket_node->pair.reset();
+      } else {
+        auto *next = bucket_node->next;
+        *bucket_node = *next;
+        delete next;
+      }
+    } else {
+      *prev_next = bucket_node->next;
+      delete bucket_node;
+      bucket_node = *prev_next;
+    }
   }
   lock.unlock();
   return nullptr;
@@ -46,8 +77,8 @@ Tp *SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
 
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
-template <typename K1, typename V1>
-bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(K1 k, V1 v) {
+template <typename K1, typename Tp1>
+bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(K1 k, Tp1 v) {
   auto hasher = Hash();
   auto key_hash = hasher(k);
   // put_with_hash(std::move(k), std::move(v), key_hash);
@@ -57,58 +88,55 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(K1 k, V1 v) {
   auto *bucket_node = &_buckets[bucket_idx];
   BucketNode **prev_next = nullptr;
   auto &lock = _locks[bucket_idx];
-  auto *allocator = ResourceManager::global_allocator();
-  lock.lock();
+  auto *allocator = LogAllocator::global_allocator();
 
-  while (bucket_node && bucket_node->pair) {
+  std::aligned_storage_t<sizeof(Key), alignof(Key)> k_buf;
+  auto stored_k = std::launder(reinterpret_cast<Key *>(&k_buf));
+  lock.lock();
+  while (bucket_node && bucket_node->pair.is_valid()) {
     if (key_hash == bucket_node->key_hash) {
-      auto *pair = reinterpret_cast<Pair *>(bucket_node->pair);
-      if (equaler(k, pair->first)) {
-        // cannot replace in place because V1's size might change
-        if (!prev_next) {
-          if (!bucket_node->next) {
-            bucket_node->pair = nullptr;
-          } else {
-            auto *next = bucket_node->next;
-            *bucket_node = *next;
-            if (next->pair) {
-              next->pair->~Pair();
-              allocator->free(next->pair);
-            }
-            delete next;
-          }
-        } else {
-          *prev_next = bucket_node->next;
-          if (bucket_node->pair) {
-            bucket_node->pair->~Pair();
-            allocator->free(bucket_node->pair);
-          }
-          delete bucket_node;
-        }
+      if (!bucket_node->pair.copy_from(&k_buf, sizeof(Key)))
+        goto invalid;
+      if (equaler(k, *stored_k)) { // find key successfully
+        Tp stored_v(v);
+        if (!bucket_node->pair.copy_from(&stored_v, sizeof(Tp), sizeof(Key)))
+          goto invalid;
       }
     }
     prev_next = &bucket_node->next;
     bucket_node = bucket_node->next;
+    continue;
+  invalid:
+    // remove bucket_node from the list
+    if (!prev_next) {
+      if (!bucket_node->next) {
+        bucket_node->pair.reset();
+      } else {
+        auto *next = bucket_node->next;
+        *bucket_node = *next;
+        delete next;
+      }
+    } else {
+      *prev_next = bucket_node->next;
+      delete bucket_node;
+      bucket_node = *prev_next;
+    }
   }
 
-  // allocate 8 bytes more in case std::pair align K1 and V1
-  auto *pair =
-      reinterpret_cast<Pair *>(allocator->alloc(sizeof(k) + sizeof(v) + 8));
-  if (!pair) {
+  auto optional_tptr = allocator->alloc(sizeof(Key) + sizeof(Tp));
+  if (!optional_tptr || !optional_tptr->copy_from(&k, sizeof(Key)) ||
+      !optional_tptr->copy_from(&v, sizeof(Tp), sizeof(Key))) {
     lock.unlock();
     return false;
   }
-  new (pair) Pair(k, v);
 
   if (!prev_next) {
     bucket_node->key_hash = key_hash;
-    bucket_node->pair = pair;
+    bucket_node->pair = *optional_tptr;
   } else {
-    // auto *new_bucket_node = allocator->alloc<BucketNode>(1);
-    // new (new_bucket_node) BucketNode();
     auto *new_bucket_node = new BucketNode();
     new_bucket_node->key_hash = key_hash;
-    new_bucket_node->pair = pair;
+    new_bucket_node->pair = *optional_tptr;
     new_bucket_node->next = nullptr;
     *prev_next = new_bucket_node;
   }
@@ -128,17 +156,21 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
   auto bucket_idx = key_hash % NBuckets;
   auto *bucket_node = &_buckets[bucket_idx];
   BucketNode **prev_next = nullptr;
-  auto *allocator = ResourceManager::global_allocator();
+  auto *allocator = LogAllocator::global_allocator();
   auto &lock = _locks[bucket_idx];
-  lock.lock();
 
-  while (bucket_node && bucket_node->pair) {
+  std::aligned_storage_t<sizeof(Key), alignof(Key)> k_buf;
+  auto stored_k = std::launder(reinterpret_cast<Key *>(&k_buf));
+  lock.lock();
+  while (bucket_node && bucket_node->pair.is_valid()) {
     if (key_hash == bucket_node->key_hash) {
-      auto *pair = reinterpret_cast<Pair *>(bucket_node->pair);
-      if (equaler(k, pair->first)) {
-        if (!prev_next) {
+      auto pair = bucket_node->pair;
+      if (!pair.copy_to(&k_buf, sizeof(Key)))
+        goto invalid;
+      if (equaler(k, *stored_k)) { // find key successfully
+        if (!prev_next) {          // first bucket node
           if (!bucket_node->next) {
-            bucket_node->pair = nullptr;
+            bucket_node->pair.reset();
           } else {
             auto *next = bucket_node->next;
             *bucket_node = *next;
@@ -149,13 +181,28 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
           delete bucket_node;
         }
         lock.unlock();
-        pair->~Pair();
         allocator->free(pair);
         return true;
       }
     }
     prev_next = &bucket_node->next;
     bucket_node = bucket_node->next;
+    continue;
+  invalid:
+    // remove bucket_node from the list
+    if (!prev_next) {
+      if (!bucket_node->next) {
+        bucket_node->pair.reset();
+      } else {
+        auto *next = bucket_node->next;
+        *bucket_node = *next;
+        delete next;
+      }
+    } else {
+      *prev_next = bucket_node->next;
+      delete bucket_node;
+      bucket_node = *prev_next;
+    }
   }
   lock.unlock();
   return false;

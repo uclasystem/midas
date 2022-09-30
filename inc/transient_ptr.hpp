@@ -11,6 +11,7 @@ public:
   TransientPtr(void *ptr, size_t size);
   bool is_valid() const;
   bool set(void *ptr, size_t size); /* point to a transient addr. */
+  bool reset() noexcept;
   TransientPtr slice(int64_t offset, size_t size) const;
   /**
    * Ops with single transient reference (this).

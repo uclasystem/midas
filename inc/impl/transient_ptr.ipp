@@ -21,6 +21,12 @@ inline bool TransientPtr::set(void *ptr, size_t size) {
   return true;
 }
 
+inline bool TransientPtr::reset() noexcept {
+  ptr_ = nullptr;
+  size_ = 0;
+  return true;
+}
+
 inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
   if (!is_valid())
     return TransientPtr();

@@ -6,34 +6,64 @@
 #include <vector>
 
 #include "log.hpp"
+#include "transient_ptr.hpp"
 
 constexpr int kNumThds = 10;
-constexpr int kNumObjs = 10240;
+constexpr int kNumObjs = 102400;
+
+constexpr int kObjSize = 16;
+
+struct Object {
+  char data[kObjSize];
+
+  void random_fill() {
+    static std::random_device rd;
+    static std::mt19937 mt(rd());
+    static std::uniform_int_distribution<int> dist('A', 'z');
+
+    for (uint32_t i = 0; i < kObjSize; i++) {
+      data[i] = dist(mt);
+    }
+  }
+
+  bool equal(Object &other) {
+    return (strncmp(data, other.data, kObjSize) == 0);
+  }
+};
 
 int main(int argc, char *argv[]) {
-  std::random_device rd;
-  std::mt19937 rand(rd());
-  std::uniform_int_distribution<> dist(1, 256);
-
-  std::atomic_int nr_errs(0);
-
   auto *allocator = new cachebank::LogAllocator();
   std::vector<std::thread> threads;
-  std::vector<std::optional<cachebank::TransientPtr>> ptrs[kNumThds];
+
+  std::atomic_int nr_errs(0);
+  std::vector<cachebank::TransientPtr> ptrs[kNumThds];
+  std::vector<Object> objs[kNumThds];
+
   for (int tid = 0; tid < kNumThds; tid++) {
-    threads.push_back(std::thread([&,tid=tid]() {
+    threads.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < kNumObjs; i++) {
-        auto ret = allocator->alloc(1000);
-        if (!ret)
+        auto optptr = allocator->alloc(sizeof(Object));
+        Object obj;
+        obj.random_fill();
+        if (!optptr || !(*optptr).copy_from(&obj, sizeof(Object))) {
           nr_errs++;
-        ptrs[tid].push_back(ret);
+          continue;
+        }
+        ptrs[tid].push_back(*optptr);
+        objs[tid].push_back(obj);
+      }
+
+      for (int i = 0; i < ptrs[tid].size(); i++) {
+        bool ret = false;
+        auto ptr = ptrs[tid][i];
+        Object stored_o;
+        if (!ptr.copy_to(&stored_o, sizeof(Object)) ||
+            !objs[tid][i].equal(stored_o))
+          nr_errs++;
       }
 
       for (auto ptr : ptrs[tid]) {
-        bool ret = false;
-        if (ptr)
-          ret = allocator->free(*ptr);
-        if (!ret)
+        if (!allocator->free(ptr))
           nr_errs++;
       }
     }));

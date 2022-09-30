@@ -69,11 +69,9 @@ struct VRange {
 #define round_up_to_align(val, align) (((val) + ((align)-1)) & ~((align)-1))
 #define ptr_offset(ptr, offset) (reinterpret_cast<char *>(ptr) + (offset))
 
-#define get_bit32(word, bit) ((word) & (reinterpret_cast<uint32_t>(1) << (bit)))
-#define set_bit32(word, bit)                                                   \
-  ((word) | ~(reinterpret_cast<uint32_t>(1) << (bit)))
-#define clr_bit32(word, bit)                                                   \
-  ((word) & ~(reinterpret_cast<uint32_t>(1) << (bit)))
+#define get_bit32(word, bit) ((word) & (1 << (bit)))
+#define set_bit32(word, bit) ((word) | (1 << (bit)))
+#define clr_bit32(word, bit) ((word) & ~(1 << (bit)))
 
 namespace utils {
 
