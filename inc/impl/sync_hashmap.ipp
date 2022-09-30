@@ -22,6 +22,18 @@ template <size_t NBuckets, typename Key, typename Tp, typename Hash,
 template <typename K1>
 std::unique_ptr<Tp>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
+  std::unique_ptr<Tp> stored_v =
+      std::unique_ptr<Tp>(reinterpret_cast<Tp *>(::operator new(sizeof(Tp))));
+  if (get(k, *stored_v))
+    return stored_v;
+  return nullptr;
+}
+
+template <size_t NBuckets, typename Key, typename Tp, typename Hash,
+          typename Pred, typename Alloc, typename Lock>
+template <typename K1>
+bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
+                                                                  Tp &v) {
   auto hasher = Hash();
   auto key_hash = hasher(k);
 
@@ -33,8 +45,6 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
 
   std::aligned_storage_t<sizeof(Key), alignof(Key)> k_buf;
   auto stored_k = std::launder(reinterpret_cast<Key *>(&k_buf));
-  std::unique_ptr<Tp> stored_v =
-      std::unique_ptr<Tp>(reinterpret_cast<Tp *>(::operator new(sizeof(Tp))));
   lock.lock();
   while (bucket_node && bucket_node->pair.is_valid()) {
     if (key_hash == bucket_node->key_hash) {
@@ -42,13 +52,12 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
         goto invalid;
       }
       if (equaler(k, *stored_k)) {
-        if (bucket_node->pair.copy_to(stored_v.get(), sizeof(Tp),
-                                      sizeof(Key))) {
+        if (bucket_node->pair.copy_to(&v, sizeof(Tp), sizeof(Key))) {
           lock.unlock();
-          return std::move(stored_v);
+          return true;
         } else {
           lock.unlock();
-          return nullptr;
+          return false;
         }
       }
     }
@@ -72,7 +81,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
     }
   }
   lock.unlock();
-  return nullptr;
+  return false;
 }
 
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,

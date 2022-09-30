@@ -18,7 +18,7 @@ public:
 
   using Pair = std::pair<const Key, Tp>;
   template <typename K1> std::unique_ptr<Tp> get(K1 &&key);
-  // template <typename K1> bool get(K1 &&key, Tp &v);
+  template <typename K1> bool get(K1 &&key, Tp &v);
   template <typename K1, typename Tp1> bool set(K1 key, Tp1 v);
   template <typename K1> bool remove(K1 &&key);
   // std::vector<Pair> get_all_pairs();
