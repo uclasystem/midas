@@ -35,6 +35,7 @@ bin/*
 # Clangd index
 **/.cache/*
 **/compile_commands.json
+**/.clangd/*
 
 # vscode
 **/.vscode/*
