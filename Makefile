@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++1z
+CXXFLAGS += -std=c++1z -O2
 # CXXFLAGS += -g
 CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
 LDXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
