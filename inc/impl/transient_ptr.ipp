@@ -35,7 +35,7 @@ inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
   return TransientPtr(new_addr, size);
 }
 
-inline bool TransientPtr::copy_from(void *src, size_t len, size_t offset) {
+inline bool TransientPtr::copy_from(const void *src, size_t len, size_t offset) {
   if (!is_valid())
     return false;
   // TODO: page-fault-aware logic
@@ -55,7 +55,7 @@ inline bool TransientPtr::copy_to(void *dst, size_t len, size_t offset) {
   return true;
 }
 
-inline bool TransientPtr::copy_from(TransientPtr &src, size_t len,
+inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
                                     size_t from_offset, size_t to_offset) {
   if (!is_valid())
     return false;

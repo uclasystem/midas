@@ -13,9 +13,9 @@
 #include "sync_hashmap.hpp"
 
 constexpr int kNBuckets = (1 << 20);
-constexpr int kNumInsertThds = 10;
-constexpr int kNumRemoveThds = 10;
-constexpr int kNumObjs = 102400;
+constexpr int kNumInsertThds = 20;
+constexpr int kNumRemoveThds = 20;
+constexpr int kNumObjs = 40960;
 constexpr int kKLen = 18;
 constexpr int kVLen = 31;
 
@@ -36,6 +36,9 @@ template <int Len> struct Object {
   bool operator==(const Object &other) const {
     return strncmp(data, other.data, Len) == 0;
   }
+  bool operator!=(const Object &other) const {
+    return strncmp(data, other.data, Len) != 0;
+  }
   bool operator<(const Object &other) const {
     return strncmp(data, other.data, Len) < 0;
   }
@@ -53,8 +56,7 @@ template <int Len> struct Object {
 template <class K> K get_K() { return K(); }
 template <class V> V get_V() { return V(); }
 
-template<>
-std::string get_K() {
+template <> std::string get_K() {
   static std::random_device rd;
   static std::mt19937 mt(rd());
   static std::uniform_int_distribution<int> dist('A', 'z');
@@ -66,8 +68,7 @@ std::string get_K() {
   return str;
 }
 
-template<>
-std::string get_V() {
+template <> std::string get_V() {
   static std::random_device rd;
   static std::mt19937 mt(rd());
   static std::uniform_int_distribution<int> dist('A', 'z');
@@ -79,31 +80,27 @@ std::string get_V() {
   return str;
 }
 
-template<>
-int get_K() {
+template <> int get_K() {
   static std::random_device rd;
   static std::mt19937 mt(rd());
-  static std::uniform_int_distribution<int> dist(0, 1 << 18);
+  static std::uniform_int_distribution<int> dist(0, 1 << 30);
   return dist(mt);
 }
 
-template<>
-int get_V() {
+template <> int get_V() {
   static std::random_device rd;
   static std::mt19937 mt(rd());
-  static std::uniform_int_distribution<int> dist(0, 1 << 18);
+  static std::uniform_int_distribution<int> dist(0, 1 << 30);
   return dist(mt);
 }
 
-template<>
-Object<kKLen> get_K() {
+template <> Object<kKLen> get_K() {
   Object<kKLen> k;
   k.random_fill();
   return k;
 }
 
-template<>
-Object<kVLen> get_V() {
+template <> Object<kVLen> get_V() {
   Object<kVLen> v;
   v.random_fill();
   return v;
@@ -135,8 +132,8 @@ int main(int argc, char *argv[]) {
         auto v = get_V<V>();
         std_map_lock.lock();
         std_map[k] = v;
-        std_map_lock.unlock();
         bool ret = hashmap->set(k, v);
+        std_map_lock.unlock();
         if (!ret)
           nr_err++;
         else
@@ -153,17 +150,16 @@ int main(int argc, char *argv[]) {
   else
     std::cout << "Set test failed! " << nr_succ << " passed, " << nr_err
               << " failed." << std::endl;
-  nr_succ = nr_err = 0;
 
+  nr_succ = nr_err = 0;
   for (int tid = 0; tid < kNumInsertThds; tid++) {
     thds.push_back(std::thread([&]() {
       for (auto &pair : std_map) {
         const K &k = pair.first;
         V &v = pair.second;
         auto v2 = hashmap->get(k);
-        continue;
 
-        if (!v2 && !(v == *v2)) {
+        if (!v2 || v != *v2) {
           nr_err++;
         } else
           nr_succ++;

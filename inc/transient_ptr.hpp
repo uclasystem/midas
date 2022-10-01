@@ -16,12 +16,12 @@ public:
   /**
    * Ops with single transient reference (this).
    */
-  bool copy_from(void *src, size_t len, size_t offset = 0);
+  bool copy_from(const void *src, size_t len, size_t offset = 0);
   bool copy_to(void *dst, size_t len, size_t offset = 0);
   /**
    * Ops with two transient references (this & src/dst).
    */
-  bool copy_from(TransientPtr &src, size_t len, size_t from_offset = 0,
+  bool copy_from(const TransientPtr &src, size_t len, size_t from_offset = 0,
                  size_t to_offset = 0);
   bool copy_to(TransientPtr &dst, size_t len, size_t from_offset = 0,
                size_t to_offset = 0);
