@@ -4,13 +4,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <sys/types.h>
 #include <vector>
-#include <optional>
 
+#include "object.hpp"
 #include "resource_manager.hpp"
-#include "utils.hpp"
 #include "transient_ptr.hpp"
+#include "utils.hpp"
 
 namespace cachebank {
 
@@ -29,9 +30,6 @@ private:
   constexpr static uint32_t kLogChunkSize = kPageChunkSize;
   static_assert(kRegionSize % kLogChunkSize == 0,
                 "Region size must be multiple chunk size");
-  constexpr static uint32_t kObjHdrSize = 16; // TODO: reduce it
-  static_assert(kObjHdrSize >= sizeof(ObjectHdr),
-                "Object header size must large than sizeof(ObjectHdr)");
 
   // std::mutex lock_;
   bool full_;

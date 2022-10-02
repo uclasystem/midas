@@ -9,17 +9,18 @@
 namespace cachebank {
 
 inline std::optional<TransientPtr> LogChunk::alloc(size_t size) {
-  if (pos_ + kObjHdrSize + size > start_addr_ + kLogChunkSize)
+  auto hdr_size = sizeof(SmallObjectHdr);
+  if (pos_ + hdr_size + size > start_addr_ + kLogChunkSize)
     goto failed;
   else {
-    auto objHdr = ObjectHdr();
-    objHdr.set(size);
+    SmallObjectHdr objHdr;
+    objHdr.init(size);
     auto hdrPtr =
-        TransientPtr(reinterpret_cast<ObjectHdr *>(pos_), sizeof(ObjectHdr));
-    if (!hdrPtr.copy_from(&objHdr, sizeof(ObjectHdr)))
+        TransientPtr(reinterpret_cast<SmallObjectHdr *>(pos_), hdr_size);
+    if (!hdrPtr.copy_from(&objHdr, hdr_size))
       goto failed;
-    void *addr = reinterpret_cast<void *>(pos_ + kObjHdrSize);
-    pos_ += kObjHdrSize + size;
+    void *addr = reinterpret_cast<void *>(pos_ + hdr_size);
+    pos_ += hdr_size + size;
     return TransientPtr(addr, size);
   }
 
@@ -28,14 +29,14 @@ failed:
 }
 
 inline bool LogChunk::free(size_t addr) {
-  auto hdrPtr =
-      TransientPtr(reinterpret_cast<ObjectHdr *>(addr - sizeof(ObjectHdr)),
-                   sizeof(ObjectHdr));
-  ObjectHdr hdr;
-  if (!hdrPtr.copy_to(&hdr, sizeof(ObjectHdr)))
+  auto hdrPtr = TransientPtr(
+      reinterpret_cast<SmallObjectHdr *>(addr - sizeof(SmallObjectHdr)),
+      sizeof(SmallObjectHdr));
+  SmallObjectHdr hdr;
+  if (!hdrPtr.copy_to(&hdr, sizeof(SmallObjectHdr)))
     goto failed;
-  hdr.clr_present();
-  if (!hdrPtr.copy_from(&hdr, sizeof(ObjectHdr)))
+  hdr.free();
+  if (!hdrPtr.copy_from(&hdr, sizeof(SmallObjectHdr)))
     goto failed;
 
 failed:
@@ -122,13 +123,14 @@ bool LogAllocator::free(TransientPtr &ptr) {
   if (!ptr.is_valid())
     return false;
   // get object header with offset
-  TransientPtr hdrPtr = ptr.slice(-sizeof(ObjectHdr), sizeof(ObjectHdr));
-  // uint32_t flags = 1 << ObjectHdr::kInvalidFlags;
-  ObjectHdr hdr;
-  if (!hdrPtr.copy_to(&hdr, sizeof(ObjectHdr)))
+  TransientPtr hdrPtr =
+      ptr.slice(-sizeof(SmallObjectHdr), sizeof(SmallObjectHdr));
+  // uint32_t flags = 1 << SmallObjectHdr::kInvalidFlags;
+  SmallObjectHdr objHdr;
+  if (!hdrPtr.copy_to(&objHdr, sizeof(SmallObjectHdr)))
     return false;
-  hdr.clr_present();
-  if (!hdrPtr.copy_from(&hdr, sizeof(ObjectHdr)))
+  objHdr.free();
+  if (!hdrPtr.copy_from(&objHdr, sizeof(SmallObjectHdr)))
     return false;
   return true;
 }
