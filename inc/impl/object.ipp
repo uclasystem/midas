@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utils.hpp"
 #include <cassert>
 
 namespace cachebank {
@@ -14,8 +15,9 @@ inline bool GenericObjecthdr::is_small_obj() const noexcept {
 }
 
 /** Small Object */
-inline void SmallObjectHdr::init(uint32_t size_) noexcept {
+inline void SmallObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
   set_size(size_);
+  set_rref(rref);
   set_present();
   _small_obj();
 }
@@ -23,11 +25,14 @@ inline void SmallObjectHdr::init(uint32_t size_) noexcept {
 inline void SmallObjectHdr::free() noexcept { clr_present(); }
 
 inline void SmallObjectHdr::set_size(uint32_t size_) noexcept {
-  size_ /= 8;
-  assert(size_ <= (1 << 12));
+  size_ = round_up_to_align(size_, kSmallObjSizeUnit);
+  size_ /= kSmallObjSizeUnit;
+  assert(size_ < (1 << 12));
   size = size_;
 }
-inline uint32_t SmallObjectHdr::get_size() const noexcept { return size * 8; }
+inline uint32_t SmallObjectHdr::get_size() const noexcept {
+  return size * kSmallObjSizeUnit;
+}
 
 inline void SmallObjectHdr::set_rref(uint64_t addr) noexcept { rref = addr; }
 inline uint64_t SmallObjectHdr::get_rref() const noexcept { return rref; }
@@ -63,8 +68,9 @@ inline void SmallObjectHdr::set_invalid() noexcept {
 }
 
 /** Large Object */
-inline void LargeObjectHdr::init(uint32_t size_) noexcept {
+inline void LargeObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
   set_size(size_);
+  set_rref(rref);
   set_present();
   _large_obj();
 }
@@ -73,6 +79,9 @@ inline void LargeObjectHdr::free() noexcept { clr_present(); }
 
 inline void LargeObjectHdr::set_size(uint32_t size_) noexcept { size = size_; }
 inline uint32_t LargeObjectHdr::get_size() const noexcept { return size; }
+
+inline void LargeObjectHdr::set_rref(uint64_t addr) noexcept { rref = addr; }
+inline uint64_t LargeObjectHdr::get_rref() const noexcept { return rref; }
 
 inline void LargeObjectHdr::set_present() noexcept {
   flags |= (1 << kPresentBit);

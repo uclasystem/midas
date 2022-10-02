@@ -6,6 +6,7 @@
 namespace cachebank {
 
 constexpr static uint32_t kNumCPUs = 128;
+constexpr static uint32_t kSmallObjSizeUnit = 8;
 
 constexpr static uint32_t kDaemonQDepth = 1024;
 constexpr static uint32_t kClientQDepth = 128;

@@ -104,12 +104,12 @@ done:
 }
 
 std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
-  if (size > kSmallObjThreshold) { // large obj
+  if (size >= kSmallObjThreshold) { // large obj
     LOG(kError) << "large obj allocation is not implemented yet!";
     return std::nullopt;
   }
 
-  size = round_up_to_align(size, 8);
+  size = round_up_to_align(size, kSmallObjSizeUnit);
   if (pcab.get()) {
     auto ret = pcab->alloc(size);
     if (ret)
@@ -132,7 +132,7 @@ bool LogAllocator::free(TransientPtr &ptr) {
   if (!ptr.is_valid())
     return false;
 
-  if (ptr.size() > kSmallObjThreshold) { // large obj
+  if (ptr.size() >= kSmallObjThreshold) { // large obj
     LOG(kError) << "large obj allocation is not implemented yet!";
     return false;
   }

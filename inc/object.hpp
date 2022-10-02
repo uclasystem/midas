@@ -32,11 +32,7 @@ struct SmallObjectHdr {
   //                     <= 8B * 2^12 == 32KB)
   //         Object Size: the size of the pointed object.
   //   Reverse reference: the only pointer referencing this object
-  uint64_t rref : 48; // reverse reference to the single to-be-updated pointer
-  uint16_t size : 12;
-  uint8_t flags : 4;
-
-  void init(uint32_t size_) noexcept;
+  void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;
 
   void set_size(uint32_t size_) noexcept;
@@ -56,6 +52,10 @@ struct SmallObjectHdr {
   void clr_evacuate() noexcept;
 
 private:
+  uint64_t rref : 48; // reverse reference to the single to-be-updated pointer
+  uint16_t size : 12; // object size / 8 (8 Bytes is the base unit)
+  uint8_t flags : 4;
+
   void _small_obj() noexcept;
   constexpr static decltype(flags) kPresentBit = 0;
   constexpr static decltype(flags) kAccessedBit = 1;
@@ -78,11 +78,7 @@ struct LargeObjectHdr {
   //         Object Size: the size of the pointed object.
   //   Reverse reference: the only pointer referencing this object
 
-  uint32_t flags;
-  uint32_t size;
-  uint64_t rref; // reverse reference
-
-  void init(uint32_t size_) noexcept;
+  void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;
 
   void set_size(uint32_t size_) noexcept;
@@ -102,6 +98,10 @@ struct LargeObjectHdr {
   void clr_evacuate() noexcept;
 
 private:
+  uint32_t flags;
+  uint32_t size;
+  uint64_t rref; // reverse reference
+
   void _large_obj() noexcept;
   constexpr static uint32_t kFlagShift =
       sizeof(flags) * 8 - 4; // only use the highest 4 bits
