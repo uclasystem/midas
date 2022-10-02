@@ -15,11 +15,11 @@ struct GenericObjecthdr {
 
 private:
   constexpr static uint32_t kFlagShift =
-      sizeof(flags) - 4; // only use the highest 4 bits
-  constexpr static uint32_t kPresentBit = 0 + kFlagShift;
-  constexpr static uint32_t kAccessedBit = 1 + kFlagShift;
-  constexpr static uint32_t kEvacuateBit = 2 + kFlagShift;
-  constexpr static uint16_t kSmallObjBit = 3 + kFlagShift;
+      sizeof(flags) * 8 - 4; // only use the highest 4 bits
+  constexpr static decltype(flags) kPresentBit = 0 + kFlagShift;
+  constexpr static decltype(flags) kAccessedBit = 1 + kFlagShift;
+  constexpr static decltype(flags) kEvacuateBit = 2 + kFlagShift;
+  constexpr static decltype(flags) kSmallObjBit = 3 + kFlagShift;
 };
 
 struct SmallObjectHdr {
@@ -32,15 +32,15 @@ struct SmallObjectHdr {
   //                     <= 8B * 2^12 == 32KB)
   //         Object Size: the size of the pointed object.
   //   Reverse reference: the only pointer referencing this object
-  uint16_t flags : 4;
-  uint16_t size : 12;
   uint64_t rref : 48; // reverse reference to the single to-be-updated pointer
+  uint16_t size : 12;
+  uint8_t flags : 4;
 
   void init(uint32_t size_) noexcept;
   void free() noexcept;
 
   void set_size(uint32_t size_) noexcept;
-  uint16_t get_size() const noexcept;
+  uint32_t get_size() const noexcept;
 
   void set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() const noexcept;
@@ -57,10 +57,10 @@ struct SmallObjectHdr {
 
 private:
   void _small_obj() noexcept;
-  constexpr static uint8_t kPresentBit = 0;
-  constexpr static uint8_t kAccessedBit = 1;
-  constexpr static uint8_t kEvacuateBit = 2;
-  constexpr static uint8_t kSmallObjBit = 3;
+  constexpr static decltype(flags) kPresentBit = 0;
+  constexpr static decltype(flags) kAccessedBit = 1;
+  constexpr static decltype(flags) kEvacuateBit = 2;
+  constexpr static decltype(flags) kSmallObjBit = 3;
 };
 
 static_assert(sizeof(SmallObjectHdr) <= 16,
@@ -104,11 +104,11 @@ struct LargeObjectHdr {
 private:
   void _large_obj() noexcept;
   constexpr static uint32_t kFlagShift =
-      sizeof(flags) - 4; // only use the highest 4 bits
-  constexpr static uint32_t kPresentBit = 0 + kFlagShift;
-  constexpr static uint32_t kAccessedBit = 1 + kFlagShift;
-  constexpr static uint32_t kEvacuateBit = 2 + kFlagShift;
-  constexpr static uint16_t kSmallObjBit = 3 + kFlagShift;
+      sizeof(flags) * 8 - 4; // only use the highest 4 bits
+  constexpr static decltype(flags) kPresentBit = 0 + kFlagShift;
+  constexpr static decltype(flags) kAccessedBit = 1 + kFlagShift;
+  constexpr static decltype(flags) kEvacuateBit = 2 + kFlagShift;
+  constexpr static decltype(flags) kSmallObjBit = 3 + kFlagShift;
 };
 
 static_assert(sizeof(LargeObjectHdr) <= 16,

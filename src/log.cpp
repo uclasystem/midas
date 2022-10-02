@@ -1,10 +1,13 @@
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 
 #include "log.hpp"
+#include "logging.hpp"
 #include "object.hpp"
+#include "utils.hpp"
 
 namespace cachebank {
 
@@ -101,6 +104,12 @@ done:
 }
 
 std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
+  if (size > kSmallObjThreshold) { // large obj
+    LOG(kError) << "large obj allocation is not implemented yet!";
+    return std::nullopt;
+  }
+
+  size = round_up_to_align(size, 8);
   if (pcab.get()) {
     auto ret = pcab->alloc(size);
     if (ret)
@@ -122,10 +131,14 @@ std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
 bool LogAllocator::free(TransientPtr &ptr) {
   if (!ptr.is_valid())
     return false;
+
+  if (ptr.size() > kSmallObjThreshold) { // large obj
+    LOG(kError) << "large obj allocation is not implemented yet!";
+    return false;
+  }
   // get object header with offset
   TransientPtr hdrPtr =
       ptr.slice(-sizeof(SmallObjectHdr), sizeof(SmallObjectHdr));
-  // uint32_t flags = 1 << SmallObjectHdr::kInvalidFlags;
   SmallObjectHdr objHdr;
   if (!hdrPtr.copy_to(&objHdr, sizeof(SmallObjectHdr)))
     return false;

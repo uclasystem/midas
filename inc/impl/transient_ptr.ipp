@@ -3,9 +3,6 @@
 #include <cstddef>
 #include <cstring>
 
-#include "object.hpp"
-#include "utils.hpp"
-
 namespace cachebank {
 
 inline TransientPtr::TransientPtr(void *ptr, size_t size)
@@ -27,6 +24,8 @@ inline bool TransientPtr::reset() noexcept {
   return true;
 }
 
+inline size_t TransientPtr::size() const noexcept { return size_; }
+
 inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
   if (!is_valid())
     return TransientPtr();
@@ -35,7 +34,8 @@ inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
   return TransientPtr(new_addr, size);
 }
 
-inline bool TransientPtr::copy_from(const void *src, size_t len, size_t offset) {
+inline bool TransientPtr::copy_from(const void *src, size_t len,
+                                    size_t offset) {
   if (!is_valid())
     return false;
   // TODO: page-fault-aware logic
