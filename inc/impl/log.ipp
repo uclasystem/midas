@@ -12,11 +12,13 @@ inline void LogChunk::seal() noexcept {
   auto endPtr = TransientPtr(reinterpret_cast<GenericObjectHdr *>(pos_),
                              sizeof(GenericObjectHdr));
   endPtr.copy_from(&endHdr, sizeof(endPtr)); // ignore return value
+  pos_ += sizeof(GenericObjectHdr);
   sealed_ = true;
 }
 
 inline bool LogChunk::full() noexcept {
-  return pos_ + sizeof(GenericObjectHdr) >= start_addr_ + kPageChunkSize;
+  return sealed_ ||
+         pos_ + sizeof(GenericObjectHdr) >= start_addr_ + kLogChunkSize;
 }
 
 inline LogRegion::LogRegion(uint64_t addr)

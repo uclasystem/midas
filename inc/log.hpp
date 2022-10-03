@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 #include <mutex>
+#include <memory>
 
 #include "object.hpp"
 #include "transient_ptr.hpp"
@@ -25,7 +26,6 @@ private:
   void init(uint64_t addr);
   void iterate(size_t pos);
 
-  constexpr static uint32_t kLogChunkSize = kPageChunkSize;
   static_assert(kRegionSize % kLogChunkSize == 0,
                 "Region size must be multiple chunk size");
 

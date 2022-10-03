@@ -32,7 +32,7 @@ struct Object {
 };
 
 int main(int argc, char *argv[]) {
-  auto *allocator = new cachebank::LogAllocator();
+  auto *allocator = cachebank::LogAllocator::global_allocator();
   std::vector<std::thread> threads;
 
   std::atomic_int nr_errs(0);

@@ -14,8 +14,8 @@ namespace cachebank {
 
 inline std::optional<TransientPtr> LogChunk::alloc(size_t size) {
   auto hdr_size = sizeof(SmallObjectHdr);
-  if (pos_ + hdr_size + size >
-      start_addr_ + kLogChunkSize - sizeof(GenericObjectHdr))
+  if (pos_ + hdr_size + size + sizeof(GenericObjectHdr) >=
+      start_addr_ + kLogChunkSize)
     goto full;
   else {
     SmallObjectHdr objHdr;

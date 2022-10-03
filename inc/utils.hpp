@@ -11,9 +11,12 @@ constexpr static uint32_t kSmallObjSizeUnit = 8;
 constexpr static uint32_t kShmObjNameLen = 128;
 constexpr static uint32_t kPageSize = 4096;            // 4KB
 constexpr static uint32_t kPageChunkSize = 512 * 4096; // 2MB == Huge Page
-constexpr static uint32_t kRegionSize = kPageChunkSize;
 constexpr static uint64_t kPageChunkAlignMask = ~(kPageChunkSize - 1ull);
 constexpr static uint64_t kVolatileSttAddr = 0x01f'000'000'000;
+
+// log structured allocator related
+constexpr static uint32_t kLogChunkSize = kPageChunkSize;
+constexpr static uint32_t kRegionSize = kPageChunkSize;
 
 enum CtrlOpCode {
   CONNECT,
