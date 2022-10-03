@@ -1,10 +1,5 @@
 #pragma once
 
-#include <memory>
-#include <utility>
-
-#include "log.hpp"
-
 namespace cachebank {
 
 class SlabAllocator;

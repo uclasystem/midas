@@ -1,7 +1,8 @@
 #pragma once
 
-#include <cstddef>
 #include <cstring>
+
+#include "utils.hpp"
 
 namespace cachebank {
 

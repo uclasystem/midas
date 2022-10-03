@@ -5,6 +5,7 @@
 #include <mutex>
 
 #include "log.hpp"
+#include "resource_manager.hpp"
 #include "logging.hpp"
 #include "object.hpp"
 #include "utils.hpp"

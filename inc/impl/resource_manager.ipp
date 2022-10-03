@@ -1,7 +1,5 @@
 #pragma once
 
-#include <mutex>
-
 namespace cachebank {
 
 static inline uint64_t get_unique_id() {

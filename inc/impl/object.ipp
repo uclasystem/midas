@@ -1,7 +1,8 @@
 #pragma once
 
-#include "utils.hpp"
 #include <cassert>
+
+#include "utils.hpp"
 
 namespace cachebank {
 

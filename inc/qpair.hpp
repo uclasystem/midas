@@ -6,13 +6,24 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <iostream>
 #include <memory>
-#include <sys/types.h>
 
 #include "utils.hpp"
 
 namespace cachebank {
+constexpr static uint32_t kDaemonQDepth = 1024;
+constexpr static uint32_t kClientQDepth = 128;
+constexpr static char kNameCtrlQ[] = "daemon_ctrl_mq";
+
+constexpr static char kSQPrefix[] = "sendq-";
+constexpr static char kRQPrefix[] = "recvq-";
+
+namespace utils {
+
+const std::string get_sq_name(std::string qpname, bool create);
+const std::string get_rq_name(std::string qpname, bool create);
+const std::string get_ackq_name(std::string qpname, uint64_t id);
+} // namespace utils
 
 class QSingle {
 public:
@@ -63,6 +74,7 @@ private:
   std::shared_ptr<QSingle> _rq;
 };
 
-#include "impl/qpair.ipp"
 
 } // namespace cachebank
+
+#include "impl/qpair.ipp"

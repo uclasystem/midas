@@ -3,13 +3,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
-#include <sys/types.h>
 #include <vector>
+#include <mutex>
 
-#include "object.hpp"
-#include "resource_manager.hpp"
 #include "transient_ptr.hpp"
 #include "utils.hpp"
 

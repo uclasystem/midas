@@ -1,26 +1,29 @@
 #pragma once
 
+#include "logging.hpp"
+
+namespace cachebank {
+
 namespace utils {
-constexpr static char kSQPrefix[] = "sendq-";
-constexpr static char kRQPrefix[] = "recvq-";
-static inline const std::string get_sq_name(std::string qpname, bool create) {
+inline const std::string get_sq_name(std::string qpname, bool create) {
   return create ? kSQPrefix + qpname : kRQPrefix + qpname;
 }
 
-static inline const std::string get_rq_name(std::string qpname, bool create) {
+inline const std::string get_rq_name(std::string qpname, bool create) {
   return get_sq_name(qpname, !create);
 }
 
-static inline const std::string get_ackq_name(std::string qpname, uint64_t id) {
+inline const std::string get_ackq_name(std::string qpname, uint64_t id) {
   return kSQPrefix + qpname + "-" + std::to_string(id);
 }
 } // namespace utils
+
 
 inline int QSingle::send(const void *buffer, size_t buffer_size) {
   try {
     _q->send(buffer, buffer_size, /* prio = */ 0);
   } catch (boost::interprocess::interprocess_exception &e) {
-    std::cerr << e.what() << std::endl;
+    LOG(kError) << e.what();
     return -1;
   }
   return 0;
@@ -32,12 +35,12 @@ inline int QSingle::recv(void *buffer, size_t buffer_size) {
     size_t recvd_size;
     _q->receive(buffer, buffer_size, recvd_size, priority);
     if (recvd_size != buffer_size) {
-      std::cerr << "Q " << _name << " recv error: " << recvd_size
-                << "!=" << buffer_size << std::endl;
+      LOG(kError) << "Q " << _name << " recv error: " << recvd_size
+                  << "!=" << buffer_size;
       return -1;
     }
   } catch (boost::interprocess::interprocess_exception &e) {
-    std::cerr << e.what() << std::endl;
+    LOG(kError) << e.what();
     return -1;
   }
   return 0;
@@ -67,7 +70,7 @@ inline void QSingle::destroy() {
   try {
     MsgQueue::remove(_name.c_str());
   } catch (boost::interprocess::interprocess_exception &e) {
-    std::cerr << e.what() << std::endl;
+    LOG(kError) << e.what();
   }
 }
 
@@ -83,3 +86,4 @@ inline int QPair::send(const void *buffer, size_t buffer_size) {
 inline int QPair::recv(void *buffer, size_t buffer_size) {
   return _rq->recv(buffer, buffer_size);
 }
+} // namespace cachebank
