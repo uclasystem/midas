@@ -50,7 +50,7 @@ failed:
   return false;
 }
 
-uint64_t LogRegion::allocChunk() {
+inline uint64_t LogRegion::allocChunk() {
   if (full()) {
     seal();
     return -ENOMEM;
@@ -62,7 +62,7 @@ uint64_t LogRegion::allocChunk() {
 }
 
 // must be called under lock protection
-std::shared_ptr<LogRegion> LogAllocator::getRegion() {
+inline std::shared_ptr<LogRegion> LogAllocator::getRegion() {
   if (!vRegions_.empty()) {
     auto region = vRegions_.back();
     if (!region->full())
@@ -83,7 +83,7 @@ std::shared_ptr<LogRegion> LogAllocator::getRegion() {
   return region;
 }
 
-std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
+inline std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
   std::unique_lock<std::mutex> ul(lock_);
   uint64_t chunk_addr = -ENOMEM;
   auto region = getRegion();
