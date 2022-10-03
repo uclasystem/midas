@@ -25,6 +25,10 @@ public:
 private:
   void init(uint64_t addr);
   void iterate(size_t pos);
+  void scan();
+  void evacuate();
+
+  friend class Evacuator;
 
   static_assert(kRegionSize % kLogChunkSize == 0,
                 "Region size must be multiple chunk size");
@@ -44,10 +48,13 @@ public:
   uint32_t size() const noexcept;
   void seal() noexcept;
 
-  void evacuate(LogRegion *dst) {}
-
 private:
   void init();
+  void scan();
+  void evacuate();
+
+  friend class Evacuator;
+
   bool sealed_;
   uint64_t start_addr_;
   uint64_t pos_;
@@ -72,6 +79,8 @@ private:
   std::vector<std::shared_ptr<LogChunk>> vLogChunks_;
   std::atomic_int32_t curr_region_;
   std::atomic_int32_t curr_chunk_;
+
+  friend class Evacuator;
 
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers
