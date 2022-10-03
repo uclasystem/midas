@@ -4,7 +4,8 @@
 
 namespace cachebank {
 
-constexpr static uint64_t kInvalidHdr = 0x1f1f1f1f'1f1f1f1f;
+/** flags = 0, size = 0; rref = 0x1f1f1f1f1f1f */
+constexpr static uint64_t kInvalidHdr = 0x0'000'1f1f1f1f1f1f;
 constexpr static uint64_t kInvalidFlags = 0;
 
 struct GenericObjectHdr {
@@ -36,19 +37,22 @@ struct SmallObjectHdr {
   void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;
 
+  void set_invalid() noexcept;
+  bool is_valid() noexcept;
+
   void set_size(uint32_t size_) noexcept;
   uint32_t get_size() const noexcept;
 
   void set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() const noexcept;
 
-  void set_invalid() noexcept;
-  void clr_invalid() noexcept;
-
+  bool is_present() const noexcept;
   void set_present() noexcept;
   void clr_present() noexcept;
+  bool is_accessed() const noexcept;
   void set_accessed() noexcept;
   void clr_accessed() noexcept;
+  bool is_evacuate() const noexcept;
   void set_evacuate() noexcept;
   void clr_evacuate() noexcept;
 
@@ -82,19 +86,22 @@ struct LargeObjectHdr {
   void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;
 
+  void set_invalid() noexcept;
+  bool is_valid() noexcept;
+
   void set_size(uint32_t size_) noexcept;
   uint32_t get_size() const noexcept;
 
   void set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() const noexcept;
 
-  void set_invalid() noexcept;
-  void clr_invalid() noexcept;
-
+  bool is_present() const noexcept;
   void set_present() noexcept;
   void clr_present() noexcept;
+  bool is_accessed() const noexcept;
   void set_accessed() noexcept;
   void clr_accessed() noexcept;
+  bool is_evacuate() const noexcept;
   void set_evacuate() noexcept;
   void clr_evacuate() noexcept;
 
