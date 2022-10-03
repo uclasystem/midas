@@ -3,26 +3,34 @@
 namespace cachebank {
 
 inline LogChunk::LogChunk(uint64_t addr)
-    : start_addr_(addr), pos_(addr), full_(false) {}
+    : start_addr_(addr), pos_(addr), sealed_(false) {}
 
-inline void LogChunk::seal() noexcept { full_ = true; }
+inline void LogChunk::seal() noexcept {
+  assert(!full());
+  GenericObjectHdr endHdr;
+  endHdr.set_invalid();
+  auto endPtr = TransientPtr(reinterpret_cast<GenericObjectHdr *>(pos_),
+                             sizeof(GenericObjectHdr));
+  endPtr.copy_from(&endHdr, sizeof(endPtr)); // ignore return value
+  sealed_ = true;
+}
 
 inline bool LogChunk::full() noexcept {
-  if (pos_ >= start_addr_ + kPageChunkSize)
-    full_ = true;
-  return full_;
+  return pos_ + sizeof(GenericObjectHdr) >= start_addr_ + kPageChunkSize;
 }
 
 inline LogRegion::LogRegion(uint64_t addr)
-    : start_addr_(addr), pos_(addr), full_(false) {}
+    : start_addr_(addr), pos_(addr), sealed_(false) {}
 
-inline void LogRegion::seal() noexcept { full_ = true; }
+inline void LogRegion::seal() noexcept {
+  assert(!full());
+  sealed_ = true;
+}
 
 inline bool LogRegion::full() noexcept {
-  if (pos_ >= start_addr_ + kRegionSize)
-    full_ = true;
-  return full_;
+  return pos_ >= start_addr_ + kRegionSize;
 }
+
 inline uint32_t LogRegion::size() const noexcept {
   return pos_ / kPageChunkSize;
 }

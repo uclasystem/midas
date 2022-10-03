@@ -7,9 +7,10 @@ namespace cachebank {
 constexpr static uint64_t kInvalidHdr = 0x1f1f1f1f'1f1f1f1f;
 constexpr static uint64_t kInvalidFlags = 0;
 
-struct GenericObjecthdr {
+struct GenericObjectHdr {
   uint64_t flags;
 
+  void set_invalid() noexcept;
   bool is_valid() const noexcept;
   bool is_small_obj() const noexcept;
 

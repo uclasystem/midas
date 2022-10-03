@@ -14,8 +14,9 @@ namespace cachebank {
 
 inline std::optional<TransientPtr> LogChunk::alloc(size_t size) {
   auto hdr_size = sizeof(SmallObjectHdr);
-  if (pos_ + hdr_size + size > start_addr_ + kLogChunkSize)
-    goto failed;
+  if (pos_ + hdr_size + size >
+      start_addr_ + kLogChunkSize - sizeof(GenericObjectHdr))
+    goto full;
   else {
     SmallObjectHdr objHdr;
     objHdr.init(size);
@@ -28,6 +29,8 @@ inline std::optional<TransientPtr> LogChunk::alloc(size_t size) {
     return TransientPtr(addr, size);
   }
 
+full: // current chunk is full
+  seal();
 failed:
   return std::nullopt;
 }
@@ -48,8 +51,10 @@ failed:
 }
 
 uint64_t LogRegion::allocChunk() {
-  if (full())
+  if (full()) {
+    seal();
     return -ENOMEM;
+  }
 
   uint64_t addr = pos_;
   pos_ += kPageChunkSize;
@@ -84,9 +89,7 @@ std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
   auto region = getRegion();
   if (region) {
     chunk_addr = region->allocChunk();
-    if (chunk_addr == -ENOMEM)
-      region->seal();
-    else
+    if (chunk_addr != -ENOMEM)
       goto done;
   }
 
@@ -115,8 +118,6 @@ std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
     auto ret = pcab->alloc(size);
     if (ret)
       return ret;
-    // current pcab is full
-    pcab->seal();
   }
   // slowpath
   auto chunk = allocChunk();

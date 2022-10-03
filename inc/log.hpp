@@ -7,6 +7,7 @@
 #include <vector>
 #include <mutex>
 
+#include "object.hpp"
 #include "transient_ptr.hpp"
 #include "utils.hpp"
 
@@ -29,7 +30,7 @@ private:
                 "Region size must be multiple chunk size");
 
   // std::mutex lock_;
-  bool full_;
+  bool sealed_;
   uint64_t start_addr_;
   uint64_t pos_;
 };
@@ -47,7 +48,7 @@ public:
 
 private:
   void init();
-  bool full_;
+  bool sealed_;
   uint64_t start_addr_;
   uint64_t pos_;
 };

@@ -7,11 +7,15 @@
 namespace cachebank {
 
 /** Generic Object */
-inline bool GenericObjecthdr::is_valid() const noexcept {
+inline void GenericObjectHdr::set_invalid() noexcept {
+  flags = kInvalidHdr;
+}
+
+inline bool GenericObjectHdr::is_valid() const noexcept {
   return (flags & (1ull << kPresentBit));
 }
 
-inline bool GenericObjecthdr::is_small_obj() const noexcept {
+inline bool GenericObjectHdr::is_small_obj() const noexcept {
   return (flags & (1ull << kSmallObjBit));
 }
 
