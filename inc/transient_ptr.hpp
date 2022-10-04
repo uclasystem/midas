@@ -15,6 +15,11 @@ public:
   TransientPtr slice(int64_t offset, size_t size) const;
   size_t size() const noexcept;
   /**
+   * Atomic operations
+   */
+  bool cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval);
+  int64_t atomic_add(int64_t offset, int64_t val);
+  /**
    * Ops with single transient reference (this).
    */
   bool copy_from(const void *src, size_t len, size_t offset = 0);

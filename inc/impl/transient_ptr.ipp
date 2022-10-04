@@ -29,6 +29,21 @@ inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
   return is_valid() ? TransientPtr(ptr_ + offset, size) : TransientPtr();
 }
 
+
+/**
+  * Atomic operations
+  */
+inline bool TransientPtr::cmpxchg(int64_t offset, uint64_t oldval,
+                                  uint64_t newval) {
+  auto addr = reinterpret_cast<uint64_t *>(ptr_ + offset);
+  return __sync_val_compare_and_swap(addr, oldval, newval);
+}
+
+inline int64_t TransientPtr::atomic_add(int64_t offset, int64_t val) {
+  auto addr = reinterpret_cast<uint64_t *>(ptr_ + offset);
+  return __sync_fetch_and_add(addr, val);
+}
+
 inline bool TransientPtr::copy_from(const void *src, size_t len,
                                     size_t offset) {
   if (!is_valid())
