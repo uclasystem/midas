@@ -9,8 +9,7 @@ inline void LogChunk::seal() noexcept {
   assert(!full());
   GenericObjectHdr endHdr;
   endHdr.set_invalid();
-  auto endPtr = TransientPtr(reinterpret_cast<GenericObjectHdr *>(pos_),
-                             sizeof(GenericObjectHdr));
+  auto endPtr = TransientPtr(pos_, sizeof(GenericObjectHdr));
   endPtr.copy_from(&endHdr, sizeof(endPtr)); // ignore return value
   pos_ += sizeof(GenericObjectHdr);
   sealed_ = true;
@@ -21,23 +20,21 @@ inline bool LogChunk::full() noexcept {
          pos_ + sizeof(GenericObjectHdr) >= start_addr_ + kLogChunkSize;
 }
 
-inline LogRegion::LogRegion(uint64_t addr)
-    : start_addr_(addr), pos_(addr), sealed_(false) {}
+inline LogRegion::LogRegion(int64_t rid, uint64_t addr)
+    : region_id_(rid), start_addr_(addr), pos_(addr), sealed_(false),
+      destroyed_(false) {}
 
-inline void LogRegion::seal() noexcept {
-  assert(!full());
-  sealed_ = true;
-}
+inline void LogRegion::seal() noexcept { sealed_ = true; }
 
-inline bool LogRegion::full() noexcept {
+inline bool LogRegion::destroyed() const noexcept { return destroyed_; }
+
+inline bool LogRegion::full() const noexcept {
   return pos_ >= start_addr_ + kRegionSize;
 }
 
 inline uint32_t LogRegion::size() const noexcept {
   return pos_ / kPageChunkSize;
 }
-
-inline void LogRegion::init() {}
 
 inline LogAllocator::LogAllocator() : curr_region_(0), curr_chunk_(0) {}
 

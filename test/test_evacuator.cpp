@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "log.hpp"
+#include "object.hpp"
 #include "transient_ptr.hpp"
 #include "evacuator.hpp"
 
@@ -50,8 +51,23 @@ int main(int argc, char *argv[]) {
           nr_errs++;
           continue;
         }
-        ptrs[tid].push_back(*optptr);
+        auto &tptr = *optptr;
+        ptrs[tid].push_back(tptr);
         objs[tid].push_back(obj);
+
+        // set rref
+        cachebank::SmallObjectHdr hdr;
+        auto hdrPtr = tptr.slice(-sizeof(hdr), sizeof(hdr));
+        if (!hdrPtr.copy_to(&hdr, sizeof(hdr))) {
+          nr_errs++;
+          continue;
+        }
+        hdr.set_rref(
+            reinterpret_cast<uint64_t>(&(ptrs[tid].at(ptrs[tid].size() - 1))));
+        if (!hdrPtr.copy_from(&hdr, sizeof(hdr))) {
+          nr_errs++;
+          continue;
+        }
       }
 
       for (int i = 0; i < ptrs[tid].size(); i++) {
@@ -63,10 +79,10 @@ int main(int argc, char *argv[]) {
           nr_errs++;
       }
 
-      for (auto ptr : ptrs[tid]) {
-        if (!allocator->free(ptr))
-          nr_errs++;
-      }
+      // for (auto ptr : ptrs[tid]) {
+      //   if (!allocator->free(ptr))
+      //     nr_errs++;
+      // }
     }));
   }
 
@@ -75,6 +91,7 @@ int main(int argc, char *argv[]) {
   }
 
   cachebank::Evacuator evacuator;
+  // evacuator.scan();
   evacuator.evacuate();
 
   if (nr_errs == 0)

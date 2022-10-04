@@ -22,13 +22,12 @@ public:
   void seal() noexcept;
   bool full() noexcept;
 
-private:
-  void init(uint64_t addr);
-  void iterate(size_t pos);
   void scan();
   void evacuate();
 
-  friend class Evacuator;
+private:
+  void init(uint64_t addr);
+  void iterate(size_t pos);
 
   static_assert(kRegionSize % kLogChunkSize == 0,
                 "Region size must be multiple chunk size");
@@ -41,23 +40,26 @@ private:
 
 class LogRegion {
 public:
-  LogRegion(uint64_t addr);
-  uint64_t allocChunk();
+  LogRegion(int64_t rid, uint64_t addr);
+  std::shared_ptr<LogChunk> allocChunk();
 
-  bool full() noexcept;
+  bool destroyed() const noexcept;
+  bool full() const noexcept;
   uint32_t size() const noexcept;
   void seal() noexcept;
+  void destroy();
 
-private:
-  void init();
   void scan();
   void evacuate();
 
-  friend class Evacuator;
-
-  bool sealed_;
+private:
+  int64_t region_id_;
   uint64_t start_addr_;
   uint64_t pos_;
+  bool sealed_;
+  bool destroyed_;
+
+  std::vector<std::shared_ptr<LogChunk>> vLogChunks_;
 };
 
 class LogAllocator {
@@ -76,7 +78,6 @@ private:
 
   std::mutex lock_;
   std::vector<std::shared_ptr<LogRegion>> vRegions_;
-  std::vector<std::shared_ptr<LogChunk>> vLogChunks_;
   std::atomic_int32_t curr_region_;
   std::atomic_int32_t curr_chunk_;
 

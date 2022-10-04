@@ -8,9 +8,9 @@ namespace cachebank {
 class TransientPtr {
 public:
   TransientPtr() = default;
-  TransientPtr(void *ptr, size_t size);
+  TransientPtr(uint64_t addr, size_t size);
   bool is_valid() const;
-  bool set(void *ptr, size_t size); /* point to a transient addr. */
+  bool set(uint64_t addr, size_t size); /* point to a transient addr. */
   bool reset() noexcept;
   TransientPtr slice(int64_t offset, size_t size) const;
   size_t size() const noexcept;
@@ -35,7 +35,7 @@ public:
   bool assign_to_foreign_region(TransientPtr *dst);
 
 private:
-  void *ptr_;
+  uint64_t ptr_;
   size_t size_; /* accessible range of the pointer */
 };
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "log.hpp"
-#include "transient_ptr.hpp"
 
 namespace cachebank {
 
@@ -11,8 +10,8 @@ public:
   void scan();
 
 private:
-  void evac_chunk(LogChunk *chunk);
-  void scan_chunk(LogChunk *chunk);
+  void evac_region(LogRegion *region);
+  void scan_region(LogRegion *region);
 };
 
 } // namespace cachebank
