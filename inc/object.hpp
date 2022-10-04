@@ -2,7 +2,11 @@
 
 #include <cstdint>
 
+#include "transient_ptr.hpp"
+
 namespace cachebank {
+
+constexpr static uint32_t kSmallObjThreshold = 8 << 12; /* 32KB */
 
 /** flags = 0, size = 0; rref = 0x1f1f1f1f1f1f */
 constexpr static uint64_t kInvalidHdr = 0x0'000'1f1f1f1f1f1f;
@@ -128,6 +132,55 @@ private:
 
 static_assert(sizeof(LargeObjectHdr) <= 16,
               "LargeObjHdr is not correctly aligned!");
+
+
+struct ObjectPtr {
+public:
+  ObjectPtr(uint64_t stt_addr, size_t obj_size);
+
+  void init(uint64_t stt_addr, size_t obj_size);
+  bool free() noexcept;
+
+  /** Header related */
+  size_t total_size() const noexcept;
+  size_t hdr_size() const noexcept;
+  size_t data_size() const noexcept;
+
+  bool set_invalid() noexcept;
+  bool is_valid() noexcept;
+
+  bool set_rref(uint64_t addr) noexcept;
+  uint64_t get_rref() noexcept;
+
+  bool is_present() noexcept;
+  bool set_present() noexcept;
+  bool clr_present() noexcept;
+  bool is_accessed() noexcept;
+  bool set_accessed() noexcept;
+  bool clr_accessed() noexcept;
+  bool is_evacuate() noexcept;
+  bool set_evacuate() noexcept;
+  bool clr_evacuate() noexcept;
+  bool is_continue() noexcept;
+  bool set_continue() noexcept;
+  bool clr_continue() noexcept;
+
+  /** Data related */
+  bool cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval);
+
+  bool copy_from(const void *src, size_t len, int64_t offset = 0);
+  bool copy_to(void *dst, size_t len, int64_t offset = 0);
+  bool copy_from(const TransientPtr &src, size_t len, int64_t from_offset = 0,
+                 int64_t to_offset = 0);
+  bool copy_to(TransientPtr &dst, size_t len, int64_t from_offset = 0,
+               int64_t to_offset = 0);
+
+private:
+  bool is_small_obj() const noexcept;
+  size_t size_;
+  TransientPtr obj_;
+};
+
 } // namespace cachebank
 
 #include "impl/object.ipp"

@@ -2,6 +2,7 @@
 
 #include <cassert>
 
+#include "logging.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -154,6 +155,313 @@ inline void LargeObjectHdr::clr_continue() noexcept {
 
 inline void LargeObjectHdr::_large_obj() noexcept {
   flags &= ~(1 << kSmallObjBit);
+}
+
+/** ObjectPtr */
+inline ObjectPtr::ObjectPtr(uint64_t stt_addr, size_t obj_size) {
+  init(stt_addr, obj_size);
+}
+
+inline void ObjectPtr::init(uint64_t stt_addr, size_t obj_size) {
+  size_ = round_up_to_align(obj_size, kSmallObjSizeUnit);
+
+  obj_size = size_;
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    hdr.init(obj_size);
+    obj_ = TransientPtr(stt_addr, sizeof(SmallObjectHdr) + obj_size);
+  } else { // large obj
+    LargeObjectHdr hdr;
+    hdr.init(obj_size);
+    obj_ = TransientPtr(stt_addr, sizeof(LargeObjectHdr) + obj_size);
+  }
+}
+
+inline bool ObjectPtr::free() noexcept {
+  return clr_present();
+}
+
+inline size_t ObjectPtr::total_size() const noexcept {
+  return hdr_size() + data_size();
+}
+inline size_t ObjectPtr::hdr_size() const noexcept {
+  return is_small_obj() ? sizeof(SmallObjectHdr) : sizeof(LargeObjectHdr);
+}
+inline size_t ObjectPtr::data_size() const noexcept {
+  return size_;
+}
+
+inline bool ObjectPtr::is_small_obj() const noexcept {
+  return size_ < kSmallObjThreshold;
+}
+
+inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.set_rref(addr);
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.set_rref(addr);
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline uint64_t ObjectPtr::get_rref() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    return hdr.get_rref();
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    return hdr.get_rref();
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::is_valid() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    return hdr.is_valid();
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    return hdr.is_valid();
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::set_invalid() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.set_invalid();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.set_invalid();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::is_present() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    return hdr.is_present();
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    return hdr.is_present();
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::set_present() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.set_present();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.set_present();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::clr_present() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.clr_present();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.clr_present();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::is_accessed() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    return hdr.is_accessed();
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    return hdr.is_accessed();
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::set_accessed() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.set_accessed();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.set_accessed();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::clr_accessed() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.clr_accessed();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.clr_accessed();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::is_evacuate() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.is_evacuate();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.is_evacuate();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+}
+
+inline bool ObjectPtr::set_evacuate() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.set_evacuate();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.set_evacuate();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+}
+
+inline bool ObjectPtr::clr_evacuate() noexcept {
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return false;
+    hdr.clr_evacuate();
+    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return false;
+    hdr.clr_evacuate();
+    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  }
+}
+
+inline bool ObjectPtr::is_continue() noexcept {
+  assert(!is_small_obj());
+  LargeObjectHdr hdr;
+  if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+    return false;
+  return hdr.is_continue();
+}
+
+inline bool ObjectPtr::set_continue() noexcept {
+  assert(!is_small_obj());
+  LargeObjectHdr hdr;
+  if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+    return false;
+  hdr.set_continue();
+  return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+}
+
+inline bool ObjectPtr::clr_continue() noexcept {
+  assert(!is_small_obj());
+
+  LargeObjectHdr hdr;
+  if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+    return false;
+  hdr.clr_continue();
+  return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+}
+
+inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval) {
+  return obj_.cmpxchg(hdr_size() + offset, oldval, newval);
+}
+
+inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset ) {
+  return obj_.copy_from(src, len, hdr_size() + offset);
+}
+
+inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset ) {
+  return obj_.copy_to(dst, len, hdr_size() + offset);
+}
+
+inline bool ObjectPtr::copy_from(const TransientPtr &src, size_t len,
+                                 int64_t from_offset, int64_t to_offset) {
+  return obj_.copy_from(src, len, from_offset, hdr_size() + to_offset);
+}
+
+inline bool ObjectPtr::copy_to(TransientPtr &dst, size_t len,
+                               int64_t from_offset, int64_t to_offset) {
+  return obj_.copy_to(dst, len, hdr_size() + from_offset, to_offset);
 }
 
 } // namespace cachebank

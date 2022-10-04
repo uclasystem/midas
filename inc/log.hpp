@@ -71,8 +71,6 @@ public:
   static inline LogAllocator *global_allocator() noexcept;
 
 private:
-  constexpr static uint32_t kSmallObjThreshold = 8 << 12;
-
   std::shared_ptr<LogRegion> getRegion();
   std::shared_ptr<LogChunk> allocChunk();
 
