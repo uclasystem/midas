@@ -5,9 +5,8 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <ratio>
+#include <mutex>
 #include <string>
-#include <sys/types.h>
 #include <thread>
 
 #include "logging.hpp"
@@ -131,6 +130,14 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
   return region_id;
 }
 
+void ResourceManager::FreeRegion(int64_t rid) noexcept {
+  std::unique_lock<std::mutex> lk(_mtx);
+  int64_t freed_bytes = free_region(rid);
+  if (freed_bytes == -1) {
+    LOG(kError) << "Failed to free region " << rid;
+  }
+}
+
 void ResourceManager::FreeRegions(size_t size) noexcept {
   std::unique_lock<std::mutex> lk(_mtx);
   size_t total_freed = 0;
@@ -167,7 +174,7 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
                 .mmsg = {.region_id = region_id, .size = size}};
     _txqp.send(&msg, sizeof(msg));
 
-    LOG(kInfo) << "Free region " << region_id;
+    LOG(kDebug) << "Free region " << region_id;
 
     CtrlMsg ack;
     unsigned prio;
@@ -180,10 +187,8 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
   }
 
   _region_map.erase(region_id);
-  LOG(kInfo) << "page_chunk_map size: " << _region_map.size();
+  LOG(kDebug) << "page_chunk_map size: " << _region_map.size();
   return size;
 }
-
-#include "impl/resource_manager.ipp"
 
 } // namespace cachebank

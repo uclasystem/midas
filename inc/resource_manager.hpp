@@ -46,6 +46,7 @@ public:
   ~ResourceManager() noexcept;
 
   int64_t AllocRegion(size_t size = kRegionSize) noexcept;
+  void FreeRegion(int64_t rid) noexcept;
   void FreeRegions(size_t size = kRegionSize) noexcept;
   inline VRange GetRegion(int64_t region_id) noexcept;
 
