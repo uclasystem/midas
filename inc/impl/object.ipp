@@ -8,9 +8,7 @@
 namespace cachebank {
 
 /** Generic Object */
-inline void GenericObjectHdr::set_invalid() noexcept {
-  flags = kInvalidHdr;
-}
+inline void GenericObjectHdr::set_invalid() noexcept { flags = kInvalidHdr; }
 
 inline bool GenericObjectHdr::is_valid() const noexcept {
   return flags != kInvalidHdr;
@@ -158,27 +156,56 @@ inline void LargeObjectHdr::_large_obj() noexcept {
 }
 
 /** ObjectPtr */
-inline ObjectPtr::ObjectPtr(uint64_t stt_addr, size_t obj_size) {
-  init(stt_addr, obj_size);
-}
+inline bool ObjectPtr::set(uint64_t stt_addr, size_t data_size) {
+  size_ = round_up_to_align(data_size, kSmallObjSizeUnit);
 
-inline void ObjectPtr::init(uint64_t stt_addr, size_t obj_size) {
-  size_ = round_up_to_align(obj_size, kSmallObjSizeUnit);
-
-  obj_size = size_;
+  auto obj_size = total_size();
   if (is_small_obj()) {
     SmallObjectHdr hdr;
-    hdr.init(obj_size);
-    obj_ = TransientPtr(stt_addr, sizeof(SmallObjectHdr) + obj_size);
+    hdr.init(data_size);
+    obj_ = TransientPtr(stt_addr, obj_size);
+    return obj_.copy_from(&hdr, sizeof(hdr));
   } else { // large obj
     LargeObjectHdr hdr;
-    hdr.init(obj_size);
-    obj_ = TransientPtr(stt_addr, sizeof(LargeObjectHdr) + obj_size);
+    hdr.init(data_size);
+    obj_ = TransientPtr(stt_addr, obj_size);
+    return obj_.copy_from(&hdr, sizeof(hdr));
   }
+  LOG(kError) << "impossible to reach here!";
+  return false;
+}
+
+inline bool ObjectPtr::init_from_soft(uint64_t soft_addr) {
+  GenericObjectHdr hdr;
+  auto tptr = TransientPtr(soft_addr, sizeof(GenericObjectHdr));
+  if (!tptr.copy_to(&hdr, sizeof(hdr)))
+    return false;
+
+  if (hdr.is_small_obj()) {
+    SmallObjectHdr shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
+    size_ = shdr.get_size();
+    obj_ = TransientPtr(soft_addr, total_size());
+  } else {
+    LargeObjectHdr lhdr;
+    if (!tptr.copy_to(&lhdr, sizeof(lhdr)))
+      return false;
+    size_ = lhdr.get_size();
+    obj_ = TransientPtr(soft_addr, total_size());
+  }
+
+  return true;
 }
 
 inline bool ObjectPtr::free() noexcept {
+  if (!is_valid())
+    return false;
   return clr_present();
+}
+
+inline size_t ObjectPtr::total_size(size_t data_size) noexcept {
+  data_size = round_up_to_align(data_size, kSmallObjSizeUnit);
+  return data_size < kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
+                                        : sizeof(LargeObjectHdr) + data_size;
 }
 
 inline size_t ObjectPtr::total_size() const noexcept {
@@ -187,9 +214,7 @@ inline size_t ObjectPtr::total_size() const noexcept {
 inline size_t ObjectPtr::hdr_size() const noexcept {
   return is_small_obj() ? sizeof(SmallObjectHdr) : sizeof(LargeObjectHdr);
 }
-inline size_t ObjectPtr::data_size() const noexcept {
-  return size_;
-}
+inline size_t ObjectPtr::data_size() const noexcept { return size_; }
 
 inline bool ObjectPtr::is_small_obj() const noexcept {
   return size_ < kSmallObjThreshold;
@@ -287,6 +312,7 @@ inline bool ObjectPtr::set_present() noexcept {
     hdr.set_present();
     return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
   } else {
+    LOG(kError) << "large obj allocation is not implemented yet!";
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
       return false;
@@ -305,6 +331,7 @@ inline bool ObjectPtr::clr_present() noexcept {
     hdr.clr_present();
     return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
   } else {
+    LOG(kError) << "large obj allocation is not implemented yet!";
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
       return false;
@@ -442,26 +469,37 @@ inline bool ObjectPtr::clr_continue() noexcept {
   return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
 }
 
-inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval) {
+inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval,
+                               uint64_t newval) {
   return obj_.cmpxchg(hdr_size() + offset, oldval, newval);
 }
 
-inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset ) {
+inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
+  if (!set_accessed())
+    return false;
   return obj_.copy_from(src, len, hdr_size() + offset);
 }
 
-inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset ) {
+inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
+  if (!set_accessed())
+    return false;
   return obj_.copy_to(dst, len, hdr_size() + offset);
 }
 
-inline bool ObjectPtr::copy_from(const TransientPtr &src, size_t len,
+inline bool ObjectPtr::copy_from(ObjectPtr &src, size_t len,
                                  int64_t from_offset, int64_t to_offset) {
-  return obj_.copy_from(src, len, from_offset, hdr_size() + to_offset);
+  if (!src.set_accessed() || !set_accessed())
+    return false;
+  return obj_.copy_from(src.obj_, len, src.hdr_size() + from_offset,
+                        hdr_size() + to_offset);
 }
 
-inline bool ObjectPtr::copy_to(TransientPtr &dst, size_t len,
-                               int64_t from_offset, int64_t to_offset) {
-  return obj_.copy_to(dst, len, hdr_size() + from_offset, to_offset);
+inline bool ObjectPtr::copy_to(ObjectPtr &dst, size_t len, int64_t from_offset,
+                               int64_t to_offset) {
+  if (!set_accessed() || !dst.set_accessed())
+    return false;
+  return obj_.copy_to(dst.obj_, len, hdr_size() + from_offset,
+                      dst.hdr_size() + to_offset);
 }
 
 } // namespace cachebank

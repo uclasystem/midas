@@ -133,15 +133,14 @@ private:
 static_assert(sizeof(LargeObjectHdr) <= 16,
               "LargeObjHdr is not correctly aligned!");
 
-
 struct ObjectPtr {
 public:
-  ObjectPtr(uint64_t stt_addr, size_t obj_size);
-
-  void init(uint64_t stt_addr, size_t obj_size);
+  bool set(uint64_t stt_addr, size_t data_size);
+  bool init_from_soft(uint64_t soft_addr);
   bool free() noexcept;
 
   /** Header related */
+  static size_t total_size(size_t data_size) noexcept;
   size_t total_size() const noexcept;
   size_t hdr_size() const noexcept;
   size_t data_size() const noexcept;
@@ -151,6 +150,8 @@ public:
 
   bool set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() noexcept;
+
+  bool is_small_obj() const noexcept;
 
   bool is_present() noexcept;
   bool set_present() noexcept;
@@ -170,13 +171,12 @@ public:
 
   bool copy_from(const void *src, size_t len, int64_t offset = 0);
   bool copy_to(void *dst, size_t len, int64_t offset = 0);
-  bool copy_from(const TransientPtr &src, size_t len, int64_t from_offset = 0,
+  bool copy_from(ObjectPtr &src, size_t len, int64_t from_offset = 0,
                  int64_t to_offset = 0);
-  bool copy_to(TransientPtr &dst, size_t len, int64_t from_offset = 0,
+  bool copy_to(ObjectPtr &dst, size_t len, int64_t from_offset = 0,
                int64_t to_offset = 0);
 
 private:
-  bool is_small_obj() const noexcept;
   size_t size_;
   TransientPtr obj_;
 };
