@@ -17,23 +17,23 @@ struct GenericObjectHdr {
 
 private:
   constexpr static uint32_t kFlagShift =
-      sizeof(flags) * 8 - 4; // only use the highest 4 bits
-  constexpr static decltype(flags) kPresentBit = 0 + kFlagShift;
-  constexpr static decltype(flags) kAccessedBit = 1 + kFlagShift;
-  constexpr static decltype(flags) kEvacuateBit = 2 + kFlagShift;
-  constexpr static decltype(flags) kSmallObjBit = 3 + kFlagShift;
+      sizeof(flags) * 8; // start from the highest bit
+  constexpr static decltype(flags) kPresentBit = kFlagShift - 1;
+  constexpr static decltype(flags) kAccessedBit = kFlagShift - 2;
+  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
+  constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
 };
 
 struct SmallObjectHdr {
   // Format:
-  //  I) |!S(1b)|E(1b)|A(1b)|P(1b)| Object Size(12b) | Reverse reference (48b) |
+  //  I) |P(1b)|A(1b)|E(1b)|S(1b)| Object Size(12b) | Reverse reference (48b) |
   //                   P: present bit.
   //                   A: accessed bits.
   //                   E: The pointed data is being evacuated.
   //                   S: small obj bit, meaning the object is a small obj (size
-  //                     <= 8B * 2^12 == 32KB)
+  //                     <= 8B * 2^12 == 32KB).
   //         Object Size: the size of the pointed object.
-  //   Reverse reference: the only pointer referencing this object
+  //   Reverse reference: the only pointer referencing this object.
   void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;
 
@@ -62,10 +62,11 @@ private:
   uint8_t flags : 4;
 
   void _small_obj() noexcept;
-  constexpr static decltype(flags) kPresentBit = 0;
-  constexpr static decltype(flags) kAccessedBit = 1;
-  constexpr static decltype(flags) kEvacuateBit = 2;
-  constexpr static decltype(flags) kSmallObjBit = 3;
+  constexpr static decltype(flags) kFlagShift = 4;
+  constexpr static decltype(flags) kPresentBit = kFlagShift - 1;
+  constexpr static decltype(flags) kAccessedBit = kFlagShift - 2;
+  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
+  constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
 };
 
 static_assert(sizeof(SmallObjectHdr) <= 16,
@@ -73,15 +74,17 @@ static_assert(sizeof(SmallObjectHdr) <= 16,
 
 struct LargeObjectHdr {
   // Format:
-  //  I) | !S(1b) | E(1b) | A(1b) | P(1b) | 0...0(28b) |   Object Size(32b)    |
+  //  I) | P(1b) | A(1b) | E(1b) | S(1b) | C(1b) | 000(27b) | Object Size(32b) |
   // II) |             0...0(16b)             |    Reverse reference (48b)     |
   //                   P: present bit.
   //                   A: accessed bits.
-  //                   E: The pointed data is being evacuated.
+  //                   E: evacuate bit, meaning the data is being evacuated.
   //                   S: small obj bit, meaning the object is a small obj
-  //                     (size <= 8B * 2^12 == 32KB)
+  //                     (size <= 8B * 2^12 == 32KB).
+  //                   C: continue bit, meaning the objct is a large obj and
+  //                      the current chunk is a continued chunk.
   //         Object Size: the size of the pointed object.
-  //   Reverse reference: the only pointer referencing this object
+  //   Reverse reference: the only pointer referencing this object.
 
   void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;
@@ -104,6 +107,9 @@ struct LargeObjectHdr {
   bool is_evacuate() const noexcept;
   void set_evacuate() noexcept;
   void clr_evacuate() noexcept;
+  bool is_continue() const noexcept;
+  void set_continue() noexcept;
+  void clr_continue() noexcept;
 
 private:
   uint32_t flags;
@@ -112,11 +118,12 @@ private:
 
   void _large_obj() noexcept;
   constexpr static uint32_t kFlagShift =
-      sizeof(flags) * 8 - 4; // only use the highest 4 bits
-  constexpr static decltype(flags) kPresentBit = 0 + kFlagShift;
-  constexpr static decltype(flags) kAccessedBit = 1 + kFlagShift;
-  constexpr static decltype(flags) kEvacuateBit = 2 + kFlagShift;
-  constexpr static decltype(flags) kSmallObjBit = 3 + kFlagShift;
+      sizeof(flags) * 8; // start from the highest bit
+  constexpr static decltype(flags) kPresentBit = kFlagShift - 1;
+  constexpr static decltype(flags) kAccessedBit = kFlagShift - 2;
+  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
+  constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
+  constexpr static decltype(flags) kContinueBit = kFlagShift - 5;
 };
 
 static_assert(sizeof(LargeObjectHdr) <= 16,

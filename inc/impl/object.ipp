@@ -142,6 +142,16 @@ inline void LargeObjectHdr::clr_evacuate() noexcept {
   flags &= ~(1 << kEvacuateBit);
 }
 
+inline bool LargeObjectHdr::is_continue() const noexcept {
+  return flags & (1 << kContinueBit);
+}
+inline void LargeObjectHdr::set_continue() noexcept {
+  flags |= (1 << kContinueBit);
+}
+inline void LargeObjectHdr::clr_continue() noexcept {
+  flags &= ~(1 << kContinueBit);
+}
+
 inline void LargeObjectHdr::_large_obj() noexcept {
   flags &= ~(1 << kSmallObjBit);
 }
