@@ -29,10 +29,9 @@ inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
   return is_valid() ? TransientPtr(ptr_ + offset, size) : TransientPtr();
 }
 
-
 /**
-  * Atomic operations
-  */
+ * Atomic operations
+ */
 inline bool TransientPtr::cmpxchg(int64_t offset, uint64_t oldval,
                                   uint64_t newval) {
   auto addr = reinterpret_cast<uint64_t *>(ptr_ + offset);
@@ -45,7 +44,7 @@ inline int64_t TransientPtr::atomic_add(int64_t offset, int64_t val) {
 }
 
 inline bool TransientPtr::copy_from(const void *src, size_t len,
-                                    size_t offset) {
+                                    int64_t offset) {
   if (!is_valid())
     return false;
   // TODO: page-fault-aware logic
@@ -55,7 +54,7 @@ inline bool TransientPtr::copy_from(const void *src, size_t len,
   return true;
 }
 
-inline bool TransientPtr::copy_to(void *dst, size_t len, size_t offset) {
+inline bool TransientPtr::copy_to(void *dst, size_t len, int64_t offset) {
   if (!is_valid())
     return false;
   // TODO: page-fault-aware logic
@@ -66,7 +65,7 @@ inline bool TransientPtr::copy_to(void *dst, size_t len, size_t offset) {
 }
 
 inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
-                                    size_t from_offset, size_t to_offset) {
+                                    int64_t from_offset, int64_t to_offset) {
   if (!is_valid())
     return false;
   // TODO: page-fault-aware logic
@@ -78,7 +77,7 @@ inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
 }
 
 inline bool TransientPtr::copy_to(TransientPtr &dst, size_t len,
-                                  size_t from_offset, size_t to_offset) {
+                                  int64_t from_offset, int64_t to_offset) {
   if (!is_valid())
     return false;
   // TODO: page-fault-aware logic
