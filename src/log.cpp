@@ -268,12 +268,12 @@ inline std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
 }
 
 std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
+  size = round_up_to_align(size, kSmallObjSizeUnit);
   if (size >= kSmallObjThreshold) { // large obj
     LOG(kError) << "large obj allocation is not implemented yet!";
     return std::nullopt;
   }
 
-  size = round_up_to_align(size, kSmallObjSizeUnit);
   if (pcab.get()) {
     auto ret = pcab->alloc(size);
     if (ret)
