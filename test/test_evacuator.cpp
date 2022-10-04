@@ -10,6 +10,7 @@
 #include "transient_ptr.hpp"
 #include "evacuator.hpp"
 
+constexpr int kNumGCThds = 10;
 constexpr int kNumThds = 10;
 constexpr int kNumObjs = 102400;
 
@@ -90,7 +91,7 @@ int main(int argc, char *argv[]) {
     thd.join();
   }
 
-  cachebank::Evacuator evacuator;
+  cachebank::Evacuator<kNumGCThds> evacuator;
   // evacuator.scan();
   evacuator.evacuate();
 
