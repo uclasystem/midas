@@ -7,7 +7,6 @@
 
 #include "log.hpp"
 #include "object.hpp"
-#include "transient_ptr.hpp"
 #include "evacuator.hpp"
 
 constexpr int kNumGCThds = 10;
@@ -39,7 +38,7 @@ int main(int argc, char *argv[]) {
   std::vector<std::thread> threads;
 
   std::atomic_int nr_errs(0);
-  std::vector<cachebank::TransientPtr> ptrs[kNumThds];
+  std::vector<cachebank::ObjectPtr> ptrs[kNumThds];
   std::vector<Object> objs[kNumThds];
 
   for (int tid = 0; tid < kNumThds; tid++) {
@@ -52,21 +51,13 @@ int main(int argc, char *argv[]) {
           nr_errs++;
           continue;
         }
-        auto &tptr = *optptr;
-        ptrs[tid].push_back(tptr);
+        auto &obj_ptr = *optptr;
+        ptrs[tid].push_back(obj_ptr);
         objs[tid].push_back(obj);
 
         // set rref
-        cachebank::SmallObjectHdr hdr;
-        auto hdrPtr = tptr.slice(-sizeof(hdr), sizeof(hdr));
-        if (!hdrPtr.copy_to(&hdr, sizeof(hdr))) {
-          nr_errs++;
-          continue;
-        }
-        hdr.set_rref(
-            reinterpret_cast<uint64_t>(&(ptrs[tid].at(ptrs[tid].size() - 1))));
-        if (!hdrPtr.copy_from(&hdr, sizeof(hdr))) {
-          nr_errs++;
+        if (!obj_ptr.set_rref(reinterpret_cast<uint64_t>(
+                &(ptrs[tid].at(ptrs[tid].size() - 1))))) {
           continue;
         }
       }

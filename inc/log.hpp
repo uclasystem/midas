@@ -3,13 +3,12 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <vector>
-#include <mutex>
-#include <memory>
 
 #include "object.hpp"
-#include "transient_ptr.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -17,8 +16,8 @@ namespace cachebank {
 class LogChunk {
 public:
   LogChunk(uint64_t addr);
-  std::optional<TransientPtr> alloc(size_t size);
-  bool free(uint64_t ptr);
+  std::optional<ObjectPtr> alloc(size_t size);
+  bool free(ObjectPtr &ptr);
   void seal() noexcept;
   bool full() noexcept;
 
@@ -65,8 +64,8 @@ private:
 class LogAllocator {
 public:
   LogAllocator();
-  std::optional<TransientPtr> alloc(size_t size);
-  bool free(TransientPtr &ptr);
+  std::optional<ObjectPtr> alloc(size_t size);
+  bool free(ObjectPtr &ptr);
 
   static inline LogAllocator *global_allocator() noexcept;
 
@@ -79,8 +78,7 @@ private:
   std::atomic_int32_t curr_region_;
   std::atomic_int32_t curr_chunk_;
 
-  template<int nr_thds>
-  friend class Evacuator;
+  template <int nr_thds> friend class Evacuator;
 
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers

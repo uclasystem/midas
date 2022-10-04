@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "log.hpp"
-#include "transient_ptr.hpp"
+#include "object.hpp"
 
 constexpr int kNumThds = 10;
 constexpr int kNumObjs = 102400;
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
   std::vector<std::thread> threads;
 
   std::atomic_int nr_errs(0);
-  std::vector<cachebank::TransientPtr> ptrs[kNumThds];
+  std::vector<cachebank::ObjectPtr> ptrs[kNumThds];
   std::vector<Object> objs[kNumThds];
 
   for (int tid = 0; tid < kNumThds; tid++) {

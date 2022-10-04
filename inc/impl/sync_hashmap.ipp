@@ -124,7 +124,6 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
 }
 
 /** Utility functions */
-
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 template <typename K1, typename Tp1>
@@ -157,8 +156,8 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::delete_node(
     return nullptr;
   auto next = node->next;
 
-  LogAllocator::global_allocator()->free(node->pair);
-  node->pair.reset();
+  // LogAllocator::global_allocator()->free(node->pair);
+  node->pair.free();
   delete node;
 
   *prev_next = next;

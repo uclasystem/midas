@@ -6,13 +6,13 @@
 #include <vector>
 
 #include "log.hpp"
-#include "transient_ptr.hpp"
+#include "object.hpp"
 
 namespace cachebank {
 
 struct BucketNode {
   uint64_t key_hash;
-  TransientPtr pair;
+  ObjectPtr pair;
   BucketNode *next;
 };
 using BNPtr = BucketNode *;

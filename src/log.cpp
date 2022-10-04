@@ -8,26 +8,22 @@
 #include "logging.hpp"
 #include "object.hpp"
 #include "resource_manager.hpp"
-#include "transient_ptr.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
 
 /** LogChunk */
-inline std::optional<TransientPtr> LogChunk::alloc(size_t size) {
-  auto hdr_size = sizeof(SmallObjectHdr);
-  if (pos_ + hdr_size + size + sizeof(GenericObjectHdr) >=
+inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
+  auto obj_size = ObjectPtr::total_size(size);
+  if (pos_ + obj_size + sizeof(GenericObjectHdr) >=
       start_addr_ + kLogChunkSize)
     goto full;
   else {
-    SmallObjectHdr objHdr;
-    objHdr.init(size);
-    auto hdrPtr = TransientPtr(pos_, hdr_size);
-    if (!hdrPtr.copy_from(&objHdr, hdr_size))
+    ObjectPtr obj_ptr;
+    if (!obj_ptr.set(pos_, size))
       goto failed;
-    auto next_pos = pos_ + hdr_size;
-    pos_ += hdr_size + size;
-    return TransientPtr(next_pos, size);
+    pos_ += obj_size;
+    return obj_ptr;
   }
 
 full: // current chunk is full
@@ -36,18 +32,8 @@ failed:
   return std::nullopt;
 }
 
-inline bool LogChunk::free(size_t addr) {
-  auto hdrPtr =
-      TransientPtr(addr - sizeof(SmallObjectHdr), sizeof(SmallObjectHdr));
-  SmallObjectHdr hdr;
-  if (!hdrPtr.copy_to(&hdr, sizeof(SmallObjectHdr)))
-    goto failed;
-  hdr.free();
-  if (!hdrPtr.copy_from(&hdr, sizeof(SmallObjectHdr)))
-    goto failed;
-
-failed:
-  return false;
+inline bool LogChunk::free(ObjectPtr &ptr) {
+  return ptr.free();
 }
 
 void LogChunk::scan() {
@@ -58,52 +44,43 @@ void LogChunk::scan() {
   GenericObjectHdr hdr;
 
   auto pos = start_addr_;
-  auto tptr = TransientPtr(pos, sizeof(GenericObjectHdr));
   bool chunk_unmapped = false;
   while (pos < pos_) {
-    if (!tptr.copy_to(&hdr, sizeof(hdr))) {
+    ObjectPtr obj_ptr;
+    if (!obj_ptr.init_from_soft(pos)) {
       LOG(kError) << "chunk is unmapped under the hood";
       chunk_unmapped = true;
       break;
     }
-    if (!hdr.is_valid()) { // encounter the sentinel pointer, finish this chunk.
+    if (!obj_ptr.is_valid()) { // encounter the sentinel pointer, finish this chunk.
       break;
     }
-    if (hdr.is_small_obj()) {
-      SmallObjectHdr shdr;
-      shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
+    if (obj_ptr.is_small_obj()) {
       // LOG(kInfo) << shdr.get_size() << " " << shdr.is_present() << " "
       //            << reinterpret_cast<void *>(shdr.get_rref());
 
-      if (shdr.is_present()) {
-        if (shdr.is_accessed()) {
-          shdr.clr_accessed();
+      nr_small_objs++;
+
+      bool ret = true;
+      if (obj_ptr.is_present()) {
+        if (obj_ptr.is_accessed()) {
+          ret &= obj_ptr.clr_accessed();
           nr_deactivated++;
         } else {
-          shdr.clr_present();
+          ret &= obj_ptr.clr_present();
           nr_freed++;
         }
       }
-      nr_small_objs++;
-      if (!tptr.copy_from(&shdr, sizeof(SmallObjectHdr))) {
+      if (!ret) {
         LOG(kError) << "chunk is unmapped under the hood";
         chunk_unmapped = true;
         break;
       }
 
-      auto obj_size = shdr.get_size();
-      pos += sizeof(SmallObjectHdr) + obj_size;
-      tptr = TransientPtr(pos, sizeof(GenericObjectHdr));
+      pos += obj_ptr.total_size();
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
-      LargeObjectHdr lhdr;
-      auto obj_size = lhdr.get_size();
-      if (!tptr.copy_to(&lhdr, sizeof(lhdr))) {
-        LOG(kError) << "chunk is unmapped under the hood";
-        chunk_unmapped = true;
-        break;
-      }
-      if (lhdr.is_continue()) {
+      if (obj_ptr.is_continue()) {
         // this is a inner chunk storing a large object.
       } else {
         // this is the head chunk of a large object.
@@ -124,59 +101,42 @@ void LogChunk::evacuate() {
   int nr_moved = 0;
   int nr_small_objs = 0;
 
-  GenericObjectHdr hdr;
-
   auto pos = start_addr_;
-  auto tptr = TransientPtr(pos, sizeof(GenericObjectHdr));
   bool chunk_unmapped = false;
   while (pos < pos_) {
-    if (!tptr.copy_to(&hdr, sizeof(hdr))) {
+    ObjectPtr obj_ptr;
+    if (!obj_ptr.init_from_soft(pos)) {
       LOG(kError) << "chunk is unmapped under the hood";
       chunk_unmapped = true;
       break;
     }
-    if (!hdr.is_valid()) { // encounter the sentinel pointer, finish this chunk.
+    if (!obj_ptr.is_valid()) { // encounter the sentinel pointer, finish this chunk.
       break;
     }
-    if (hdr.is_small_obj()) {
-      SmallObjectHdr shdr;
-      shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
-      auto obj_size = shdr.get_size();
-      if (shdr.is_present()) {
+    if (obj_ptr.is_small_obj()) {
+      if (obj_ptr.is_present()) {
         nr_present++;
         auto allocator = LogAllocator::global_allocator();
-        auto optptr = allocator->alloc(obj_size);
+        auto optptr = allocator->alloc(obj_ptr.data_size());
         if (optptr) {
           auto new_ptr = *optptr;
-          if (new_ptr.copy_from(tptr.slice(sizeof(GenericObjectHdr), obj_size),
-                                obj_size)) {
+          if (new_ptr.copy_from(obj_ptr, obj_ptr.data_size())) {
             nr_moved++;
           }
         }
-        shdr.free();
+        if (!obj_ptr.free()) {
+          chunk_unmapped = true;
+          break;
+        }
       } else {
         nr_freed++;
       }
       nr_small_objs++;
 
-      if (!tptr.copy_from(&shdr, sizeof(SmallObjectHdr))) {
-        LOG(kError) << "chunk is unmapped under the hood";
-        chunk_unmapped = true;
-        break;
-      }
-
-      pos += sizeof(SmallObjectHdr) + obj_size;
-      tptr = TransientPtr(pos, sizeof(GenericObjectHdr));
+      pos += obj_ptr.total_size();
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
-      LargeObjectHdr lhdr;
-      auto obj_size = lhdr.get_size();
-      if (!tptr.copy_to(&lhdr, sizeof(lhdr))) {
-        LOG(kError) << "chunk is unmapped under the hood";
-        chunk_unmapped = true;
-        break;
-      }
-      if (lhdr.is_continue()) {
+      if (obj_ptr.is_continue()) {
         // this is a inner chunk storing a large object.
       } else {
         // this is the head chunk of a large object.
@@ -267,7 +227,7 @@ inline std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
   return region->allocChunk();
 }
 
-std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
+std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
   size = round_up_to_align(size, kSmallObjSizeUnit);
   if (size >= kSmallObjThreshold) { // large obj
     LOG(kError) << "large obj allocation is not implemented yet!";
@@ -290,24 +250,8 @@ std::optional<TransientPtr> LogAllocator::alloc(size_t size) {
   return ret;
 }
 
-bool LogAllocator::free(TransientPtr &ptr) {
-  if (!ptr.is_valid())
-    return false;
-
-  if (ptr.size() >= kSmallObjThreshold) { // large obj
-    LOG(kError) << "large obj allocation is not implemented yet!";
-    return false;
-  }
-  // get object header with offset
-  TransientPtr hdrPtr =
-      ptr.slice(-sizeof(SmallObjectHdr), sizeof(SmallObjectHdr));
-  SmallObjectHdr objHdr;
-  if (!hdrPtr.copy_to(&objHdr, sizeof(SmallObjectHdr)))
-    return false;
-  objHdr.free();
-  if (!hdrPtr.copy_from(&objHdr, sizeof(SmallObjectHdr)))
-    return false;
-  return true;
+bool LogAllocator::free(ObjectPtr &ptr) {
+  return ptr.free();
 }
 
 thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;
