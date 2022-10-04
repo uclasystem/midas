@@ -16,7 +16,7 @@ enum LogVerbosity {
   kAll = 4,   // log all information
 };
 
-constexpr LogVerbosity kGlobalVerbose = kAll;
+constexpr LogVerbosity kGlobalVerbose = kInfo;
 constexpr bool kLogFlagTime = false;
 constexpr bool kLogFlagLoc = true;
 
@@ -46,7 +46,11 @@ public:
     return *this;
   }
 
-  ~Logger() { std::cerr << std::endl; }
+  ~Logger() {
+    if (_verbose > kGlobalVerbose)
+      return;
+    std::cerr << std::endl;
+  }
 
 private:
   LogVerbosity _verbose;
