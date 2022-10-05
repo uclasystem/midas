@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
   evacuator.evacuate();
 
   bool kTestFree = false;
-  for (int tid = 0; tid < 1; tid++) {
+  for (int tid = 0; tid < kNumThds; tid++) {
     threads.push_back(std::thread([&, tid = tid]() {
       auto nr_ptrs = ptrs[tid].size();
       for (int i = 0; i < nr_ptrs; i++) {
