@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+// #define BOUND_CHECK
+
 namespace cachebank {
 
 class TransientPtr {
@@ -41,7 +43,9 @@ public:
 
 private:
   uint64_t ptr_;
+#ifdef BOUND_CHECK
   size_t size_; /* accessible range of the pointer */
+#endif          // BOUND_CHECK
 };
 
 } // namespace cachebank
