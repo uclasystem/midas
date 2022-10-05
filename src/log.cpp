@@ -29,7 +29,7 @@ inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
 
 inline bool LogChunk::free(ObjectPtr &ptr) { return ptr.free(); }
 
-void LogChunk::scan() {
+bool LogChunk::scan() {
   int nr_deactivated = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
@@ -81,11 +81,12 @@ void LogChunk::scan() {
   LOG(kInfo) << "nr_scanned_small_objs: " << nr_small_objs
              << ", nr_deactivated: " << nr_deactivated
              << ", nr_freed: " << nr_freed;
+  return true;
 }
 
-void LogChunk::evacuate() {
+bool LogChunk::evacuate() {
   if (!sealed_)
-    return;
+    return false;
 
   int nr_present = 0;
   int nr_freed = 0;
@@ -143,6 +144,7 @@ void LogChunk::evacuate() {
   }
   LOG(kInfo) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
              << ", nr_freed: " << nr_freed;
+  return true;
 }
 
 /** LogRegion */
@@ -178,10 +180,12 @@ void LogRegion::scan() {
 void LogRegion::evacuate() {
   if (!sealed_)
     return;
+  bool ret = true;
   for (auto &chunk : vLogChunks_) {
-    chunk->evacuate();
+    ret &= chunk->evacuate();
   }
-  destroy();
+  if (ret)
+    destroy();
 }
 
 /** LogAllocator */

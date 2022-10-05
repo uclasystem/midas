@@ -21,8 +21,8 @@ public:
   void seal() noexcept;
   bool full() noexcept;
 
-  void scan();
-  void evacuate();
+  bool scan();
+  bool evacuate();
 
 private:
   void init(uint64_t addr);
