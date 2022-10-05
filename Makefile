@@ -32,10 +32,11 @@ test_sync_hashmap_src = test/test_sync_hashmap.cpp
 test_sync_hashmap_obj = $(test_sync_hashmap_src:.cpp=.o)
 test_log_src = test/test_log.cpp
 test_log_obj = $(test_log_src:.cpp=.o)
-test_evacuator_src = test/test_evacuator.cpp
-test_evacuator_obj = $(test_evacuator_src:.cpp=.o)
+test_parallel_evacuator_src = test/test_parallel_evacuator.cpp
+test_parallel_evacuator_obj = $(test_parallel_evacuator_src:.cpp=.o)
 
-all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_slab bin/test_sync_hashmap bin/test_log bin/test_evacuator
+all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_slab bin/test_sync_hashmap bin/test_log \
+	bin/test_parallel_evacuator
 
 %.d: %.cpp
 	$(CXX) $(CXXFLAGS) $(INC) $< -MM -MT $(@:.d=.o) >$@
@@ -60,7 +61,7 @@ bin/test_sync_hashmap: $(test_sync_hashmap_obj) $(lib_obj)
 bin/test_log: $(test_log_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
-bin/test_evacuator: $(test_evacuator_obj) $(lib_obj)
+bin/test_parallel_evacuator: $(test_parallel_evacuator_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 ifneq ($(MAKECMDGOALS),clean)
