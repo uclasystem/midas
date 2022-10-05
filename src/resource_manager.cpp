@@ -125,7 +125,7 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
   assert((reinterpret_cast<uint64_t>(region->Addr()) &
           (~kPageChunkAlignMask)) == 0);
 
-  LOG(kInfo) << "Allocated a page chunk: " << region->Addr() << " ["
+  LOG(kDebug) << "Allocated a page chunk: " << region->Addr() << " ["
              << region->Size() << "]";
   return region_id;
 }
