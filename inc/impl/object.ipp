@@ -259,6 +259,12 @@ inline uint64_t ObjectPtr::get_rref() noexcept {
   return false;
 }
 
+inline bool ObjectPtr::upd_rref() noexcept {
+  auto *ref = reinterpret_cast<ObjectPtr *>(get_rref());
+  *ref = *this;
+  return true;
+}
+
 inline bool ObjectPtr::is_valid() noexcept {
   GenericObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(hdr)))

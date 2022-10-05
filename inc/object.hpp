@@ -156,6 +156,7 @@ public:
 
   bool set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() noexcept;
+  bool upd_rref() noexcept;
 
   bool is_small_obj() const noexcept;
 
