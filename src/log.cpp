@@ -16,25 +16,18 @@ namespace cachebank {
 inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
   auto obj_size = ObjectPtr::total_size(size);
   if (pos_ + obj_size + sizeof(GenericObjectHdr) >=
-      start_addr_ + kLogChunkSize)
-    goto full;
-  else {
-    ObjectPtr obj_ptr;
-    if (!obj_ptr.set(pos_, size))
-      goto failed;
-    pos_ += obj_size;
-    return obj_ptr;
+      start_addr_ + kLogChunkSize) { // current chunk is full
+    seal();
+    return std::nullopt;
   }
-
-full: // current chunk is full
-  seal();
-failed:
-  return std::nullopt;
+  ObjectPtr obj_ptr;
+  if (!obj_ptr.set(pos_, size))
+    return std::nullopt;
+  pos_ += obj_size;
+  return obj_ptr;
 }
 
-inline bool LogChunk::free(ObjectPtr &ptr) {
-  return ptr.free();
-}
+inline bool LogChunk::free(ObjectPtr &ptr) { return ptr.free(); }
 
 void LogChunk::scan() {
   int nr_deactivated = 0;
@@ -52,13 +45,10 @@ void LogChunk::scan() {
       chunk_unmapped = true;
       break;
     }
-    if (!obj_ptr.is_valid()) { // encounter the sentinel pointer, finish this chunk.
+    if (!obj_ptr.is_valid()) { // the sentinel pointer, finishing this chunk.
       break;
     }
     if (obj_ptr.is_small_obj()) {
-      // LOG(kInfo) << shdr.get_size() << " " << shdr.is_present() << " "
-      //            << reinterpret_cast<void *>(shdr.get_rref());
-
       nr_small_objs++;
 
       bool ret = true;
@@ -80,6 +70,7 @@ void LogChunk::scan() {
       pos += obj_ptr.total_size();
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
+      exit(-1);
       if (obj_ptr.is_continue()) {
         // this is a inner chunk storing a large object.
       } else {
@@ -110,7 +101,8 @@ void LogChunk::evacuate() {
       chunk_unmapped = true;
       break;
     }
-    if (!obj_ptr.is_valid()) { // encounter the sentinel pointer, finish this chunk.
+    if (!obj_ptr.is_valid()) { // the sentinel pointer, finishing this chunk.
+      // LOG(kError) << "get sentinel";
       break;
     }
     if (obj_ptr.is_small_obj()) {
@@ -122,9 +114,14 @@ void LogChunk::evacuate() {
           auto new_ptr = *optptr;
           if (new_ptr.copy_from(obj_ptr, obj_ptr.data_size())) {
             nr_moved++;
+          } else {
+            LOG(kError) << "chunk is unmapped under the hood";
+            chunk_unmapped = true;
+            break;
           }
         }
         if (!obj_ptr.free()) {
+          LOG(kError) << "chunk is unmapped under the hood";
           chunk_unmapped = true;
           break;
         }
@@ -136,6 +133,7 @@ void LogChunk::evacuate() {
       pos += obj_ptr.total_size();
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
+      exit(-1);
       if (obj_ptr.is_continue()) {
         // this is a inner chunk storing a large object.
       } else {
@@ -250,9 +248,7 @@ std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
   return ret;
 }
 
-bool LogAllocator::free(ObjectPtr &ptr) {
-  return ptr.free();
-}
+bool LogAllocator::free(ObjectPtr &ptr) { return ptr.free(); }
 
 thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;
 
