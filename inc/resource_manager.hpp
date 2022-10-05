@@ -10,6 +10,7 @@
 
 #include "qpair.hpp"
 #include "utils.hpp"
+#include "shm_types.hpp"
 
 namespace cachebank {
 

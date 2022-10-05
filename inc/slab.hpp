@@ -94,6 +94,25 @@ private:
       slab_regions[kNumSlabClasses];
 };
 
+namespace utils {
+/* From AIFM */
+static inline uint32_t bsr_32(uint32_t a) {
+  uint32_t ret;
+  asm("BSR %k1, %k0 \n" : "=r"(ret) : "rm"(a));
+  return ret;
+}
+
+static inline uint64_t bsr_64(uint64_t a) {
+  uint64_t ret;
+  asm("BSR %q1, %q0 \n" : "=r"(ret) : "rm"(a));
+  return ret;
+}
+
+static inline constexpr uint32_t round_up_power_of_two(uint32_t a) {
+  return a == 1 ? 1 : 1 << (32 - __builtin_clz(a - 1));
+}
+} // namespace utils
+
 } // namespace cachebank
 
 #include "impl/slab.ipp"

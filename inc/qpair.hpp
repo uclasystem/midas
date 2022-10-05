@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "utils.hpp"
+#include "shm_types.hpp"
 
 namespace cachebank {
 constexpr static uint32_t kDaemonQDepth = 1024;
