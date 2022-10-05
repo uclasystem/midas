@@ -38,6 +38,15 @@ inline uint32_t LogRegion::size() const noexcept {
 
 inline LogAllocator::LogAllocator() : curr_region_(0), curr_chunk_(0) {}
 
+inline void LogAllocator::cleanup_regions() {
+  for (auto rit = vRegions_.begin(); rit != vRegions_.end();) {
+    if ((*rit)->destroyed())
+      rit = vRegions_.erase(rit);
+    else
+      rit++;
+  }
+}
+
 /* A thread safe way to create a global allocator and get its reference. */
 inline LogAllocator *LogAllocator::global_allocator() noexcept {
   static std::mutex _mtx;

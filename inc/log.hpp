@@ -6,7 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <vector>
+#include <list>
 
 #include "object.hpp"
 #include "utils.hpp"
@@ -58,7 +58,7 @@ private:
   bool sealed_;
   bool destroyed_;
 
-  std::vector<std::shared_ptr<LogChunk>> vLogChunks_;
+  std::list<std::shared_ptr<LogChunk>> vLogChunks_;
 };
 
 class LogAllocator {
@@ -74,11 +74,12 @@ private:
   std::shared_ptr<LogChunk> allocChunk();
 
   std::mutex lock_;
-  std::vector<std::shared_ptr<LogRegion>> vRegions_;
+  std::list<std::shared_ptr<LogRegion>> vRegions_;
   std::atomic_int32_t curr_region_;
   std::atomic_int32_t curr_chunk_;
 
   template <int nr_thds> friend class Evacuator;
+  void cleanup_regions();
 
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers

@@ -1,24 +1,25 @@
 #pragma once
 
+#include <iterator>
 #include <memory>
 #include <thread>
+#include <vector>
 
-#include "evacuator.hpp"
 #include "log.hpp"
 #include "logging.hpp"
 
 namespace cachebank {
 
-template<int nr_thds>
-void Evacuator<nr_thds>::evacuate() {
+template <int nr_thds> void Evacuator<nr_thds>::evacuate() {
   auto allocator = LogAllocator::global_allocator();
+  auto &regions = allocator->vRegions_;
 
   std::vector<std::thread> gc_thds;
-  std::vector<LogRegion *>tasks[nr_thds];
+  std::vector<LogRegion *> tasks[nr_thds];
 
   int tid = 0;
-  auto nr_regions = allocator->vRegions_.size();
-  for (auto region : allocator->vRegions_) {
+  auto nr_regions = regions.size();
+  for (auto region : regions) {
     auto raw_ptr = region.get();
     if (raw_ptr) {
       tasks[tid].push_back(raw_ptr);
@@ -38,28 +39,22 @@ void Evacuator<nr_thds>::evacuate() {
     thd.join();
   gc_thds.clear();
 
-  for (int i = 0; i < allocator->vRegions_.size(); i++) {
-    if (allocator->vRegions_[i]->destroyed()) {
-      allocator->vRegions_.erase(allocator->vRegions_.begin() + i);
-      i--;
-    }
-  }
-  LOG(kError) << "Before evacuation: " << nr_regions
-              << " regions";
-  LOG(kError) << "After  evacuation: " << allocator->vRegions_.size()
-              << " regions";
+  allocator->cleanup_regions();
+
+  LOG(kError) << "Before evacuation: " << nr_regions << " regions";
+  LOG(kError) << "After  evacuation: " << regions.size() << " regions";
 }
 
-template<int nr_thds>
-void Evacuator<nr_thds>::scan() {
+template <int nr_thds> void Evacuator<nr_thds>::scan() {
   auto allocator = LogAllocator::global_allocator();
+  auto &regions = allocator->vRegions_;
 
   std::vector<std::thread> gc_thds;
-  std::vector<LogRegion *>tasks[nr_thds];
+  std::vector<LogRegion *> tasks[nr_thds];
 
   int tid = 0;
-  auto nr_regions = allocator->vRegions_.size();
-  for (auto region : allocator->vRegions_) {
+  auto nr_regions = regions.size();
+  for (auto region : regions) {
     auto raw_ptr = region.get();
     if (raw_ptr) {
       tasks[tid].push_back(raw_ptr);
@@ -79,13 +74,13 @@ void Evacuator<nr_thds>::scan() {
     thd.join();
 }
 
-template<int nr_thds>
+template <int nr_thds>
 inline void Evacuator<nr_thds>::scan_region(LogRegion *region) {
   // LOG(kError) << region->full();
   region->scan();
 }
 
-template<int nr_thds>
+template <int nr_thds>
 inline void Evacuator<nr_thds>::evac_region(LogRegion *region) {
   // LOG(kError) << region->full();
   region->evacuate();
