@@ -7,7 +7,7 @@ namespace cachebank {
 
 class TransientPtr {
 public:
-  TransientPtr() = default;
+  TransientPtr();
   TransientPtr(uint64_t addr, size_t size);
   bool is_valid() const;
   bool set(uint64_t addr, size_t size); /* point to a transient addr. */

@@ -156,6 +156,8 @@ inline void LargeObjectHdr::_large_obj() noexcept {
 }
 
 /** ObjectPtr */
+inline ObjectPtr::ObjectPtr() : size_(0), obj_() {}
+
 inline bool ObjectPtr::set(uint64_t stt_addr, size_t data_size) {
   size_ = round_up_to_align(data_size, kSmallObjSizeUnit);
 

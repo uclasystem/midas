@@ -139,6 +139,8 @@ static_assert(sizeof(LargeObjectHdr) <= 16,
 
 struct ObjectPtr {
 public:
+  ObjectPtr();
+
   bool set(uint64_t stt_addr, size_t data_size);
   bool init_from_soft(uint64_t soft_addr);
   bool free() noexcept;

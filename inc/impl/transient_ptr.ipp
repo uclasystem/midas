@@ -4,6 +4,8 @@
 
 namespace cachebank {
 
+inline TransientPtr::TransientPtr() : ptr_(0), size_(0) {}
+
 inline TransientPtr::TransientPtr(uint64_t addr, size_t size)
     : ptr_(addr), size_(size) {}
 
