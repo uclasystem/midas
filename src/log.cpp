@@ -113,7 +113,8 @@ bool LogChunk::evacuate() {
         auto optptr = allocator->alloc(obj_ptr.data_size());
         if (optptr) {
           auto new_ptr = *optptr;
-          if (new_ptr.copy_from(obj_ptr, obj_ptr.data_size())) {
+          if (new_ptr.copy_from(obj_ptr, obj_ptr.data_size()) &&
+              new_ptr.set_rref(obj_ptr.get_rref()) && new_ptr.upd_rref()) {
             nr_moved++;
           } else {
             LOG(kError) << "chunk is unmapped under the hood";
