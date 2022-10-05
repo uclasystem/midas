@@ -61,9 +61,11 @@ struct SmallObjectHdr {
   void clr_evacuate() noexcept;
 
 private:
-  uint64_t rref : 48; // reverse reference to the single to-be-updated pointer
+#pragma pack(push, 1)
+  uint64_t rref : 48; // reverse reference to the single to-be-updated
   uint16_t size : 12; // object size / 8 (8 Bytes is the base unit)
   uint8_t flags : 4;
+#pragma pack(pop)
 
   void _small_obj() noexcept;
   constexpr static decltype(flags) kFlagShift = 4;
@@ -73,7 +75,7 @@ private:
   constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
 };
 
-static_assert(sizeof(SmallObjectHdr) <= 16,
+static_assert(sizeof(SmallObjectHdr) <= 8,
               "SmallObjHdr is not correctly aligned!");
 
 struct LargeObjectHdr {
@@ -116,9 +118,11 @@ struct LargeObjectHdr {
   void clr_continue() noexcept;
 
 private:
+#pragma pack(push, 1)
   uint32_t flags;
   uint32_t size;
   uint64_t rref; // reverse reference
+#pragma pack(pop)
 
   void _large_obj() noexcept;
   constexpr static uint32_t kFlagShift =
