@@ -177,9 +177,12 @@ inline bool ObjectPtr::set(uint64_t stt_addr, size_t data_size) {
 
 inline bool ObjectPtr::init_from_soft(uint64_t soft_addr) {
   GenericObjectHdr hdr;
-  auto tptr = TransientPtr(soft_addr, sizeof(GenericObjectHdr));
-  if (!tptr.copy_to(&hdr, sizeof(hdr)))
+  obj_ = TransientPtr(soft_addr, sizeof(GenericObjectHdr));
+  if (!obj_.copy_to(&hdr, sizeof(hdr)))
     return false;
+
+  if (!hdr.is_valid())
+    return true;
 
   if (hdr.is_small_obj()) {
     SmallObjectHdr shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
@@ -187,7 +190,7 @@ inline bool ObjectPtr::init_from_soft(uint64_t soft_addr) {
     obj_ = TransientPtr(soft_addr, total_size());
   } else {
     LargeObjectHdr lhdr;
-    if (!tptr.copy_to(&lhdr, sizeof(lhdr)))
+    if (!obj_.copy_to(&lhdr, sizeof(lhdr)))
       return false;
     size_ = lhdr.get_size();
     obj_ = TransientPtr(soft_addr, total_size());
@@ -255,37 +258,16 @@ inline uint64_t ObjectPtr::get_rref() noexcept {
 }
 
 inline bool ObjectPtr::is_valid() noexcept {
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
-    return hdr.is_valid();
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
-    return hdr.is_valid();
-  }
-  LOG(kError) << "impossible to reach here!";
-  return false;
+  GenericObjectHdr hdr;
+  if (!obj_.copy_to(&hdr, sizeof(hdr)))
+    return false;
+  return hdr.is_valid();
 }
 
 inline bool ObjectPtr::set_invalid() noexcept {
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
-    hdr.set_invalid();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
-    hdr.set_invalid();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
-  }
-  LOG(kError) << "impossible to reach here!";
-  return false;
+  GenericObjectHdr hdr;
+  hdr.set_invalid();
+  return obj_.copy_from(&hdr, sizeof(GenericObjectHdr));
 }
 
 inline bool ObjectPtr::is_present() noexcept {
