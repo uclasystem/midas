@@ -12,6 +12,8 @@ public:
   void lock(uint64_t obj_addr);
   void unlock(uint64_t obj_addr);
 
+  static inline ObjLocker *global_objlocker() noexcept;
+
 private:
   uint64_t hash_val(uint64_t);
   constexpr static uint32_t kNumMaps = 65536;

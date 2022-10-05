@@ -1,7 +1,11 @@
 #pragma once
 
-#include "obj_locker.hpp"
 #include <cstdint>
+#include <memory>
+#include <mutex>
+
+#include "utils.hpp"
+
 namespace cachebank {
 
 inline bool ObjLocker::try_lock(uint64_t obj_addr) {
@@ -22,6 +26,18 @@ inline void ObjLocker::unlock(uint64_t obj_addr) {
 inline uint64_t ObjLocker::hash_val(uint64_t input) {
   static auto hasher = std::hash<uint64_t>();
   return hasher(input);
+}
+
+inline ObjLocker *global_objlocker() noexcept {
+  static std::mutex _mtx;
+  static std::shared_ptr<ObjLocker> locker_;
+  if (likely(locker_))
+    return locker_.get();
+  std::unique_lock<std::mutex> ul(_mtx);
+  if (unlikely(locker_))
+    return locker_.get();
+  locker_ = std::make_shared<ObjLocker>();
+  return locker_.get();
 }
 
 } // namespace cachebank
