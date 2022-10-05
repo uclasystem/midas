@@ -36,6 +36,7 @@ void Evacuator<nr_thds>::evacuate() {
 
   for (auto &thd : gc_thds)
     thd.join();
+  gc_thds.clear();
 
   for (int i = 0; i < allocator->vRegions_.size(); i++) {
     if (allocator->vRegions_[i]->destroyed()) {
@@ -80,13 +81,13 @@ void Evacuator<nr_thds>::scan() {
 
 template<int nr_thds>
 inline void Evacuator<nr_thds>::scan_region(LogRegion *region) {
-  LOG(kError) << region->full();
+  // LOG(kError) << region->full();
   region->scan();
 }
 
 template<int nr_thds>
 inline void Evacuator<nr_thds>::evac_region(LogRegion *region) {
-  LOG(kError) << region->full();
+  // LOG(kError) << region->full();
   region->evacuate();
 }
 
