@@ -132,15 +132,19 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
     uint64_t key_hash, K1 &&k, Tp1 &&v) {
   Tp tmp_v = v;
   auto allocator = LogAllocator::global_allocator();
-  auto optional_tptr = allocator->alloc(sizeof(Key) + sizeof(Tp));
-  if (!optional_tptr || !optional_tptr->copy_from(&k, sizeof(Key)) ||
-      !optional_tptr->copy_from(&tmp_v, sizeof(Tp), sizeof(Key))) {
+  auto optptr = allocator->alloc(sizeof(Key) + sizeof(Tp));
+  if (!optptr || !optptr->copy_from(&k, sizeof(Key)) ||
+      !optptr->copy_from(&tmp_v, sizeof(Tp), sizeof(Key))) {
     return nullptr;
   }
 
   auto *new_node = new BucketNode();
+  new_node->pair = *optptr;
+  if (!new_node->pair.set_rref(reinterpret_cast<uint64_t>(&new_node->pair))) {
+    delete new_node;
+    return nullptr;
+  }
   new_node->key_hash = key_hash;
-  new_node->pair = *optional_tptr;
   new_node->next = nullptr;
   return new_node;
 }
