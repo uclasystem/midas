@@ -1,5 +1,5 @@
 CXXFLAGS += -std=c++1z -O2
-# CXXFLAGS += -g
+# CXXFLAGS += -g -O0
 CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
 LDXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
 
@@ -69,4 +69,4 @@ endif
 
 .PHONY: clean
 clean:
-	rm -f $(dep) src/*.o test/*.o bin/*
+	rm -f $(dep) src/*.o src/*.d test/*.o test/*.d bin/*
