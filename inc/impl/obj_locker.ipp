@@ -1,10 +1,7 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
 #include <mutex>
-
-#include "utils.hpp"
 
 namespace cachebank {
 
@@ -28,13 +25,13 @@ inline uint64_t ObjLocker::hash_val(uint64_t input) {
   return hasher(input);
 }
 
-inline ObjLocker *global_objlocker() noexcept {
+inline ObjLocker *ObjLocker::global_objlocker() noexcept {
   static std::mutex _mtx;
   static std::shared_ptr<ObjLocker> locker_;
-  if (likely(locker_))
+  if (locker_)
     return locker_.get();
   std::unique_lock<std::mutex> ul(_mtx);
-  if (unlikely(locker_))
+  if (locker_)
     return locker_.get();
   locker_ = std::make_shared<ObjLocker>();
   return locker_.get();
