@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
     thd.join();
   threads.clear();
 
-  cachebank::Evacuator<kNumGCThds> evacuator;
+  cachebank::Evacuator evacuator(kNumGCThds);
   evacuator.scan();
   evacuator.evacuate();
 

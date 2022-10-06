@@ -78,7 +78,7 @@ private:
   std::atomic_int32_t curr_region_;
   std::atomic_int32_t curr_chunk_;
 
-  template <int nr_thds> friend class Evacuator;
+  friend class Evacuator;
   void cleanup_regions();
 
   // Per Core Allocation Buffer

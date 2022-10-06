@@ -1,17 +1,22 @@
 #pragma once
 
-#include "log.hpp"
-
 namespace cachebank {
 
-template<int nr_thds>
+class LogRegion;
+
 class Evacuator {
 public:
+  Evacuator(int nr_thds = 1);
+  // ~Evacuator();
   void evacuate();
   void scan();
 
 private:
-  using work_fn = void (Evacuator<nr_thds>::*)(LogRegion *);
+  int nr_thds_;
+  bool park_;
+  void init();
+
+  using work_fn = void (Evacuator::*)(LogRegion *);
   void evac_region(LogRegion *region);
   void scan_region(LogRegion *region);
   void parallelizer(work_fn fn);
