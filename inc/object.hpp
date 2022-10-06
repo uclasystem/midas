@@ -119,8 +119,8 @@ struct LargeObjectHdr {
 
 private:
 #pragma pack(push, 1)
-  uint32_t flags;
   uint32_t size;
+  uint32_t flags;
   uint64_t rref; // reverse reference
 #pragma pack(pop)
 
