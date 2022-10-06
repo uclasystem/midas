@@ -13,8 +13,10 @@ constexpr static uint64_t kInvalidHdr = 0x0'000'1f1f1f1f1f1f;
 constexpr static uint64_t kInvalidFlags = 0;
 
 struct GenericObjectHdr {
+public:
   uint64_t flags;
 
+  GenericObjectHdr();
   void set_invalid() noexcept;
   bool is_valid() const noexcept;
   bool is_small_obj() const noexcept;
@@ -38,6 +40,9 @@ struct SmallObjectHdr {
   //                     <= 8B * 2^12 == 32KB).
   //         Object Size: the size of the pointed object.
   //   Reverse reference: the only pointer referencing this object.
+public:
+  SmallObjectHdr();
+
   void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;
 
@@ -91,6 +96,8 @@ struct LargeObjectHdr {
   //                      the current chunk is a continued chunk.
   //         Object Size: the size of the pointed object.
   //   Reverse reference: the only pointer referencing this object.
+public:
+  LargeObjectHdr();
 
   void init(uint32_t size_, uint64_t rref = 0) noexcept;
   void free() noexcept;

@@ -8,6 +8,8 @@
 namespace cachebank {
 
 /** Generic Object */
+inline GenericObjectHdr::GenericObjectHdr() : flags(0) {}
+
 inline void GenericObjectHdr::set_invalid() noexcept { flags = kInvalidHdr; }
 
 inline bool GenericObjectHdr::is_valid() const noexcept {
@@ -19,8 +21,10 @@ inline bool GenericObjectHdr::is_small_obj() const noexcept {
 }
 
 /** Small Object */
-inline void SmallObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
-  set_size(size_);
+inline SmallObjectHdr::SmallObjectHdr() : rref(0), size(0), flags(0) {}
+
+inline void SmallObjectHdr::init(uint32_t size, uint64_t rref) noexcept {
+  set_size(size);
   set_rref(rref);
   set_present();
   _small_obj();
@@ -86,6 +90,8 @@ inline void SmallObjectHdr::_small_obj() noexcept {
 }
 
 /** Large Object */
+inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0) {}
+
 inline void LargeObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
   set_size(size_);
   set_rref(rref);
