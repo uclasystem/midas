@@ -5,7 +5,7 @@
 namespace cachebank {
 
 constexpr static uint32_t kNumCPUs = 128;
-constexpr static uint32_t kSmallObjSizeUnit = 8;
+constexpr static uint32_t kSmallObjSizeUnit = sizeof(uint64_t);
 
 constexpr static uint32_t kShmObjNameLen = 128;
 constexpr static uint32_t kPageSize = 4096;            // 4KB
