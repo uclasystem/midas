@@ -93,7 +93,6 @@ bool LogChunk::scan() {
 }
 
 bool LogChunk::evacuate() {
-  LOG(kError) << this << " " << sealed_;
   if (!sealed_)
     return false;
 
