@@ -210,6 +210,10 @@ inline bool ObjectPtr::init_from_soft(uint64_t soft_addr) {
 inline bool ObjectPtr::free() noexcept {
   if (!is_valid() || obj_.null())
     return true;
+  auto ret = clr_present();
+  auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
+  rref->obj_.reset();
+  return ret;
 }
 
 inline size_t ObjectPtr::total_size(size_t data_size) noexcept {
@@ -506,29 +510,53 @@ inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval,
 inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
   if (obj_.null())
     return false;
-  return obj_.copy_from(src, len, hdr_size() + offset);
+  auto lock_id = lock();
+  if (!is_present() || !set_accessed()) {
+    unlock(lock_id);
+    return false;
+  }
+
+  auto ret = obj_.copy_from(src, len, hdr_size() + offset);
+  unlock(lock_id);
+  return ret;
 }
 
 inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
-  if (!set_accessed())
+  if (obj_.null())
     return false;
-  return obj_.copy_to(dst, len, hdr_size() + offset);
+  auto lock_id = lock();
+  if (!is_present() || !set_accessed()) {
+    unlock(lock_id);
+    return false;
+  }
+
+  auto ret = obj_.copy_to(dst, len, hdr_size() + offset);
+  unlock(lock_id);
+  return ret;
 }
 
-inline bool ObjectPtr::copy_from(ObjectPtr &src, size_t len,
-                                 int64_t from_offset, int64_t to_offset) {
-  if (!src.set_accessed() || !set_accessed())
-    return false;
-  return obj_.copy_from(src.obj_, len, src.hdr_size() + from_offset,
-                        hdr_size() + to_offset);
-}
+inline bool ObjectPtr::move_from(ObjectPtr &src) {
+  if (obj_.null() || src.obj_.null())
+    goto failed;
+  assert(src.total_size() == this->total_size());
+  /* NOTE (YIFAN): the order of operations below are tricky:
+   *      1. copy data from src to this.
+   *      2. free src (rref will be reset to nullptr).
+   *      3. mark this as present, finish setup.
+   *      4. update rref, let it point to this.
+   */
+  if (!obj_.copy_from(src.obj_, src.total_size()))
+    goto failed;
+  if (!src.free())
+    goto failed;
+  if (!set_present())
+    goto failed;
+  if (!upd_rref())
+    goto failed;
+  return true;
 
-inline bool ObjectPtr::copy_to(ObjectPtr &dst, size_t len, int64_t from_offset,
-                               int64_t to_offset) {
-  if (!set_accessed() || !dst.set_accessed())
-    return false;
-  return obj_.copy_to(dst.obj_, len, hdr_size() + from_offset,
-                      dst.hdr_size() + to_offset);
+failed:
+  return false;
 }
 
 } // namespace cachebank

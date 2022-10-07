@@ -51,7 +51,10 @@ bool LogChunk::scan() {
     if (!obj_ptr.is_valid()) { // the sentinel pointer, finishing this chunk.
       break;
     }
+
+    auto lock_id = obj_ptr.lock();
     if (obj_ptr.is_small_obj()) {
+      auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
       bool ret = true;
@@ -60,17 +63,18 @@ bool LogChunk::scan() {
           ret &= obj_ptr.clr_accessed();
           nr_deactivated++;
         } else {
-          ret &= obj_ptr.clr_present();
+          ret &= obj_ptr.free();
           nr_freed++;
         }
       }
       if (!ret) {
         LOG(kError) << "chunk is unmapped under the hood";
         chunk_unmapped = true;
+        obj_ptr.unlock(lock_id);
         break;
       }
 
-      pos += obj_ptr.total_size();
+      pos += obj_size;
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
@@ -80,14 +84,16 @@ bool LogChunk::scan() {
         // this is the head chunk of a large object.
       }
     }
+    obj_ptr.unlock(lock_id);
   }
-  LOG(kInfo) << "nr_scanned_small_objs: " << nr_small_objs
-             << ", nr_deactivated: " << nr_deactivated
-             << ", nr_freed: " << nr_freed;
+  LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
+              << ", nr_deactivated: " << nr_deactivated
+              << ", nr_freed: " << nr_freed;
   return true;
 }
 
 bool LogChunk::evacuate() {
+  LOG(kError) << this << " " << sealed_;
   if (!sealed_)
     return false;
 
@@ -109,33 +115,31 @@ bool LogChunk::evacuate() {
       // LOG(kError) << "get sentinel";
       break;
     }
+    auto lock_id = obj_ptr.lock();
     if (obj_ptr.is_small_obj()) {
+      nr_small_objs++;
+
+      auto obj_size = obj_ptr.total_size();
       if (obj_ptr.is_present()) {
         nr_present++;
         auto allocator = LogAllocator::global_allocator();
         auto optptr = allocator->alloc(obj_ptr.data_size());
         if (optptr) {
           auto new_ptr = *optptr;
-          if (new_ptr.copy_from(obj_ptr, obj_ptr.data_size()) &&
-              new_ptr.set_rref(obj_ptr.get_rref()) && new_ptr.upd_rref()) {
+          if (new_ptr.move_from(obj_ptr)) {
             nr_moved++;
           } else {
             LOG(kError) << "chunk is unmapped under the hood";
             chunk_unmapped = true;
+            obj_ptr.unlock(lock_id);
             break;
           }
-        }
-        if (!obj_ptr.free()) {
-          LOG(kError) << "chunk is unmapped under the hood";
-          chunk_unmapped = true;
-          break;
         }
       } else {
         nr_freed++;
       }
-      nr_small_objs++;
 
-      pos += obj_ptr.total_size();
+      pos += obj_size;
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
@@ -145,6 +149,7 @@ bool LogChunk::evacuate() {
         // this is the head chunk of a large object.
       }
     }
+    obj_ptr.unlock(lock_id);
   }
   LOG(kInfo) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
              << ", nr_freed: " << nr_freed;

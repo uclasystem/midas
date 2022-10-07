@@ -185,10 +185,14 @@ public:
 
   bool copy_from(const void *src, size_t len, int64_t offset = 0);
   bool copy_to(void *dst, size_t len, int64_t offset = 0);
-  bool copy_from(ObjectPtr &src, size_t len, int64_t from_offset = 0,
-                 int64_t to_offset = 0);
-  bool copy_to(ObjectPtr &dst, size_t len, int64_t from_offset = 0,
-               int64_t to_offset = 0);
+
+  /** Evacuation related */
+  bool move_from(ObjectPtr &src);
+
+  /** Synchronization between Mutator and GC threads */
+  using LockID = uint32_t; // need to be the same as in obj_locker.hpp
+  LockID lock();
+  static void unlock(LockID id);
 
 private:
   size_t size_;
