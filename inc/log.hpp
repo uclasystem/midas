@@ -67,6 +67,8 @@ public:
   std::optional<ObjectPtr> alloc(size_t size);
   bool free(ObjectPtr &ptr);
 
+  static inline void seal_pcab();
+
   static inline LogAllocator *global_allocator() noexcept;
 
 private:

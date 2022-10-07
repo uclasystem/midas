@@ -17,6 +17,7 @@ inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
   auto obj_size = ObjectPtr::total_size(size);
   if (pos_ + obj_size + sizeof(GenericObjectHdr) >=
       start_addr_ + kLogChunkSize) { // current chunk is full
+    assert(!full());
     seal();
     return std::nullopt;
   }

@@ -6,7 +6,8 @@ inline LogChunk::LogChunk(uint64_t addr)
     : start_addr_(addr), pos_(addr), sealed_(false) {}
 
 inline void LogChunk::seal() noexcept {
-  assert(!full());
+  if (sealed_)
+    return;
   GenericObjectHdr endHdr;
   endHdr.set_invalid();
   auto endPtr = TransientPtr(pos_, sizeof(GenericObjectHdr));
@@ -47,6 +48,11 @@ inline void LogAllocator::cleanup_regions() {
   }
 }
 
+inline void LogAllocator::seal_pcab() {
+  if (pcab.get())
+    pcab->seal();
+}
+
 /* A thread safe way to create a global allocator and get its reference. */
 inline LogAllocator *LogAllocator::global_allocator() noexcept {
   static std::mutex _mtx;
@@ -62,5 +68,11 @@ inline LogAllocator *LogAllocator::global_allocator() noexcept {
   _allocator = std::make_unique<LogAllocator>();
   return _allocator.get();
 }
+
+static thread_local struct ThreadExiter {
+  ~ThreadExiter() {
+    LogAllocator::seal_pcab();
+  }
+} exiter;
 
 } // namespace cachebank
