@@ -195,10 +195,9 @@ void LogRegion::evacuate() {
 inline std::shared_ptr<LogRegion> LogAllocator::getRegion() {
   if (!vRegions_.empty()) {
     auto region = vRegions_.back();
-    if (region->full())
-      region->seal();
-    else
+    if (!region->full())
       return region;
+    region->seal();
   }
 
   // alloc a new region
