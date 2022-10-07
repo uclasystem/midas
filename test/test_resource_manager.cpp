@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "resource_manager.hpp"
+#include "utils.hpp"
 
 constexpr int kNumThds = 10;
 constexpr int kNumRegions = 10;
@@ -15,10 +16,10 @@ int main(int argc, char *argv[]) {
           cachebank::ResourceManager::global_manager();
 
       for (int i = 0; i < kNumRegions; i++) {
-        rmanager->AllocRegion(cachebank::kPageChunkSize);
+        rmanager->AllocRegion(cachebank::kRegionSize);
       }
       for (int i = 0; i < kNumRegions; i++) {
-        rmanager->FreeRegions(cachebank::kPageChunkSize);
+        rmanager->FreeRegions(cachebank::kRegionSize);
       }
     }));
   }

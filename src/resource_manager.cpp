@@ -122,8 +122,7 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
   auto region = std::make_shared<Region>(_id, region_id);
   _region_map[region_id] = region;
   assert(region->Size() == ret_msg.mmsg.size);
-  assert((reinterpret_cast<uint64_t>(region->Addr()) &
-          (~kPageChunkAlignMask)) == 0);
+  assert((reinterpret_cast<uint64_t>(region->Addr()) & (~kRegionMask)) == 0);
 
   LOG(kDebug) << "Allocated a page chunk: " << region->Addr() << " ["
              << region->Size() << "]";

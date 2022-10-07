@@ -12,7 +12,7 @@ namespace cachebank {
 
 static inline SlabHeader *slab_header(const void *ptr) noexcept {
   uint64_t addr = reinterpret_cast<uint64_t>(ptr);
-  return reinterpret_cast<SlabHeader *>(addr & kPageChunkAlignMask);
+  return reinterpret_cast<SlabHeader *>(addr & kRegionMask);
 }
 
 uint32_t SlabRegion::init() {

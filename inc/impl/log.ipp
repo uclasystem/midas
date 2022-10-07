@@ -34,7 +34,7 @@ inline bool LogRegion::full() const noexcept {
 }
 
 inline uint32_t LogRegion::size() const noexcept {
-  return pos_ / kPageChunkSize;
+  return pos_ / kRegionSize;
 }
 
 inline LogAllocator::LogAllocator() : curr_region_(0), curr_chunk_(0) {}
