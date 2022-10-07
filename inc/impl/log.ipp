@@ -2,6 +2,7 @@
 
 namespace cachebank {
 
+/** LogChunk */
 inline LogChunk::LogChunk(uint64_t addr)
     : start_addr_(addr), pos_(addr), sealed_(false) {}
 
@@ -21,6 +22,7 @@ inline bool LogChunk::full() noexcept {
          pos_ + sizeof(GenericObjectHdr) > start_addr_ + kLogChunkSize;
 }
 
+/** LogRegion */
 inline LogRegion::LogRegion(int64_t rid, uint64_t addr)
     : region_id_(rid), start_addr_(addr), pos_(addr), sealed_(false),
       destroyed_(false) {}
@@ -33,10 +35,9 @@ inline bool LogRegion::full() const noexcept {
   return pos_ >= start_addr_ + kRegionSize;
 }
 
-inline uint32_t LogRegion::size() const noexcept {
-  return pos_ / kRegionSize;
-}
+inline uint32_t LogRegion::size() const noexcept { return pos_ / kRegionSize; }
 
+/** LogAllocator */
 inline LogAllocator::LogAllocator() : curr_region_(0), curr_chunk_(0) {}
 
 inline void LogAllocator::cleanup_regions() {
@@ -70,9 +71,7 @@ inline LogAllocator *LogAllocator::global_allocator() noexcept {
 }
 
 static thread_local struct ThreadExiter {
-  ~ThreadExiter() {
-    LogAllocator::seal_pcab();
-  }
+  ~ThreadExiter() { LogAllocator::seal_pcab(); }
 } exiter;
 
 } // namespace cachebank
