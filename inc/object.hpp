@@ -151,6 +151,7 @@ public:
   bool set(uint64_t stt_addr, size_t data_size);
   bool init_from_soft(uint64_t soft_addr);
   bool free() noexcept;
+  bool null() const noexcept;
 
   /** Header related */
   static size_t total_size(size_t data_size) noexcept;

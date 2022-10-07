@@ -53,6 +53,7 @@ bool LogChunk::scan() {
     }
 
     auto lock_id = obj_ptr.lock();
+    assert(!obj_ptr.null());
     if (obj_ptr.is_small_obj()) {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
@@ -115,6 +116,7 @@ bool LogChunk::evacuate() {
       break;
     }
     auto lock_id = obj_ptr.lock();
+    assert(!obj_ptr.null());
     if (obj_ptr.is_small_obj()) {
       nr_small_objs++;
 

@@ -208,13 +208,17 @@ inline bool ObjectPtr::init_from_soft(uint64_t soft_addr) {
 }
 
 inline bool ObjectPtr::free() noexcept {
-  if (!is_valid() || obj_.null())
+  if (null() || !is_valid())
     return true;
   auto ret = clr_present();
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
     rref->obj_.reset();
   return ret;
+}
+
+inline bool ObjectPtr::null() const noexcept {
+  return obj_.null();
 }
 
 inline size_t ObjectPtr::total_size(size_t data_size) noexcept {
@@ -236,8 +240,7 @@ inline bool ObjectPtr::is_small_obj() const noexcept {
 }
 
 inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -256,8 +259,7 @@ inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
 }
 
 inline uint64_t ObjectPtr::get_rref() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -280,8 +282,7 @@ inline bool ObjectPtr::upd_rref() noexcept {
 }
 
 inline bool ObjectPtr::is_valid() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   GenericObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(hdr)))
     return false;
@@ -289,16 +290,14 @@ inline bool ObjectPtr::is_valid() noexcept {
 }
 
 inline bool ObjectPtr::set_invalid() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   GenericObjectHdr hdr;
   hdr.set_invalid();
   return obj_.copy_from(&hdr, sizeof(GenericObjectHdr));
 }
 
 inline bool ObjectPtr::is_present() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -315,8 +314,7 @@ inline bool ObjectPtr::is_present() noexcept {
 }
 
 inline bool ObjectPtr::set_present() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -336,8 +334,7 @@ inline bool ObjectPtr::set_present() noexcept {
 }
 
 inline bool ObjectPtr::clr_present() noexcept {
-  if (obj_.null())
-    return true;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -357,8 +354,7 @@ inline bool ObjectPtr::clr_present() noexcept {
 }
 
 inline bool ObjectPtr::is_accessed() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -375,8 +371,7 @@ inline bool ObjectPtr::is_accessed() noexcept {
 }
 
 inline bool ObjectPtr::set_accessed() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -395,8 +390,7 @@ inline bool ObjectPtr::set_accessed() noexcept {
 }
 
 inline bool ObjectPtr::clr_accessed() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -415,8 +409,7 @@ inline bool ObjectPtr::clr_accessed() noexcept {
 }
 
 inline bool ObjectPtr::is_evacuate() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -433,8 +426,7 @@ inline bool ObjectPtr::is_evacuate() noexcept {
 }
 
 inline bool ObjectPtr::set_evacuate() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -451,8 +443,7 @@ inline bool ObjectPtr::set_evacuate() noexcept {
 }
 
 inline bool ObjectPtr::clr_evacuate() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
@@ -469,8 +460,7 @@ inline bool ObjectPtr::clr_evacuate() noexcept {
 }
 
 inline bool ObjectPtr::is_continue() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   assert(!is_small_obj());
   LargeObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
@@ -479,8 +469,7 @@ inline bool ObjectPtr::is_continue() noexcept {
 }
 
 inline bool ObjectPtr::set_continue() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   assert(!is_small_obj());
   LargeObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
@@ -490,8 +479,7 @@ inline bool ObjectPtr::set_continue() noexcept {
 }
 
 inline bool ObjectPtr::clr_continue() noexcept {
-  if (obj_.null())
-    return false;
+  assert(!null());
   assert(!is_small_obj());
 
   LargeObjectHdr hdr;
@@ -503,15 +491,18 @@ inline bool ObjectPtr::clr_continue() noexcept {
 
 inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval,
                                uint64_t newval) {
-  if (obj_.null())
+  if (null())
     return false;
   return obj_.cmpxchg(hdr_size() + offset, oldval, newval);
 }
 
 inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
-  if (obj_.null())
+  if (null())
     return false;
   auto lock_id = lock();
+  if (lock_id == -1) // lock failed as obj_ has just been reset.
+    return false;
+  assert(!null());
   if (!is_present() || !set_accessed()) {
     unlock(lock_id);
     return false;
@@ -523,9 +514,12 @@ inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
 }
 
 inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
-  if (obj_.null())
+  if (null())
     return false;
   auto lock_id = lock();
+  if (lock_id == -1) // lock failed as obj_ has just been reset.
+    return false;
+  assert(!null());
   if (!is_present() || !set_accessed()) {
     unlock(lock_id);
     return false;
@@ -537,7 +531,7 @@ inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
 }
 
 inline bool ObjectPtr::move_from(ObjectPtr &src) {
-  if (obj_.null() || src.obj_.null())
+  if (null() || src.null())
     goto failed;
   assert(src.total_size() == this->total_size());
   /* NOTE (YIFAN): the order of operations below are tricky:

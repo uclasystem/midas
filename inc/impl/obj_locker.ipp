@@ -29,12 +29,15 @@ inline std::optional<LockID> ObjLocker::_try_lock(uint64_t obj_addr) {
 }
 
 inline LockID ObjLocker::_lock(uint64_t obj_addr) {
+  if (obj_addr == 0) // obj is reset under the hood.
+    return -1;
   int bucket = hash_val(obj_addr) % kNumMaps;
   mtxes_[bucket].lock();
   return bucket;
 }
 
 inline void ObjLocker::_unlock(uint64_t obj_addr) {
+  assert(obj_addr != 0); // obj is reset under the hood, this should not happen.
   int bucket = hash_val(obj_addr) % kNumMaps;
   mtxes_[bucket].unlock();
 }
