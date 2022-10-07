@@ -15,7 +15,7 @@
 constexpr int kNBuckets = (1 << 20);
 constexpr int kNumInsertThds = 20;
 constexpr int kNumRemoveThds = 20;
-constexpr int kNumObjs = 40960;
+constexpr int kNumObjs = 409600;
 constexpr int kKLen = 18;
 constexpr int kVLen = 31;
 
@@ -132,8 +132,8 @@ int main(int argc, char *argv[]) {
         auto v = get_V<V>();
         std_map_lock.lock();
         std_map[k] = v;
-        bool ret = hashmap->set(k, v);
         std_map_lock.unlock();
+        bool ret = hashmap->set(k, v);
         if (!ret)
           nr_err++;
         else
@@ -174,7 +174,12 @@ int main(int argc, char *argv[]) {
     std::cout << "Get test passed!" << std::endl;
   else
     std::cout << "Get test failed! " << nr_succ << " passed, " << nr_err
-              << " failed." << std::endl;
+              << " failed." << std::endl
+              << "NOTE: a small amount of failures are expected if only "
+                 "std_map is protected by lock, as keys can conflict in our "
+                 "sync_hash_map and the result of races are uncertain."
+              << std::endl;
+        ;
 
   std::vector<std::pair<K, V>> pairs;
   for (auto pair : std_map) {
