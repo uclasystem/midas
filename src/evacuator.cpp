@@ -73,6 +73,7 @@ void Evacuator::scan() {
 
   for (auto &thd : gc_thds)
     thd.join();
+  gc_thds.clear();
 
   delete[] tasks;
 }
