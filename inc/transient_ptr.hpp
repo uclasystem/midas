@@ -43,6 +43,8 @@ public:
 
 private:
   uint64_t ptr_;
+
+  friend class ObjLocker;
 #ifdef BOUND_CHECK
   size_t size_; /* accessible range of the pointer */
 #endif          // BOUND_CHECK

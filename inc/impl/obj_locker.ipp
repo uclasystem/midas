@@ -2,20 +2,39 @@
 
 #include <memory>
 #include <mutex>
+#include <optional>
 
 namespace cachebank {
 
-inline bool ObjLocker::try_lock(uint64_t obj_addr) {
-  int bucket = hash_val(obj_addr) % kNumMaps;
-  return mtxes_[bucket].try_lock();
+inline std::optional<LockID> ObjLocker::try_lock(const TransientPtr &tptr) {
+  return _try_lock(tptr.ptr_);
 }
 
-inline void ObjLocker::lock(uint64_t obj_addr) {
+inline LockID ObjLocker::lock(const TransientPtr &tptr) {
+  return _lock(tptr.ptr_);
+}
+
+inline void ObjLocker::unlock(const TransientPtr &tptr) {
+  _unlock(tptr.ptr_);
+}
+
+inline void ObjLocker::unlock(LockID id) { mtxes_[id].unlock(); }
+
+inline std::optional<LockID> ObjLocker::_try_lock(uint64_t obj_addr) {
+  int bucket = hash_val(obj_addr) % kNumMaps;
+  if (mtxes_[bucket].try_lock())
+    return bucket;
+
+  return std::nullopt;
+}
+
+inline LockID ObjLocker::_lock(uint64_t obj_addr) {
   int bucket = hash_val(obj_addr) % kNumMaps;
   mtxes_[bucket].lock();
+  return bucket;
 }
 
-inline void ObjLocker::unlock(uint64_t obj_addr) {
+inline void ObjLocker::_unlock(uint64_t obj_addr) {
   int bucket = hash_val(obj_addr) % kNumMaps;
   mtxes_[bucket].unlock();
 }
