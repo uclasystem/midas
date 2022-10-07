@@ -164,7 +164,25 @@ inline void LargeObjectHdr::_large_obj() noexcept {
 /** ObjectPtr */
 inline ObjectPtr::ObjectPtr() : size_(0), obj_() {}
 
-inline bool ObjectPtr::set(uint64_t stt_addr, size_t data_size) {
+inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
+
+inline size_t ObjectPtr::total_size(size_t data_size) noexcept {
+  data_size = round_up_to_align(data_size, kSmallObjSizeUnit);
+  return data_size < kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
+                                        : sizeof(LargeObjectHdr) + data_size;
+}
+
+inline size_t ObjectPtr::total_size() const noexcept {
+  return hdr_size() + data_size();
+}
+inline size_t ObjectPtr::hdr_size() const noexcept {
+  return is_small_obj() ? sizeof(SmallObjectHdr) : sizeof(LargeObjectHdr);
+}
+inline size_t ObjectPtr::data_size() const noexcept { return size_; }
+
+inline bool ObjectPtr::is_small_obj() const noexcept {
+  return size_ < kSmallObjThreshold;
+}
   size_ = round_up_to_align(data_size, kSmallObjSizeUnit);
 
   auto obj_size = total_size();
@@ -215,28 +233,6 @@ inline bool ObjectPtr::free() noexcept {
   if (rref)
     rref->obj_.reset();
   return ret;
-}
-
-inline bool ObjectPtr::null() const noexcept {
-  return obj_.null();
-}
-
-inline size_t ObjectPtr::total_size(size_t data_size) noexcept {
-  data_size = round_up_to_align(data_size, kSmallObjSizeUnit);
-  return data_size < kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
-                                        : sizeof(LargeObjectHdr) + data_size;
-}
-
-inline size_t ObjectPtr::total_size() const noexcept {
-  return hdr_size() + data_size();
-}
-inline size_t ObjectPtr::hdr_size() const noexcept {
-  return is_small_obj() ? sizeof(SmallObjectHdr) : sizeof(LargeObjectHdr);
-}
-inline size_t ObjectPtr::data_size() const noexcept { return size_; }
-
-inline bool ObjectPtr::is_small_obj() const noexcept {
-  return size_ < kSmallObjThreshold;
 }
 
 inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
