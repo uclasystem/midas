@@ -37,7 +37,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   auto prev_next = &_buckets[bucket_idx];
   BNPtr node = _buckets[bucket_idx];
   bool found = false;
-  while (node && node->pair.is_valid()) {
+  while (node) {
     found = iterate_list(key_hash, k, prev_next, node);
     if (found)
       break;
@@ -47,7 +47,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
     return false;
   }
   assert(node);
-  if (!node->pair.copy_to(&v, sizeof(Tp), sizeof(Key))) {
+  if (node->pair.null() || !node->pair.copy_to(&v, sizeof(Tp), sizeof(Key))) {
     delete_node(prev_next, node);
     lock.unlock();
     return false;
@@ -70,7 +70,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
   auto prev_next = &_buckets[bucket_idx];
   BNPtr node = _buckets[bucket_idx];
   bool found = false;
-  while (node && node->pair.is_valid()) {
+  while (node) {
     found = iterate_list(key_hash, k, prev_next, node);
     if (found)
       break;
@@ -99,12 +99,13 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
 
   auto prev_next = &_buckets[bucket_idx];
   auto node = _buckets[bucket_idx];
-  while (node && node->pair.is_valid()) {
+  while (node) {
     auto found = iterate_list(key_hash, k, prev_next, node);
     if (found) {
       Tp tmp_v = v;
       // try to set in place
-      if (node->pair.copy_from(&tmp_v, sizeof(Tp), sizeof(Key))) {
+      if (!node->pair.null() &&
+          node->pair.copy_from(&tmp_v, sizeof(Tp), sizeof(Key))) {
         lock.unlock();
         return true;
       } else {
@@ -140,6 +141,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
 
   auto *new_node = new BucketNode();
   new_node->pair = *optptr;
+  assert(!new_node->pair.null());
   if (!new_node->pair.set_rref(reinterpret_cast<uint64_t>(&new_node->pair))) {
     delete new_node;
     return nullptr;
@@ -183,7 +185,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::iterate_list(
   std::aligned_storage_t<sizeof(Key), alignof(Key)> k_buf;
   auto tmp_k = std::launder(reinterpret_cast<Key *>(&k_buf));
   // Key tmp_k;
-  if (!node->pair.copy_to(tmp_k, sizeof(Key))) {
+  if (node->pair.null() || !node->pair.copy_to(tmp_k, sizeof(Key))) {
     // prev remains the same when current node is deleted.
     node = delete_node(prev_next, node);
     return false;
