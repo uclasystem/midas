@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
   std::vector<std::thread> threads;
 
   std::atomic_int nr_errs(0);
-  std::vector<cachebank::ObjectPtr> ptrs[kNumThds];
+  std::vector<std::shared_ptr<cachebank::ObjectPtr>> ptrs[kNumThds];
   std::vector<Object> objs[kNumThds];
 
   for (int tid = 0; tid < kNumThds; tid++) {
@@ -49,7 +49,9 @@ int main(int argc, char *argv[]) {
           nr_errs++;
           continue;
         }
-        ptrs[tid].push_back(*optptr);
+        ptrs[tid].push_back(std::make_shared<cachebank::ObjectPtr>(*optptr));
+        optptr->set_rref(
+            reinterpret_cast<uint64_t>(ptrs[tid][ptrs[tid].size() - 1].get()));
         objs[tid].push_back(obj);
       }
 
@@ -57,13 +59,13 @@ int main(int argc, char *argv[]) {
         bool ret = false;
         auto ptr = ptrs[tid][i];
         Object stored_o;
-        if (!ptr.copy_to(&stored_o, sizeof(Object)) ||
+        if (!ptr->copy_to(&stored_o, sizeof(Object)) ||
             !objs[tid][i].equal(stored_o))
           nr_errs++;
       }
 
       for (auto ptr : ptrs[tid]) {
-        if (!allocator->free(ptr))
+        if (!allocator->free(*ptr))
           nr_errs++;
       }
     }));
