@@ -13,7 +13,7 @@ inline TransientPtr::TransientPtr(uint64_t addr, size_t size)
 inline TransientPtr::TransientPtr(uint64_t addr, size_t size) : ptr_(addr) {}
 #endif // BOUND_CHECK
 
-inline bool TransientPtr::is_valid() const { return ptr_; }
+inline bool TransientPtr::null() const noexcept { return ptr_ == 0; }
 
 inline bool TransientPtr::set(uint64_t addr, size_t size) {
   // TODO: page-fault-aware logic
@@ -36,7 +36,7 @@ inline bool TransientPtr::reset() noexcept {
 inline size_t TransientPtr::size() const noexcept { return 0; }
 
 inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
-  return is_valid() ? TransientPtr(ptr_ + offset, size) : TransientPtr();
+  return null() ? TransientPtr(ptr_ + offset, size) : TransientPtr();
 }
 
 /**
@@ -55,7 +55,7 @@ inline int64_t TransientPtr::atomic_add(int64_t offset, int64_t val) {
 
 inline bool TransientPtr::copy_from(const void *src, size_t len,
                                     int64_t offset) {
-  if (!is_valid())
+  if (null())
     return false;
     // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
@@ -67,7 +67,7 @@ inline bool TransientPtr::copy_from(const void *src, size_t len,
 }
 
 inline bool TransientPtr::copy_to(void *dst, size_t len, int64_t offset) {
-  if (!is_valid())
+  if (null())
     return false;
     // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
@@ -80,7 +80,7 @@ inline bool TransientPtr::copy_to(void *dst, size_t len, int64_t offset) {
 
 inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
                                     int64_t from_offset, int64_t to_offset) {
-  if (!is_valid())
+  if (null())
     return false;
     // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
@@ -94,7 +94,7 @@ inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
 
 inline bool TransientPtr::copy_to(TransientPtr &dst, size_t len,
                                   int64_t from_offset, int64_t to_offset) {
-  if (!is_valid())
+  if (null())
     return false;
     // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
@@ -107,7 +107,7 @@ inline bool TransientPtr::copy_to(TransientPtr &dst, size_t len,
 }
 
 inline bool TransientPtr::assign_to_non_volatile(TransientPtr *dst) {
-  if (!is_valid())
+  if (null())
     return false;
   // TODO: page-fault-aware logic
   *dst = *this;
@@ -115,7 +115,7 @@ inline bool TransientPtr::assign_to_non_volatile(TransientPtr *dst) {
 }
 
 inline bool TransientPtr::assign_to_local_region(TransientPtr *dst) {
-  if (!is_valid())
+  if (null())
     return false;
   // TODO: page-fault-aware logic
   *dst = *this;
@@ -123,7 +123,7 @@ inline bool TransientPtr::assign_to_local_region(TransientPtr *dst) {
 }
 
 inline bool TransientPtr::assign_to_foreign_region(TransientPtr *dst) {
-  if (!is_valid())
+  if (null())
     return false;
   // TODO: page-fault-aware logic
   *dst = *this;
