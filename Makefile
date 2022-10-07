@@ -34,9 +34,11 @@ test_log_src = test/test_log.cpp
 test_log_obj = $(test_log_src:.cpp=.o)
 test_parallel_evacuator_src = test/test_parallel_evacuator.cpp
 test_parallel_evacuator_obj = $(test_parallel_evacuator_src:.cpp=.o)
+test_concurrent_evacuator_src = test/test_concurrent_evacuator.cpp
+test_concurrent_evacuator_obj = $(test_concurrent_evacuator_src:.cpp=.o)
 
 all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_slab bin/test_sync_hashmap bin/test_log \
-	bin/test_parallel_evacuator
+	bin/test_parallel_evacuator bin/test_concurrent_evacuator
 
 %.d: %.cpp
 	$(CXX) $(CXXFLAGS) $(INC) $< -MM -MT $(@:.d=.o) >$@
@@ -62,6 +64,9 @@ bin/test_log: $(test_log_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_parallel_evacuator: $(test_parallel_evacuator_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_concurrent_evacuator: $(test_concurrent_evacuator_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 ifneq ($(MAKECMDGOALS),clean)
