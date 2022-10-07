@@ -212,7 +212,8 @@ inline bool ObjectPtr::free() noexcept {
     return true;
   auto ret = clr_present();
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
-  rref->obj_.reset();
+  if (rref)
+    rref->obj_.reset();
   return ret;
 }
 
