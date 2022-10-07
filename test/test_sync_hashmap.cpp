@@ -15,9 +15,9 @@
 constexpr int kNBuckets = (1 << 20);
 constexpr int kNumInsertThds = 20;
 constexpr int kNumRemoveThds = 20;
-constexpr int kNumObjs = 409600;
-constexpr int kKLen = 18;
-constexpr int kVLen = 31;
+constexpr int kNumObjs = 102400;
+constexpr int kKLen = 61;
+constexpr int kVLen = 10;
 
 template <int Len> struct Object;
 
@@ -114,6 +114,32 @@ template <> struct hash<Object<kKLen>> {
 };
 } // namespace std
 
+struct Op {
+  enum OpCode { Set, Get, Remove } opcode;
+  K key;
+  V val;
+};
+std::vector<K> ks[kNumInsertThds];
+std::vector<V> vs[kNumInsertThds];
+std::vector<Op> ops[kNumInsertThds];
+
+void gen_workload() {
+  std::vector<std::thread> thds;
+  for (int tid = 0; tid < kNumInsertThds; tid++) {
+    for (int o = 0; o < kNumObjs; o++) {
+      K k = get_K<K>();
+      V v = get_V<V>();
+      ks[tid].push_back(k);
+      vs[tid].push_back(v);
+      Op op{.opcode = Op::Set, .key = k, .val = v};
+      ops[tid].push_back(op);
+    }
+  }
+  for (auto &thd : thds)
+    thd.join();
+  std::cout << "Finish generate workload." << std::endl;
+}
+
 int main(int argc, char *argv[]) {
   auto *rmanager = cachebank::ResourceManager::global_manager();
   std::vector<std::thread> thds;
@@ -125,11 +151,13 @@ int main(int argc, char *argv[]) {
   std::atomic_int32_t nr_succ = 0;
   std::atomic_int32_t nr_err = 0;
 
+  gen_workload();
+
   for (int tid = 0; tid < kNumInsertThds; tid++) {
     thds.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < kNumObjs; i++) {
-        auto k = get_K<K>();
-        auto v = get_V<V>();
+        auto &k = ks[tid][i];
+        auto &v = vs[tid][i];
         std_map_lock.lock();
         std_map[k] = v;
         std_map_lock.unlock();
