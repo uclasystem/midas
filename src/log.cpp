@@ -31,6 +31,8 @@ inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
 inline bool LogChunk::free(ObjectPtr &ptr) { return ptr.free(); }
 
 bool LogChunk::scan() {
+  if (!sealed_)
+    return false;
   int nr_deactivated = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
