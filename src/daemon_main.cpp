@@ -17,8 +17,8 @@
 
 #include "logging.hpp"
 #include "qpair.hpp"
-#include "utils.hpp"
 #include "shm_types.hpp"
+#include "utils.hpp"
 
 namespace cachebank {
 
@@ -47,19 +47,35 @@ public:
 
 private:
   friend class Daemon;
-  inline int64_t new_region_id() noexcept { return _region_cnt++; }
-  std::pair<CtrlRetCode, MemMsg> alloc_region(size_t size);
-  std::pair<CtrlRetCode, MemMsg> free_region(int64_t region_id);
-  void unmap_regions();
+
+  inline int64_t new_region_id_() noexcept { return _region_cnt++; }
+
+  void connect();
+  void disconnect();
+
+  void alloc_region(size_t size);
+  void free_region(int64_t region_id);
+
+  void unmap_regions_();
 
   uint64_t _region_cnt;
 };
 
-std::pair<CtrlRetCode, MemMsg> Client::alloc_region(size_t size) {
+void Client::connect() {
+  CtrlMsg ack{.op = CtrlOpCode::CONNECT, .ret = CtrlRetCode::CONN_SUCC};
+  cq.send(&ack, sizeof(ack));
+}
+
+void Client::disconnect() {
+  CtrlMsg ret_msg{.op = CtrlOpCode::DISCONNECT, .ret = CtrlRetCode::CONN_SUCC};
+  cq.send(&ret_msg, sizeof(ret_msg));
+}
+
+void Client::alloc_region(size_t size) {
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
   MemMsg mm;
 
-  int64_t region_id = new_region_id();
+  int64_t region_id = new_region_id_();
   const auto rwmode = boost::interprocess::read_write;
   const std::string chunkname = utils::get_region_name(id, region_id);
 
@@ -82,10 +98,12 @@ std::pair<CtrlRetCode, MemMsg> Client::alloc_region(size_t size) {
 
     ret = CtrlRetCode::MEM_FAIL;
   }
-  return std::make_pair(ret, std::move(mm));
+
+  CtrlMsg ret_msg{.op = CtrlOpCode::ALLOC, .ret = ret, .mmsg = mm};
+  cq.send(&ret_msg, sizeof(ret_msg));
 }
 
-std::pair<CtrlRetCode, MemMsg> Client::free_region(int64_t region_id) {
+void Client::free_region(int64_t region_id) {
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
   MemMsg mm;
   int64_t actual_size;
@@ -105,10 +123,11 @@ std::pair<CtrlRetCode, MemMsg> Client::free_region(int64_t region_id) {
     ret = CtrlRetCode::MEM_FAIL;
   }
 
-  return std::make_pair(ret, std::move(mm));
+  CtrlMsg ack{.op = CtrlOpCode::FREE, .ret = ret, .mmsg = mm};
+  cq.send(&ack, sizeof(ack));
 }
 
-void Client::unmap_regions() {
+void Client::unmap_regions_() {
   for (const auto &kv : regions) {
     const std::string name = utils::get_region_name(id, kv.first);
     SharedMemObj::remove(name.c_str());
@@ -155,9 +174,7 @@ int Daemon::do_connect(const CtrlMsg &msg) {
     assert(client_iter != _clients.cend());
     auto &client = client_iter->second;
     LOG(kInfo) << "Client " << msg.id << " connected.";
-
-    CtrlMsg ack{.op = CtrlOpCode::CONNECT, .ret = CtrlRetCode::CONN_SUCC};
-    client.cq.send(&ack, sizeof(ack));
+    client.connect();
   } catch (boost::interprocess::interprocess_exception &e) {
     LOG(kError) << e.what();
   }
@@ -174,10 +191,7 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
       LOG(kError) << "Client " << msg.id << " doesn't exist!";
       return -1;
     }
-
-    CtrlMsg ret_msg{.op = CtrlOpCode::DISCONNECT,
-                    .ret = CtrlRetCode::CONN_SUCC};
-    client_iter->second.cq.send(&ret_msg, sizeof(ret_msg));
+    client_iter->second.disconnect();
 
     _clients.erase(msg.id);
     LOG(kInfo) << "Client " << msg.id << " disconnected!";
@@ -198,11 +212,7 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
   }
   auto &client = client_iter->second;
   assert(msg.id == client.id);
-
-  auto ret_mmsg = client.alloc_region(msg.mmsg.size);
-  CtrlMsg ret_msg{
-      .op = CtrlOpCode::ALLOC, .ret = ret_mmsg.first, .mmsg = ret_mmsg.second};
-  client_iter->second.cq.send(&ret_msg, sizeof(ret_msg));
+  client.alloc_region(msg.mmsg.size);
 
   return 0;
 }
@@ -219,11 +229,7 @@ int Daemon::do_free(const CtrlMsg &msg) {
   size_t region_size = msg.mmsg.size;
   const std::string chunkname = utils::get_region_name(msg.id, region_id);
   auto &client = client_iter->second;
-
-  auto ret_mmsg = client.free_region(region_id);
-  CtrlMsg ack{
-      .op = CtrlOpCode::FREE, .ret = ret_mmsg.first, .mmsg = ret_mmsg.second};
-  client_iter->second.cq.send(&ack, sizeof(ack));
+  client.free_region(region_id);
 
   return 0;
 }
