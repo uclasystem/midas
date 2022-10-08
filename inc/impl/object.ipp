@@ -183,6 +183,9 @@ inline size_t ObjectPtr::data_size() const noexcept { return size_; }
 inline bool ObjectPtr::is_small_obj() const noexcept {
   return size_ < kSmallObjThreshold;
 }
+
+using RetCode = ObjectPtr::RetCode;
+inline RetCode ObjectPtr::set(uint64_t stt_addr, size_t data_size) {
   size_ = round_up_to_align(data_size, kSmallObjSizeUnit);
 
   auto obj_size = total_size();
@@ -190,25 +193,25 @@ inline bool ObjectPtr::is_small_obj() const noexcept {
     SmallObjectHdr hdr;
     hdr.init(data_size);
     obj_ = TransientPtr(stt_addr, obj_size);
-    return obj_.copy_from(&hdr, sizeof(hdr));
+    return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
   } else { // large obj
     LargeObjectHdr hdr;
     hdr.init(data_size);
     obj_ = TransientPtr(stt_addr, obj_size);
-    return obj_.copy_from(&hdr, sizeof(hdr));
+    return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
   }
   LOG(kError) << "impossible to reach here!";
-  return false;
+  return RetCode::Fail;
 }
 
-inline bool ObjectPtr::init_from_soft(uint64_t soft_addr) {
+inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {
   GenericObjectHdr hdr;
   obj_ = TransientPtr(soft_addr, sizeof(GenericObjectHdr));
   if (!obj_.copy_to(&hdr, sizeof(hdr)))
-    return false;
+    return RetCode::Fault;
 
   if (!hdr.is_valid())
-    return true;
+    return RetCode::Fail;
 
   if (hdr.is_small_obj()) {
     SmallObjectHdr shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
@@ -217,18 +220,34 @@ inline bool ObjectPtr::init_from_soft(uint64_t soft_addr) {
   } else {
     LargeObjectHdr lhdr;
     if (!obj_.copy_to(&lhdr, sizeof(lhdr)))
-      return false;
+      return RetCode::Fault;
     size_ = lhdr.get_size();
     obj_ = TransientPtr(soft_addr, total_size());
   }
 
-  return true;
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::free() noexcept {
-  if (null() || !is_valid())
-    return true;
-  auto ret = clr_present();
+inline RetCode ObjectPtr::free(bool locked) noexcept {
+  if (locked)
+    return free_();
+
+  auto ret = RetCode::Fail;
+  LockID lock_id = lock();
+  if (lock_id == -1) // lock failed as obj_ has just been reset.
+    return RetCode::Fail;
+  if (!null())
+    ret = free_();
+  unlock(lock_id);
+  return ret;
+}
+
+inline RetCode ObjectPtr::free_() noexcept {
+  assert(!null());
+  auto ret = is_valid();
+  if (ret != RetCode::True)
+    return ret;
+  ret = clr_present();
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
     rref->obj_.reset();
@@ -242,247 +261,274 @@ inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
       return false;
     hdr.set_rref(addr);
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return false;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
       return false;
     hdr.set_rref(addr);
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
-  }
-  LOG(kError) << "impossible to reach here!";
-  return false;
-}
-
-inline uint64_t ObjectPtr::get_rref() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
       return false;
-    return hdr.get_rref();
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
-    return hdr.get_rref();
   }
-  LOG(kError) << "impossible to reach here!";
-  return false;
-}
-
-inline bool ObjectPtr::upd_rref() noexcept {
-  auto *ref = reinterpret_cast<ObjectPtr *>(get_rref());
-  *ref = *this;
   return true;
 }
 
-inline bool ObjectPtr::is_valid() noexcept {
+inline bool ObjectPtr::set_rref(ObjectPtr *addr) noexcept {
+  return set_rref(reinterpret_cast<uint64_t>(addr));
+}
+
+inline ObjectPtr *ObjectPtr::get_rref() noexcept {
+  assert(!null());
+  if (is_small_obj()) {
+    SmallObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+      return nullptr;
+    return reinterpret_cast<ObjectPtr *>(hdr.get_rref());
+  } else {
+    LargeObjectHdr hdr;
+    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+      return nullptr;
+    return reinterpret_cast<ObjectPtr *>(hdr.get_rref());
+  }
+  LOG(kError) << "impossible to reach here!";
+  return nullptr;
+}
+
+inline RetCode ObjectPtr::upd_rref() noexcept {
+  auto *ref = reinterpret_cast<ObjectPtr *>(get_rref());
+  if (!ref)
+    return RetCode::Fail;
+  *ref = *this;
+  return RetCode::Succ;
+}
+
+inline RetCode ObjectPtr::is_valid() noexcept {
   assert(!null());
   GenericObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(hdr)))
-    return false;
-  return hdr.is_valid();
+    return RetCode::Fault;
+  return hdr.is_valid() ? RetCode::True : RetCode::False;
 }
 
-inline bool ObjectPtr::set_invalid() noexcept {
+inline RetCode ObjectPtr::set_invalid() noexcept {
   assert(!null());
   GenericObjectHdr hdr;
   hdr.set_invalid();
-  return obj_.copy_from(&hdr, sizeof(GenericObjectHdr));
+  return obj_.copy_from(&hdr, sizeof(GenericObjectHdr)) ? RetCode::Succ
+                                                        : RetCode::Fault;
 }
 
-inline bool ObjectPtr::is_present() noexcept {
+inline RetCode ObjectPtr::is_present() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
-    return hdr.is_present();
+      return RetCode::Fault;
+    return hdr.is_present() ? RetCode::True : RetCode::False;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
-    return hdr.is_present();
+      return RetCode::Fault;
+    return hdr.is_present() ? RetCode::True : RetCode::False;
   }
   LOG(kError) << "impossible to reach here!";
-  return false;
+  return RetCode::Fault;
 }
 
-inline bool ObjectPtr::set_present() noexcept {
+inline RetCode ObjectPtr::set_present() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.set_present();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return RetCode::Fault;
   } else {
     LOG(kError) << "large obj allocation is not implemented yet!";
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.set_present();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
   }
-  LOG(kError) << "impossible to reach here!";
-  return false;
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::clr_present() noexcept {
+inline RetCode ObjectPtr::clr_present() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.clr_present();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return RetCode::Fault;
   } else {
     LOG(kError) << "large obj allocation is not implemented yet!";
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.clr_present();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
   }
-  LOG(kError) << "impossible to reach here!";
-  return false;
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::is_accessed() noexcept {
+inline RetCode ObjectPtr::is_accessed() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
-    return hdr.is_accessed();
+      return RetCode::Fault;
+    return hdr.is_accessed() ? RetCode::True : RetCode::False;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
-    return hdr.is_accessed();
+      return RetCode::Fault;
+    return hdr.is_accessed() ? RetCode::True : RetCode::False;
   }
   LOG(kError) << "impossible to reach here!";
-  return false;
+  return RetCode::Fault;
 }
 
-inline bool ObjectPtr::set_accessed() noexcept {
+inline RetCode ObjectPtr::set_accessed() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.set_accessed();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return RetCode::Fault;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.set_accessed();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
   }
-  LOG(kError) << "impossible to reach here!";
-  return false;
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::clr_accessed() noexcept {
+inline RetCode ObjectPtr::clr_accessed() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.clr_accessed();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return RetCode::Fault;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.clr_accessed();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
   }
-  LOG(kError) << "impossible to reach here!";
-  return false;
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::is_evacuate() noexcept {
+inline RetCode ObjectPtr::is_evacuate() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.is_evacuate();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return RetCode::Fault;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.is_evacuate();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
   }
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::set_evacuate() noexcept {
+inline RetCode ObjectPtr::set_evacuate() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.set_evacuate();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return RetCode::Fault;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.set_evacuate();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
   }
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::clr_evacuate() noexcept {
+inline RetCode ObjectPtr::clr_evacuate() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.clr_evacuate();
-    return obj_.copy_from(&hdr, sizeof(SmallObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+      return RetCode::Fault;
   } else {
     LargeObjectHdr hdr;
     if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return false;
+      return RetCode::Fault;
     hdr.clr_evacuate();
-    return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
   }
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::is_continue() noexcept {
+inline RetCode ObjectPtr::is_continue() noexcept {
   assert(!null());
   assert(!is_small_obj());
+
   LargeObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-    return false;
-  return hdr.is_continue();
+    return RetCode::Fault;
+  return hdr.is_continue() ? RetCode::True : RetCode::False;
 }
 
-inline bool ObjectPtr::set_continue() noexcept {
+inline RetCode ObjectPtr::set_continue() noexcept {
   assert(!null());
   assert(!is_small_obj());
+
   LargeObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-    return false;
+    return RetCode::Fault;
   hdr.set_continue();
-  return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+      return RetCode::Fault;
+  return RetCode::Succ;
 }
 
-inline bool ObjectPtr::clr_continue() noexcept {
+inline RetCode ObjectPtr::clr_continue() noexcept {
   assert(!null());
   assert(!is_small_obj());
 
   LargeObjectHdr hdr;
   if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-    return false;
+    return RetCode::Fault;
   hdr.clr_continue();
-  return obj_.copy_from(&hdr, sizeof(LargeObjectHdr));
+  if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+    return RetCode::Fault;
+  return RetCode::Succ;
 }
 
 inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval,
@@ -493,42 +539,43 @@ inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval,
 }
 
 inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
+  auto ret = false;
   if (null())
     return false;
   auto lock_id = lock();
   if (lock_id == -1) // lock failed as obj_ has just been reset.
     return false;
-  assert(!null());
-  if (!is_present() || !set_accessed()) {
-    unlock(lock_id);
-    return false;
-  }
+  if (null() || is_present() != RetCode::Succ ||
+      set_accessed() != RetCode::Succ)
+    goto done;
 
-  auto ret = obj_.copy_from(src, len, hdr_size() + offset);
+  ret = obj_.copy_from(src, len, hdr_size() + offset);
+done:
   unlock(lock_id);
   return ret;
 }
 
 inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
+  auto ret = false;
   if (null())
     return false;
   auto lock_id = lock();
   if (lock_id == -1) // lock failed as obj_ has just been reset.
     return false;
-  assert(!null());
-  if (!is_present() || !set_accessed()) {
-    unlock(lock_id);
-    return false;
-  }
+  if (null() || is_present() != RetCode::Succ ||
+      set_accessed() != RetCode::Succ)
+    goto done;
 
-  auto ret = obj_.copy_to(dst, len, hdr_size() + offset);
+  ret = obj_.copy_to(dst, len, hdr_size() + offset);
+done:
   unlock(lock_id);
   return ret;
 }
 
-inline bool ObjectPtr::move_from(ObjectPtr &src) {
+inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
+  auto ret = RetCode::Fail;
   if (null() || src.null())
-    goto failed;
+    return RetCode::Fail;
   assert(src.total_size() == this->total_size());
   /* NOTE (YIFAN): the order of operations below are tricky:
    *      1. copy data from src to this.
@@ -537,17 +584,17 @@ inline bool ObjectPtr::move_from(ObjectPtr &src) {
    *      4. update rref, let it point to this.
    */
   if (!obj_.copy_from(src.obj_, src.total_size()))
-    goto failed;
-  if (!src.free())
-    goto failed;
-  if (!set_present())
-    goto failed;
-  if (!upd_rref())
-    goto failed;
-  return true;
-
-failed:
-  return false;
+    return RetCode::Fail;
+  ret = src.free(/* locked = */true);
+  if (ret != RetCode::Succ)
+    return ret;
+  ret = set_present();
+  if (ret != RetCode::Succ)
+    return ret;
+  ret = upd_rref();
+  if (ret != RetCode::Succ)
+    return ret;
+  return RetCode::Succ;
 }
 
 } // namespace cachebank

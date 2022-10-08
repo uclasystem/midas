@@ -40,6 +40,10 @@ inline uint32_t LogRegion::size() const noexcept { return pos_ / kRegionSize; }
 /** LogAllocator */
 inline LogAllocator::LogAllocator() : curr_region_(0), curr_chunk_(0) {}
 
+inline bool LogAllocator::free(ObjectPtr &ptr) {
+  return ptr.free() == RetCode::Succ;
+}
+
 inline void LogAllocator::cleanup_regions() {
   for (auto rit = vRegions_.begin(); rit != vRegions_.end();) {
     if ((*rit)->destroyed())

@@ -12,6 +12,8 @@
 
 namespace cachebank {
 
+using RetCode = ObjectPtr::RetCode;
+
 /** LogChunk */
 inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
   auto obj_size = ObjectPtr::total_size(size);
@@ -22,13 +24,15 @@ inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
     return std::nullopt;
   }
   ObjectPtr obj_ptr;
-  if (!obj_ptr.set(pos_, size))
+  if (obj_ptr.set(pos_, size) != RetCode::Succ)
     return std::nullopt;
   pos_ += obj_size;
   return obj_ptr;
 }
 
-inline bool LogChunk::free(ObjectPtr &ptr) { return ptr.free(); }
+inline bool LogChunk::free(ObjectPtr &ptr) {
+  return ptr.free() == RetCode::Succ;
+}
 
 bool LogChunk::scan() {
   if (!sealed_)
@@ -40,17 +44,17 @@ bool LogChunk::scan() {
   GenericObjectHdr hdr;
 
   auto pos = start_addr_;
-  bool chunk_unmapped = false;
   while (pos < pos_) {
     ObjectPtr obj_ptr;
-    if (!obj_ptr.init_from_soft(pos)) {
+
+    auto ret = obj_ptr.init_from_soft(pos);
+    if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
+      break;
+    } else if (ret == RetCode::Fault) {
       LOG(kError) << "chunk is unmapped under the hood";
-      chunk_unmapped = true;
       break;
     }
-    if (!obj_ptr.is_valid()) { // the sentinel pointer, finishing this chunk.
-      break;
-    }
+    assert(ret == RetCode::Succ);
 
     auto lock_id = obj_ptr.lock();
     assert(lock_id != -1 && !obj_ptr.null());
@@ -58,38 +62,44 @@ bool LogChunk::scan() {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
-      bool ret = true;
-      if (obj_ptr.is_present()) {
-        if (obj_ptr.is_accessed()) {
-          ret &= obj_ptr.clr_accessed();
+      RetCode ret = obj_ptr.is_present();
+      if (ret == RetCode::True) {
+        ret = obj_ptr.is_accessed();
+        if (ret == RetCode::True) {
+          if (obj_ptr.clr_accessed() == RetCode::Fault)
+            goto faulted;
           nr_deactivated++;
         } else {
-          ret &= obj_ptr.free();
+          if (obj_ptr.free(/* locked = */true) == RetCode::Fault)
+            goto faulted;
           nr_freed++;
         }
-      }
-      if (!ret) {
-        LOG(kError) << "chunk is unmapped under the hood";
-        chunk_unmapped = true;
-        obj_ptr.unlock(lock_id);
-        break;
-      }
+      } else if (ret == RetCode::Fault)
+        goto faulted;
 
       pos += obj_size;
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      if (obj_ptr.is_continue()) {
+      ret = obj_ptr.is_continue();
+      if (ret == RetCode::Fault)
+        goto faulted;
+      if (ret == RetCode::True) {
         // this is a inner chunk storing a large object.
       } else {
         // this is the head chunk of a large object.
       }
     }
     obj_ptr.unlock(lock_id);
+    continue;
+  faulted:
+    LOG(kError) << "chunk is unmapped under the hood";
+    obj_ptr.unlock(lock_id);
+    break;
   }
-  LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
-              << ", nr_deactivated: " << nr_deactivated
-              << ", nr_freed: " << nr_freed;
+  LOG(kInfo) << "nr_scanned_small_objs: " << nr_small_objs
+             << ", nr_deactivated: " << nr_deactivated
+             << ", nr_freed: " << nr_freed;
   return true;
 }
 
@@ -103,40 +113,40 @@ bool LogChunk::evacuate() {
   int nr_small_objs = 0;
 
   auto pos = start_addr_;
-  bool chunk_unmapped = false;
   while (pos < pos_) {
     ObjectPtr obj_ptr;
-    if (!obj_ptr.init_from_soft(pos)) {
+    auto ret = obj_ptr.init_from_soft(pos);
+    if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
+      break;
+    } else if (ret == RetCode::Fault) {
       LOG(kError) << "chunk is unmapped under the hood";
-      chunk_unmapped = true;
       break;
     }
-    if (!obj_ptr.is_valid()) { // the sentinel pointer, finishing this chunk.
-      // LOG(kError) << "get sentinel";
-      break;
-    }
+    assert(ret == RetCode::Succ);
+
     auto lock_id = obj_ptr.lock();
     assert(lock_id != -1 && !obj_ptr.null());
     if (obj_ptr.is_small_obj()) {
       nr_small_objs++;
-
       auto obj_size = obj_ptr.total_size();
-      if (obj_ptr.is_present()) {
+      ret = obj_ptr.is_present();
+      if (ret == RetCode::True) {
         nr_present++;
         auto allocator = LogAllocator::global_allocator();
         auto optptr = allocator->alloc(obj_ptr.data_size());
         if (optptr) {
           auto new_ptr = *optptr;
-          if (new_ptr.move_from(obj_ptr)) {
+          ret = new_ptr.move_from(obj_ptr);
+          if (ret == RetCode::Succ) {
             nr_moved++;
-          } else {
-            LOG(kError) << "chunk is unmapped under the hood";
-            chunk_unmapped = true;
-            obj_ptr.unlock(lock_id);
-            break;
-          }
+          } else if (ret == RetCode::Fail) {
+            LOG(kError) << "Failed to move the object!";
+          } else
+            goto faulted;
         }
       } else {
+        if (ret == RetCode::Fault)
+          goto faulted;
         nr_freed++;
       }
 
@@ -144,13 +154,20 @@ bool LogChunk::evacuate() {
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      if (obj_ptr.is_continue()) {
+      ret = obj_ptr.is_continue();
+      if (ret == RetCode::True) {
         // this is a inner chunk storing a large object.
-      } else {
+      } else if (ret == RetCode::False) {
         // this is the head chunk of a large object.
-      }
+      } else
+        goto faulted;
     }
     obj_ptr.unlock(lock_id);
+    continue;
+  faulted:
+    LOG(kError) << "chunk is unmapped under the hood";
+    obj_ptr.unlock(lock_id);
+    break;
   }
   LOG(kInfo) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
              << ", nr_freed: " << nr_freed;
@@ -260,8 +277,6 @@ std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
   assert(ret);
   return ret;
 }
-
-bool LogAllocator::free(ObjectPtr &ptr) { return ptr.free(); }
 
 thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;
 

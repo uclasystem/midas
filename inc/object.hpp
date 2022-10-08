@@ -148,9 +148,15 @@ struct ObjectPtr {
 public:
   ObjectPtr();
 
-  bool set(uint64_t stt_addr, size_t data_size);
-  bool init_from_soft(uint64_t soft_addr);
-  bool free() noexcept;
+  /** Trinary return code :
+   *    Form 1: {True, False, Fault } for get_*() / is_*() operations;
+   *    Form 2: {Succ, Fail,  Fault } for set_*() / upd_*() operations.
+   */
+  enum class RetCode { True = 0, False = 1, Fault, Succ = True, Fail = False };
+
+  RetCode set(uint64_t stt_addr, size_t data_size);
+  RetCode init_from_soft(uint64_t soft_addr);
+  RetCode free(bool locked = false) noexcept;
   bool null() const noexcept;
 
   /** Header related */
@@ -159,27 +165,29 @@ public:
   size_t hdr_size() const noexcept;
   size_t data_size() const noexcept;
 
-  bool set_invalid() noexcept;
-  bool is_valid() noexcept;
+  RetCode set_invalid() noexcept;
+  RetCode is_valid() noexcept;
 
   bool set_rref(uint64_t addr) noexcept;
-  uint64_t get_rref() noexcept;
-  bool upd_rref() noexcept;
+  bool set_rref(ObjectPtr *addr) noexcept;
+  ObjectPtr *get_rref() noexcept;
+
+  RetCode upd_rref() noexcept;
 
   bool is_small_obj() const noexcept;
 
-  bool is_present() noexcept;
-  bool set_present() noexcept;
-  bool clr_present() noexcept;
-  bool is_accessed() noexcept;
-  bool set_accessed() noexcept;
-  bool clr_accessed() noexcept;
-  bool is_evacuate() noexcept;
-  bool set_evacuate() noexcept;
-  bool clr_evacuate() noexcept;
-  bool is_continue() noexcept;
-  bool set_continue() noexcept;
-  bool clr_continue() noexcept;
+  RetCode is_present() noexcept;
+  RetCode set_present() noexcept;
+  RetCode clr_present() noexcept;
+  RetCode is_accessed() noexcept;
+  RetCode set_accessed() noexcept;
+  RetCode clr_accessed() noexcept;
+  RetCode is_evacuate() noexcept;
+  RetCode set_evacuate() noexcept;
+  RetCode clr_evacuate() noexcept;
+  RetCode is_continue() noexcept;
+  RetCode set_continue() noexcept;
+  RetCode clr_continue() noexcept;
 
   /** Data related */
   bool cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval);
@@ -188,7 +196,7 @@ public:
   bool copy_to(void *dst, size_t len, int64_t offset = 0);
 
   /** Evacuation related */
-  bool move_from(ObjectPtr &src);
+  RetCode move_from(ObjectPtr &src);
 
   /** Synchronization between Mutator and GC threads */
   using LockID = uint32_t; // need to be the same as in obj_locker.hpp
@@ -196,6 +204,8 @@ public:
   static void unlock(LockID id);
 
 private:
+  RetCode free_() noexcept;
+
   size_t size_;
   TransientPtr obj_;
 };
