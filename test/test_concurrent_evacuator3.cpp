@@ -91,23 +91,23 @@ void gen_workload() {
       V v = get_V();
       ks[tid].push_back(k);
       vs[tid].push_back(v);
-      Op op { .opcode = Op::Set, .key = k, .val = v };
+      Op op{.opcode = Op::Set, .key = k, .val = v};
       ops[tid].push_back(op);
-      // op.opcode = Op::Get;
-      // ops[tid].push_back(op);
+      op.opcode = Op::Get;
+      ops[tid].push_back(op);
       // op.opcode = Op::Remove;
       // ops[tid].push_back(op);
     }
 
     for (int o = 0; o < kNumOps; o++) {
-      Op op { .opcode = Op::Get, .key = ks[tid][o], .val = vs[tid][o] };
+      Op op{.opcode = Op::Get, .key = ks[tid][o], .val = vs[tid][o]};
       ops[tid].push_back(op);
     }
 
-    for (int o = 0; o < kNumOps; o++) {
-      Op op { .opcode = Op::Remove, .key = ks[tid][o], .val = vs[tid][o] };
-      ops[tid].push_back(op);
-    }
+    // for (int o = 0; o < kNumOps; o++) {
+    //   Op op { .opcode = Op::Remove, .key = ks[tid][o], .val = vs[tid][o] };
+    //   ops[tid].push_back(op);
+    // }
   }
   std::cout << "Finish generate workload." << std::endl;
 }
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
     cachebank::Evacuator evacuator(kNumGCThds);
     while (!stop) {
       evacuator.scan();
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
       evacuator.evacuate();
     }
   });
