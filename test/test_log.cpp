@@ -42,16 +42,16 @@ int main(int argc, char *argv[]) {
   for (int tid = 0; tid < kNumThds; tid++) {
     threads.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < kNumObjs; i++) {
-        auto optptr = allocator->alloc(sizeof(Object));
         Object obj;
         obj.random_fill();
-        if (!optptr || !(*optptr).copy_from(&obj, sizeof(Object))) {
+        auto objptr = std::make_shared<cachebank::ObjectPtr>();
+
+        if (!allocator->alloc_to(sizeof(Object), objptr.get()) ||
+            !objptr->copy_from(&obj, sizeof(Object))) {
           nr_errs++;
           continue;
         }
-        ptrs[tid].push_back(std::make_shared<cachebank::ObjectPtr>(*optptr));
-        optptr->set_rref(
-            reinterpret_cast<uint64_t>(ptrs[tid][ptrs[tid].size() - 1].get()));
+        ptrs[tid].push_back(objptr);
         objs[tid].push_back(obj);
       }
 
@@ -77,6 +77,9 @@ int main(int argc, char *argv[]) {
 
   if (nr_errs == 0)
     std::cout << "Test passed!" << std::endl;
+  else
+    std::cout << "Test failed: " << nr_errs << "/" << kNumObjs * kNumThds
+              << " failed cases." << std::endl;
 
   return 0;
 }

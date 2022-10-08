@@ -45,22 +45,17 @@ int main(int argc, char *argv[]) {
   for (int tid = 0; tid < kNumThds; tid++) {
     threads.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < kNumObjs; i++) {
-        auto optptr = allocator->alloc(sizeof(Object));
         Object obj;
         obj.random_fill();
-        if (!optptr || !(*optptr).copy_from(&obj, sizeof(Object))) {
+        auto objptr = std::make_shared<cachebank::ObjectPtr>();
+
+        if (!allocator->alloc_to(sizeof(Object), objptr.get()) ||
+            !objptr->copy_from(&obj, sizeof(Object))) {
           nr_errs++;
           continue;
         }
-        auto &obj_ptr = *optptr;
-        ptrs[tid].push_back(std::make_shared<cachebank::ObjectPtr>(obj_ptr));
+        ptrs[tid].push_back(objptr);
         objs[tid].push_back(obj);
-
-        // set rref
-        if (!obj_ptr.set_rref(
-                reinterpret_cast<uint64_t>(ptrs[tid].back().get()))) {
-          continue;
-        }
       }
 
       for (int i = 0; i < ptrs[tid].size(); i++) {
