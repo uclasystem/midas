@@ -3,8 +3,9 @@
 namespace cachebank {
 
 /** LogChunk */
-inline LogChunk::LogChunk(uint64_t addr)
-    : start_addr_(addr), pos_(addr), sealed_(false) {}
+inline LogChunk::LogChunk(LogRegion *region, uint64_t addr)
+    : alive_bytes_(0), region_(region), start_addr_(addr), pos_(addr),
+      sealed_(false) {}
 
 inline void LogChunk::seal() noexcept {
   if (sealed_)
@@ -22,10 +23,15 @@ inline bool LogChunk::full() noexcept {
          pos_ + sizeof(GenericObjectHdr) > start_addr_ + kLogChunkSize;
 }
 
+inline void LogChunk::upd_alive_bytes(int32_t obj_size) noexcept {
+  alive_bytes_ += obj_size;
+  region_->alive_bytes_ += obj_size;
+}
+
 /** LogRegion */
 inline LogRegion::LogRegion(int64_t rid, uint64_t addr)
-    : region_id_(rid), start_addr_(addr), pos_(addr), sealed_(false),
-      destroyed_(false) {}
+    : alive_bytes_(0), region_id_(rid), start_addr_(addr), pos_(addr),
+      sealed_(false), destroyed_(false) {}
 
 inline void LogRegion::seal() noexcept { sealed_ = true; }
 

@@ -13,9 +13,11 @@
 
 namespace cachebank {
 
+class LogRegion;
+
 class LogChunk {
 public:
-  LogChunk(uint64_t addr);
+  LogChunk(LogRegion *region, uint64_t addr);
   std::optional<ObjectPtr> alloc(size_t size);
   bool free(ObjectPtr &ptr);
   void seal() noexcept;
@@ -28,10 +30,15 @@ private:
   void init(uint64_t addr);
   void iterate(size_t pos);
 
+  void upd_alive_bytes(int32_t obj_size) noexcept;
+
   static_assert(kRegionSize % kLogChunkSize == 0,
                 "Region size must be multiple chunk size");
 
   // std::mutex lock_;
+  std::atomic_int32_t alive_bytes_;
+  LogRegion *region_;
+
   bool sealed_;
   uint64_t start_addr_;
   uint64_t pos_;
@@ -52,6 +59,8 @@ public:
   void evacuate();
 
 private:
+  std::atomic_int32_t alive_bytes_;
+
   int64_t region_id_;
   uint64_t start_addr_;
   uint64_t pos_;
@@ -59,6 +68,8 @@ private:
   bool destroyed_;
 
   std::list<std::shared_ptr<LogChunk>> vLogChunks_;
+
+  friend class LogChunk;
 };
 
 class LogAllocator {

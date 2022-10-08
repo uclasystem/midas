@@ -37,7 +37,10 @@ inline bool LogChunk::free(ObjectPtr &ptr) {
 bool LogChunk::scan() {
   if (!sealed_)
     return false;
+  alive_bytes_ = 0;
+
   int nr_deactivated = 0;
+  int nr_non_present = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
 
@@ -69,12 +72,15 @@ bool LogChunk::scan() {
           if (obj_ptr.clr_accessed() == RetCode::Fault)
             goto faulted;
           nr_deactivated++;
+          upd_alive_bytes(obj_size);
         } else {
-          if (obj_ptr.free(/* locked = */true) == RetCode::Fault)
+          if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
             goto faulted;
           nr_freed++;
         }
-      } else if (ret == RetCode::Fault)
+      } else if (ret == RetCode::False)
+        nr_non_present++;
+      else
         goto faulted;
 
       pos += obj_size;
@@ -98,8 +104,10 @@ bool LogChunk::scan() {
     break;
   }
   LOG(kInfo) << "nr_scanned_small_objs: " << nr_small_objs
+             << ", nr_non_present: " << nr_non_present
              << ", nr_deactivated: " << nr_deactivated
-             << ", nr_freed: " << nr_freed;
+             << ", nr_freed: " << nr_freed << ", alive ratio: "
+             << static_cast<float>(alive_bytes_) / kLogChunkSize;
   return true;
 }
 
@@ -183,7 +191,7 @@ inline std::shared_ptr<LogChunk> LogRegion::allocChunk() {
 
   uint64_t addr = pos_;
   pos_ += kLogChunkSize;
-  auto chunk = std::make_shared<LogChunk>(addr);
+  auto chunk = std::make_shared<LogChunk>(this, addr);
   vLogChunks_.push_back(chunk);
   return chunk;
 }
@@ -199,6 +207,9 @@ void LogRegion::destroy() {
 }
 
 void LogRegion::scan() {
+  if (!sealed_)
+    return;
+  alive_bytes_ = 0;
   for (auto &chunk : vLogChunks_) {
     chunk->scan();
   }
