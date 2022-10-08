@@ -16,12 +16,15 @@ test_src = $(wildcard test/test_*.cpp)
 # test_src := $(filter-out $(wildcard test/boost*.cpp),$(test_src))
 test_target = $(test_src:.cpp=)
 
-src = $(lib_src)
+daemon_src = $(wildcard daemon/*.cpp)
+daemon_obj = $(daemon_src:.cpp=.o)
+
+src = $(lib_src) $(test_src) $(daemon_src)
 obj = $(src:.cpp=.o)
 dep = $(obj:.o=.d)
 
-daemon_main_src = src/daemon_main.cpp
-daemon_main_obj = $(daemon_main_src:.cpp=.o)
+daemon_main_src = $(daemon_src)
+daemon_main_obj = $(daemon_obj)
 test_resource_manager_src = test/test_resource_manager.cpp
 test_resource_manager_obj = $(test_resource_manager_src:.cpp=.o)
 test_object_src = test/test_object.cpp
@@ -51,7 +54,7 @@ all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_slab bin
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS)  $(INC) -c $< -o $@
 
-bin/daemon_main: $(daemon_main_obj) $(lib_obj)
+bin/daemon_main: $(daemon_main_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_resource_manager: $(test_resource_manager_obj) $(lib_obj)
@@ -85,6 +88,5 @@ ifneq ($(MAKECMDGOALS),clean)
 -include $(dep)
 endif
 
-.PHONY: clean
 clean:
-	rm -f $(dep) src/*.o src/*.d test/*.o test/*.d bin/*
+	$(RM) $(dep) $(obj) bin/*
