@@ -40,6 +40,16 @@ inline uint32_t LogRegion::size() const noexcept { return pos_ / kRegionSize; }
 /** LogAllocator */
 inline LogAllocator::LogAllocator() : curr_region_(0), curr_chunk_(0) {}
 
+inline bool LogAllocator::alloc_to(size_t size, ObjectPtr *dst) {
+  auto optptr = alloc(size);
+  if (!optptr)
+    return false;
+  auto &ptr = *optptr;
+  *dst = ptr;
+  ptr.set_rref(dst);
+  return true;
+}
+
 inline bool LogAllocator::free(ObjectPtr &ptr) {
   return ptr.free() == RetCode::Succ;
 }

@@ -65,6 +65,7 @@ class LogAllocator {
 public:
   LogAllocator();
   std::optional<ObjectPtr> alloc(size_t size);
+  bool alloc_to(size_t size, ObjectPtr *dst);
   bool free(ObjectPtr &ptr);
 
   static inline void seal_pcab();
