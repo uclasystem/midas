@@ -6,9 +6,9 @@
 #include <thread>
 #include <vector>
 
+#include "evacuator.hpp"
 #include "log.hpp"
 #include "object.hpp"
-#include "evacuator.hpp"
 
 constexpr int kNumGCThds = 3;
 constexpr int kNumThds = 10;
@@ -106,7 +106,8 @@ int main(int argc, char *argv[]) {
     thd.join();
   threads.clear();
 
-  // Scan twice. The first time scanning clears the accessed bit, while the second time scanning frees the cold objs.
+  // Scan twice. The first time scanning clears the accessed bit, while the
+  // second time scanning frees the cold objs.
   evacuator.scan();
   evacuator.scan();
   // Then evacuate all hot objs.
