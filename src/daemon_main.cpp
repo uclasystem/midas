@@ -1,11 +1,13 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <sys/types.h>
@@ -31,7 +33,11 @@ public:
       : status(ClientStatusCode::INIT), id(id_), _region_cnt(0),
         cq(utils::get_ackq_name(kNameCtrlQ, id), false),
         txqp(std::to_string(id), false) {}
-  ~Client() { unmap_regions(); }
+  ~Client() {
+    cq.destroy();
+    txqp.destroy();
+    unmap_regions_();
+  }
 
   uint64_t id;
   ClientStatusCode status;
@@ -118,7 +124,10 @@ public:
                                         _ctrlq_name.c_str(), kDaemonQDepth,
                                         sizeof(CtrlMsg));
   }
-  ~Daemon() { MsgQueue::remove(_ctrlq_name.c_str()); }
+  ~Daemon() {
+    _clients.clear();
+    MsgQueue::remove(_ctrlq_name.c_str());
+  }
   void serve();
 
 private:
@@ -250,11 +259,30 @@ void Daemon::serve() {
     }
   }
 }
+
+static Daemon *get_daemon() {
+  static std::mutex mtx_;
+  static std::shared_ptr<Daemon> daemon_;
+  if (daemon_)
+    return daemon_.get();
+  std::unique_lock<std::mutex> ul(mtx_);
+  if (daemon_)
+    return daemon_.get();
+  daemon_ = std::make_shared<Daemon>();
+  return daemon_.get();
+}
+
+void signalHandler(int signum) {
+  // Let the process exit normally so that daemon_ can be naturally destroyed.
+  exit(signum);
+}
 } // namespace cachebank
 
 int main(int argc, char *argv[]) {
-  cachebank::Daemon daemon;
-  daemon.serve();
+  signal(SIGINT, cachebank::signalHandler);
+
+  auto daemon = cachebank::get_daemon();
+  daemon->serve();
 
   return 0;
 }
