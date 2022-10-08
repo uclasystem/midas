@@ -1,4 +1,5 @@
 CXXFLAGS += -std=c++1z -O2
+# CXXFLAGS += -Wall -Wextra
 # CXXFLAGS += -g -O0
 CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
 LDXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
@@ -44,15 +45,12 @@ test_concurrent_evacuator2_obj = $(test_concurrent_evacuator2_src:.cpp=.o)
 test_concurrent_evacuator3_src = test/test_concurrent_evacuator3.cpp
 test_concurrent_evacuator3_obj = $(test_concurrent_evacuator3_src:.cpp=.o)
 
+.PHONY: all clean
 
 all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_slab bin/test_sync_hashmap bin/test_log \
 	bin/test_parallel_evacuator \
 	bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3
 
-%.d: %.cpp
-	$(CXX) $(CXXFLAGS) $(INC) $< -MM -MT $(@:.d=.o) >$@
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS)  $(INC) -c $< -o $@
 
 bin/daemon_main: $(daemon_main_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
@@ -83,6 +81,9 @@ bin/test_concurrent_evacuator2: $(test_concurrent_evacuator2_obj) $(lib_obj)
 
 bin/test_concurrent_evacuator3: $(test_concurrent_evacuator3_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+%.o: %.cpp Makefile
+	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 ifneq ($(MAKECMDGOALS),clean)
 -include $(dep)
