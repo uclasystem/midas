@@ -119,11 +119,11 @@ int main(int argc, char *argv[]) {
   gen_workload();
   bool stop = false;
   std::thread evac_thd([&]() {
-    cachebank::Evacuator evacuator(kNumGCThds);
+    cachebank::Evacuator evacuator;
     while (!stop) {
-      evacuator.scan();
+      evacuator.scan(kNumGCThds);
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      evacuator.evacuate();
+      evacuator.evacuate(kNumGCThds);
     }
   });
 

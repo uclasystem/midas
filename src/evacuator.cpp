@@ -8,13 +8,12 @@
 #include "logging.hpp"
 
 namespace cachebank {
-
-void Evacuator::evacuate() {
+void Evacuator::evacuate(int nr_thds) {
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
 
   std::vector<std::thread> gc_thds;
-  auto *tasks = new std::vector<LogRegion *>[nr_thds_];
+  auto *tasks = new std::vector<LogRegion *>[nr_thds];
 
   int tid = 0;
   auto nr_regions = regions.size();
@@ -22,11 +21,11 @@ void Evacuator::evacuate() {
     auto raw_ptr = region.get();
     if (raw_ptr) {
       tasks[tid].push_back(raw_ptr);
-      tid = (tid + 1) % nr_thds_;
+      tid = (tid + 1) % nr_thds;
     }
   }
 
-  for (tid = 0; tid < nr_thds_; tid++) {
+  for (tid = 0; tid < nr_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : tasks[tid]) {
         evac_region(region);
@@ -46,12 +45,12 @@ void Evacuator::evacuate() {
   delete[] tasks;
 }
 
-void Evacuator::scan() {
+void Evacuator::scan(int nr_thds) {
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
 
   std::vector<std::thread> gc_thds;
-  auto *tasks = new std::vector<LogRegion *>[nr_thds_];
+  auto *tasks = new std::vector<LogRegion *>[nr_thds];
 
   int tid = 0;
   auto nr_regions = regions.size();
@@ -59,11 +58,11 @@ void Evacuator::scan() {
     auto raw_ptr = region.get();
     if (raw_ptr) {
       tasks[tid].push_back(raw_ptr);
-      tid = (tid + 1) % nr_thds_;
+      tid = (tid + 1) % nr_thds;
     }
   }
 
-  for (tid = 0; tid < nr_thds_; tid++) {
+  for (tid = 0; tid < nr_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : tasks[tid]) {
         scan_region(region);

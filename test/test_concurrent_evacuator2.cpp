@@ -41,10 +41,10 @@ int main(int argc, char *argv[]) {
 
   bool stop_evac = false;
   std::thread evac_thd([&]() {
-    cachebank::Evacuator evacuator(kNumGCThds);
+    cachebank::Evacuator evacuator;
     while (!stop_evac) {
-      evacuator.scan();
-      evacuator.evacuate();
+      evacuator.scan(kNumGCThds);
+      evacuator.evacuate(kNumGCThds);
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   });

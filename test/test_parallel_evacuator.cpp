@@ -73,9 +73,9 @@ int main(int argc, char *argv[]) {
     thd.join();
   threads.clear();
 
-  cachebank::Evacuator evacuator(kNumGCThds);
-  evacuator.scan();
-  evacuator.evacuate();
+  cachebank::Evacuator evacuator;
+  evacuator.scan(kNumGCThds);
+  evacuator.evacuate(kNumGCThds);
 
   bool kTestFree = false;
   for (int tid = 0; tid < kNumThds; tid++) {

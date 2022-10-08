@@ -6,14 +6,14 @@ class LogRegion;
 
 class Evacuator {
 public:
-  Evacuator(int nr_thds = 1);
+  Evacuator();
   // ~Evacuator();
-  void evacuate();
-  void scan();
+  void evacuate(int nr_thds = kNumGCThds);
+  void scan(int nr_thds = kNumGCThds);
 
 private:
-  int nr_thds_;
-  bool park_;
+  constexpr static int kNumGCThds = 1;
+
   void init();
 
   using work_fn = void (Evacuator::*)(LogRegion *);
