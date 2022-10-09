@@ -15,6 +15,12 @@ namespace cachebank {
 using SharedMemObj = boost::interprocess::shared_memory_object;
 using MsgQueue = boost::interprocess::message_queue;
 
+enum class ClientStatusCode {
+  INIT,
+  CONNECTED,
+  DISCONNECTED,
+};
+
 class Client {
 public:
   Client(uint64_t id_);
@@ -30,14 +36,12 @@ private:
   friend class Daemon;
 
   inline int64_t new_region_id_() noexcept;
+  inline void unmap_regions_();
 
   void connect();
   void disconnect();
-
   void alloc_region(size_t size);
   void free_region(int64_t region_id);
-
-  void unmap_regions_();
 
   uint64_t _region_cnt;
 };

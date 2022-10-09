@@ -20,12 +20,6 @@ enum CtrlRetCode {
   MEM_FAIL,
 };
 
-enum ClientStatusCode {
-  INIT,
-  CONNECTED,
-  DISCONNECTED,
-};
-
 struct MemMsg {
   int64_t region_id;
   int64_t size;
