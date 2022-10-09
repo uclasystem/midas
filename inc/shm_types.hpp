@@ -10,6 +10,7 @@ enum CtrlOpCode {
   CONNECT,
   DISCONNECT,
   ALLOC,
+  OVERCOMMIT,
   FREE,
 };
 

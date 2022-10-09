@@ -6,6 +6,16 @@ namespace cachebank {
 
 inline int64_t Client::new_region_id_() noexcept { return region_cnt_++; }
 
+inline void Client::alloc_region(size_t size) {
+  return alloc_region_(size, false);
+}
+
+/* for evacuator to temporarily overcommit memory during evacuation. It will
+ * return more regions afterwards. */
+inline void Client::overcommit_region(size_t size) {
+  return alloc_region_(size, true);
+}
+
 inline Daemon *Daemon::get_daemon() {
   static std::mutex mtx_;
   static std::shared_ptr<Daemon> daemon_;

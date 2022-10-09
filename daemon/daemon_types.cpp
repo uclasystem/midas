@@ -1,19 +1,21 @@
 #include "inc/daemon_types.hpp"
 #include "logging.hpp"
+#include "shm_types.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
 
 /** Client */
-Client::Client(uint64_t id_)
+Client::Client(uint64_t id_, uint64_t region_limit)
     : status(ClientStatusCode::INIT), id(id_), region_cnt_(0),
+      region_limit_(region_limit),
       cq(utils::get_ackq_name(kNameCtrlQ, id), false),
       txqp(std::to_string(id), false) {}
 
 Client::~Client() {
   cq.destroy();
   txqp.destroy();
-  unmap_regions_();
+  destroy();
 }
 
 void Client::connect() {
@@ -26,32 +28,37 @@ void Client::disconnect() {
   cq.send(&ret_msg, sizeof(ret_msg));
 }
 
-void Client::alloc_region(size_t size) {
+/** @overcommit: evacuator might request several overcommitted regions for
+ *    temporary usages. It will soon return more regions back.
+ */
+void Client::alloc_region_(size_t size, bool overcommit) {
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
   MemMsg mm;
 
-  int64_t region_id = new_region_id_();
-  const auto rwmode = boost::interprocess::read_write;
-  const std::string chunkname = utils::get_region_name(id, region_id);
+  if (overcommit || region_cnt_ < region_limit_) {
+    int64_t region_id = new_region_id_();
+    const auto rwmode = boost::interprocess::read_write;
+    const std::string chunkname = utils::get_region_name(id, region_id);
 
-  if (regions.find(region_id) == regions.cend()) {
-    int64_t actual_size;
-    auto region = std::make_shared<SharedMemObj>(
-        boost::interprocess::create_only, chunkname.c_str(), rwmode);
-    regions[region_id] = region;
+    if (regions.find(region_id) == regions.cend()) {
+      int64_t actual_size;
+      auto region = std::make_shared<SharedMemObj>(
+          boost::interprocess::create_only, chunkname.c_str(), rwmode);
+      regions[region_id] = region;
 
-    region->truncate(size);
-    region->get_size(actual_size);
+      region->truncate(size);
+      region->get_size(actual_size);
 
-    ret = CtrlRetCode::MEM_SUCC;
-    mm.region_id = region_id;
-    mm.size = actual_size;
-  } else {
-    /* Failed to find corresponding region */
-    LOG(kError) << "Client " << id << " has already allocated region "
-                << region_id;
+      ret = CtrlRetCode::MEM_SUCC;
+      mm.region_id = region_id;
+      mm.size = actual_size;
+    } else {
+      /* Failed to find corresponding region */
+      LOG(kError) << "Client " << id << " has already allocated region "
+                  << region_id;
 
-    ret = CtrlRetCode::MEM_FAIL;
+      ret = CtrlRetCode::MEM_FAIL;
+    }
   }
 
   CtrlMsg ret_msg{.op = CtrlOpCode::ALLOC, .ret = ret, .mmsg = mm};
@@ -82,7 +89,7 @@ void Client::free_region(int64_t region_id) {
   cq.send(&ack, sizeof(ack));
 }
 
-void Client::unmap_regions_() {
+void Client::destroy() {
   for (const auto &kv : regions) {
     const std::string name = utils::get_region_name(id, kv.first);
     SharedMemObj::remove(name.c_str());
@@ -112,7 +119,7 @@ int Daemon::do_connect(const CtrlMsg &msg) {
       return -1;
     }
     // clients_[msg.id] = std::move(Client(msg.id));
-    clients_.insert(std::make_pair(msg.id, Client(msg.id)));
+    clients_.insert(std::make_pair(msg.id, Client(msg.id, kRegionLimit)));
     auto client_iter = clients_.find(msg.id);
     assert(client_iter != clients_.cend());
     auto &client = client_iter->second;
@@ -160,6 +167,21 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
   return 0;
 }
 
+int Daemon::do_overcommit(const CtrlMsg &msg) {
+  assert(msg.mmsg.size != 0);
+  auto client_iter = clients_.find(msg.id);
+  if (client_iter == clients_.cend()) {
+    /* TODO: same as in do_disconnect */
+    LOG(kError) << "Client " << msg.id << " doesn't exist!";
+    return -1;
+  }
+  auto &client = client_iter->second;
+  assert(msg.id == client.id);
+  client.overcommit_region(msg.mmsg.size);
+
+  return 0;
+}
+
 int Daemon::do_free(const CtrlMsg &msg) {
   auto client_iter = clients_.find(msg.id);
   if (client_iter == clients_.cend()) {
@@ -199,6 +221,9 @@ void Daemon::serve() {
       break;
     case ALLOC:
       do_alloc(msg);
+      break;
+    case OVERCOMMIT:
+      do_overcommit(msg);
       break;
     case FREE:
       do_free(msg);
