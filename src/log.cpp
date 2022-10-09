@@ -43,6 +43,7 @@ bool LogChunk::scan() {
   int nr_non_present = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
+  int nr_failed = 0;
 
   GenericObjectHdr hdr;
 
@@ -99,6 +100,7 @@ bool LogChunk::scan() {
     obj_ptr.unlock(lock_id);
     continue;
   faulted:
+    nr_failed++;
     LOG(kError) << "chunk is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
@@ -106,9 +108,10 @@ bool LogChunk::scan() {
   LOG(kInfo) << "nr_scanned_small_objs: " << nr_small_objs
              << ", nr_non_present: " << nr_non_present
              << ", nr_deactivated: " << nr_deactivated
-             << ", nr_freed: " << nr_freed << ", alive ratio: "
+             << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
+             << ", alive ratio: "
              << static_cast<float>(alive_bytes_) / kLogChunkSize;
-  return true;
+  return nr_failed == 0;
 }
 
 bool LogChunk::evacuate() {
@@ -119,6 +122,7 @@ bool LogChunk::evacuate() {
   int nr_freed = 0;
   int nr_moved = 0;
   int nr_small_objs = 0;
+  int nr_failed = 0;
 
   auto pos = start_addr_;
   while (pos < pos_) {
@@ -149,8 +153,11 @@ bool LogChunk::evacuate() {
             nr_moved++;
           } else if (ret == RetCode::Fail) {
             LOG(kError) << "Failed to move the object!";
+            nr_failed++;
           } else
             goto faulted;
+        } else {
+          nr_failed++;
         }
       } else {
         if (ret == RetCode::Fault)
@@ -173,13 +180,14 @@ bool LogChunk::evacuate() {
     obj_ptr.unlock(lock_id);
     continue;
   faulted:
+    nr_failed++;
     LOG(kError) << "chunk is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
   }
   LOG(kInfo) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
-             << ", nr_freed: " << nr_freed;
-  return true;
+             << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
+  return nr_failed == 0;
 }
 
 /** LogRegion */
