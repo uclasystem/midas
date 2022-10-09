@@ -4,7 +4,10 @@
 
 namespace cachebank {
 
-inline int64_t Client::new_region_id_() noexcept { return region_cnt_++; }
+inline int64_t Client::new_region_id_() noexcept {
+  static int64_t region_id = 0;
+  return region_id++;
+}
 
 inline void Client::alloc_region(size_t size) {
   return alloc_region_(size, false);

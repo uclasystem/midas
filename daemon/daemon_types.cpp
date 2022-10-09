@@ -45,6 +45,7 @@ void Client::alloc_region_(size_t size, bool overcommit) {
       auto region = std::make_shared<SharedMemObj>(
           boost::interprocess::create_only, chunkname.c_str(), rwmode);
       regions[region_id] = region;
+      region_cnt_++;
 
       region->truncate(size);
       region->get_size(actual_size);
@@ -53,7 +54,7 @@ void Client::alloc_region_(size_t size, bool overcommit) {
       mm.region_id = region_id;
       mm.size = actual_size;
     } else {
-      /* Failed to find corresponding region */
+      /* region has already existed */
       LOG(kError) << "Client " << id << " has already allocated region "
                   << region_id;
 
@@ -75,6 +76,7 @@ void Client::free_region(int64_t region_id) {
     /* Successfully find the region to be freed */
     region_iter->second->get_size(actual_size);
     regions.erase(region_id);
+    region_cnt_--;
 
     ret = CtrlRetCode::MEM_SUCC;
     mm.region_id = region_id;
