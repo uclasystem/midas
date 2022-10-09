@@ -46,7 +46,7 @@ public:
   ResourceManager(const std::string &daemon_name = kNameCtrlQ) noexcept;
   ~ResourceManager() noexcept;
 
-  int64_t AllocRegion(size_t size = kRegionSize) noexcept;
+  int64_t AllocRegion(bool overcommit = false) noexcept;
   void FreeRegion(int64_t rid) noexcept;
   void FreeRegions(size_t size = kRegionSize) noexcept;
   inline VRange GetRegion(int64_t region_id) noexcept;

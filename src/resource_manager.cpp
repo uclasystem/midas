@@ -12,6 +12,7 @@
 #include "logging.hpp"
 #include "qpair.hpp"
 #include "resource_manager.hpp"
+#include "shm_types.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -97,11 +98,11 @@ int ResourceManager::disconnect() noexcept {
   return 0;
 }
 
-int64_t ResourceManager::AllocRegion(size_t size) noexcept {
+int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
   std::unique_lock<std::mutex> lk(_mtx);
   CtrlMsg msg{.id = _id,
-              .op = CtrlOpCode::ALLOC,
-              .mmsg = {.size = static_cast<int64_t>(size)}};
+              .op = overcommit ? CtrlOpCode::OVERCOMMIT : CtrlOpCode::ALLOC,
+              .mmsg = {.size = kRegionSize}};
   _txqp.send(&msg, sizeof(msg));
 
   unsigned prio;
@@ -112,7 +113,7 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
     return -1;
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
-    LOG(kError);
+    // LOG(kError);
     return -1;
   }
 
@@ -125,7 +126,7 @@ int64_t ResourceManager::AllocRegion(size_t size) noexcept {
   assert((reinterpret_cast<uint64_t>(region->Addr()) & (~kRegionMask)) == 0);
 
   LOG(kDebug) << "Allocated a page chunk: " << region->Addr() << " ["
-             << region->Size() << "]";
+              << region->Size() << "]";
   return region_id;
 }
 

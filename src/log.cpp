@@ -145,7 +145,7 @@ bool LogChunk::evacuate() {
       if (ret == RetCode::True) {
         nr_present++;
         auto allocator = LogAllocator::global_allocator();
-        auto optptr = allocator->alloc(obj_ptr.data_size());
+        auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
         if (optptr) {
           auto new_ptr = *optptr;
           ret = new_ptr.move_from(obj_ptr);
@@ -236,6 +236,7 @@ void LogRegion::evacuate() {
 
 /** LogAllocator */
 // must be called under lock protection
+// try to get a non-empty region
 inline std::shared_ptr<LogRegion> LogAllocator::getRegion() {
   if (!vRegions_.empty()) {
     auto region = vRegions_.back();
@@ -243,10 +244,13 @@ inline std::shared_ptr<LogRegion> LogAllocator::getRegion() {
       return region;
     region->seal();
   }
+  return nullptr;
+}
 
-  // alloc a new region
+// alloc a new region
+inline std::shared_ptr<LogRegion> LogAllocator::allocRegion(bool overcommit) {
   auto *rmanager = ResourceManager::global_manager();
-  int rid = rmanager->AllocRegion();
+  int rid = rmanager->AllocRegion(overcommit);
   if (rid == -1)
     return nullptr;
   VRange range = rmanager->GetRegion(rid);
@@ -258,7 +262,7 @@ inline std::shared_ptr<LogRegion> LogAllocator::getRegion() {
   return region;
 }
 
-inline std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
+inline std::shared_ptr<LogChunk> LogAllocator::allocChunk(bool overcommit) {
   std::unique_lock<std::mutex> ul(lock_);
   std::shared_ptr<LogChunk> chunk = nullptr;
   auto region = getRegion();
@@ -268,13 +272,13 @@ inline std::shared_ptr<LogChunk> LogAllocator::allocChunk() {
       return chunk;
   }
 
-  region = getRegion();
+  region = allocRegion(overcommit);
   if (!region)
     return nullptr;
   return region->allocChunk();
 }
 
-std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
+std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
   size = round_up_to_align(size, kSmallObjSizeUnit);
   if (size >= kSmallObjThreshold) { // large obj
     LOG(kError) << "large obj allocation is not implemented yet!";
@@ -288,7 +292,7 @@ std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
     pcab.reset();
   }
   // slowpath
-  auto chunk = allocChunk();
+  auto chunk = allocChunk(overcommit);
   if (!chunk)
     return std::nullopt;
 

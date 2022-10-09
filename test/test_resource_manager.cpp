@@ -16,10 +16,10 @@ int main(int argc, char *argv[]) {
           cachebank::ResourceManager::global_manager();
 
       for (int i = 0; i < kNumRegions; i++) {
-        rmanager->AllocRegion(cachebank::kRegionSize);
+        rmanager->AllocRegion();
       }
       for (int i = 0; i < kNumRegions; i++) {
-        rmanager->FreeRegions(cachebank::kRegionSize);
+        rmanager->FreeRegions();
       }
     }));
   }

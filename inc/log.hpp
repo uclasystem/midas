@@ -84,8 +84,10 @@ public:
   static inline LogAllocator *global_allocator() noexcept;
 
 private:
+  std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::shared_ptr<LogRegion> getRegion();
-  std::shared_ptr<LogChunk> allocChunk();
+  std::shared_ptr<LogRegion> allocRegion(bool overcommit);
+  std::shared_ptr<LogChunk> allocChunk(bool overcommit);
 
   std::mutex lock_;
   std::list<std::shared_ptr<LogRegion>> vRegions_;
@@ -93,6 +95,7 @@ private:
   std::atomic_int32_t curr_chunk_;
 
   friend class Evacuator;
+  friend class LogChunk;
   void cleanup_regions();
 
   // Per Core Allocation Buffer
