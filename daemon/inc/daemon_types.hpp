@@ -43,7 +43,7 @@ private:
   void alloc_region(size_t size);
   void free_region(int64_t region_id);
 
-  uint64_t _region_cnt;
+  uint64_t region_cnt_;
 };
 
 class Daemon {
@@ -60,9 +60,9 @@ private:
   int do_alloc(const CtrlMsg &msg);
   int do_free(const CtrlMsg &msg);
 
-  const std::string _ctrlq_name;
-  std::shared_ptr<MsgQueue> _ctrlq;
-  std::unordered_map<uint64_t, Client> _clients;
+  const std::string ctrlq_name_;
+  std::shared_ptr<MsgQueue> ctrlq_;
+  std::unordered_map<uint64_t, Client> clients_;
 };
 
 } // namespace cachebank

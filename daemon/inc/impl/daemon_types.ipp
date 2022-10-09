@@ -4,7 +4,7 @@
 
 namespace cachebank {
 
-inline int64_t Client::new_region_id_() noexcept { return _region_cnt++; }
+inline int64_t Client::new_region_id_() noexcept { return region_cnt_++; }
 
 inline Daemon *Daemon::get_daemon() {
   static std::mutex mtx_;

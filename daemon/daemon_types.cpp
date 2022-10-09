@@ -6,7 +6,7 @@ namespace cachebank {
 
 /** Client */
 Client::Client(uint64_t id_)
-    : status(ClientStatusCode::INIT), id(id_), _region_cnt(0),
+    : status(ClientStatusCode::INIT), id(id_), region_cnt_(0),
       cq(utils::get_ackq_name(kNameCtrlQ, id), false),
       txqp(std::to_string(id), false) {}
 
@@ -91,30 +91,30 @@ void Client::unmap_regions_() {
 
 /** Daemon */
 Daemon::Daemon(const std::string ctrlq_name)
-    : _ctrlq_name(utils::get_rq_name(ctrlq_name, true)) {
-  MsgQueue::remove(_ctrlq_name.c_str());
-  _ctrlq = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                      _ctrlq_name.c_str(), kDaemonQDepth,
+    : ctrlq_name_(utils::get_rq_name(ctrlq_name, true)) {
+  MsgQueue::remove(ctrlq_name_.c_str());
+  ctrlq_ = std::make_shared<MsgQueue>(boost::interprocess::create_only,
+                                      ctrlq_name_.c_str(), kDaemonQDepth,
                                       sizeof(CtrlMsg));
 }
 
 Daemon::~Daemon() {
-  _clients.clear();
-  MsgQueue::remove(_ctrlq_name.c_str());
+  clients_.clear();
+  MsgQueue::remove(ctrlq_name_.c_str());
 }
 
 int Daemon::do_connect(const CtrlMsg &msg) {
   try {
-    if (_clients.find(msg.id) != _clients.cend()) {
+    if (clients_.find(msg.id) != clients_.cend()) {
       LOG(kError) << "Client " << msg.id << " connected twice!";
       /* TODO: this might be some stale client. Probably we could try to
        * send the ack back */
       return -1;
     }
-    // _clients[msg.id] = std::move(Client(msg.id));
-    _clients.insert(std::make_pair(msg.id, Client(msg.id)));
-    auto client_iter = _clients.find(msg.id);
-    assert(client_iter != _clients.cend());
+    // clients_[msg.id] = std::move(Client(msg.id));
+    clients_.insert(std::make_pair(msg.id, Client(msg.id)));
+    auto client_iter = clients_.find(msg.id);
+    assert(client_iter != clients_.cend());
     auto &client = client_iter->second;
     LOG(kInfo) << "Client " << msg.id << " connected.";
     client.connect();
@@ -127,8 +127,8 @@ int Daemon::do_connect(const CtrlMsg &msg) {
 
 int Daemon::do_disconnect(const CtrlMsg &msg) {
   try {
-    auto client_iter = _clients.find(msg.id);
-    if (client_iter == _clients.cend()) {
+    auto client_iter = clients_.find(msg.id);
+    if (client_iter == clients_.cend()) {
       /* TODO: this might be some unregistered client. Probably we could try to
        * connect to it and send the ack back */
       LOG(kError) << "Client " << msg.id << " doesn't exist!";
@@ -136,7 +136,7 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
     }
     client_iter->second.disconnect();
 
-    _clients.erase(msg.id);
+    clients_.erase(msg.id);
     LOG(kInfo) << "Client " << msg.id << " disconnected!";
   } catch (boost::interprocess::interprocess_exception &e) {
     LOG(kError) << e.what();
@@ -147,8 +147,8 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
 
 int Daemon::do_alloc(const CtrlMsg &msg) {
   assert(msg.mmsg.size != 0);
-  auto client_iter = _clients.find(msg.id);
-  if (client_iter == _clients.cend()) {
+  auto client_iter = clients_.find(msg.id);
+  if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
     LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
@@ -161,8 +161,8 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
 }
 
 int Daemon::do_free(const CtrlMsg &msg) {
-  auto client_iter = _clients.find(msg.id);
-  if (client_iter == _clients.cend()) {
+  auto client_iter = clients_.find(msg.id);
+  if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
     LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
@@ -185,7 +185,7 @@ void Daemon::serve() {
     size_t recvd_size;
     unsigned int prio;
 
-    _ctrlq->receive(&msg, sizeof(CtrlMsg), recvd_size, prio);
+    ctrlq_->receive(&msg, sizeof(CtrlMsg), recvd_size, prio);
     if (recvd_size != sizeof(CtrlMsg)) {
       break;
     }
