@@ -277,6 +277,7 @@ std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
     auto ret = pcab->alloc(size);
     if (ret)
       return ret;
+    pcab.reset();
   }
   // slowpath
   auto chunk = allocChunk();
