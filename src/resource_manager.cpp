@@ -35,29 +35,29 @@ Region::~Region() noexcept {
 }
 
 ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
-    : _id(get_unique_id()),
-      _txqp(std::make_shared<QSingle>(utils::get_sq_name(daemon_name, false),
+    : id_(get_unique_id()),
+      txqp_(std::make_shared<QSingle>(utils::get_sq_name(daemon_name, false),
                                       false),
-            std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, _id),
+            std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
                                       true)),
-      _rxqp(std::to_string(_id), true) {
+      rxqp_(std::to_string(id_), true) {
   connect(daemon_name);
 }
 
 ResourceManager::~ResourceManager() noexcept {
   disconnect();
-  _rxqp.destroy();
-  _txqp.RecvQ().destroy();
+  rxqp_.destroy();
+  txqp_.RecvQ().destroy();
 }
 
 int ResourceManager::connect(const std::string &daemon_name) noexcept {
-  std::unique_lock<std::mutex> lk(_mtx);
+  std::unique_lock<std::mutex> lk(mtx_);
   try {
     unsigned int prio = 0;
-    CtrlMsg msg{.id = _id, .op = CtrlOpCode::CONNECT};
+    CtrlMsg msg{.id = id_, .op = CtrlOpCode::CONNECT};
 
-    _txqp.send(&msg, sizeof(CtrlMsg));
-    int ret = _txqp.recv(&msg, sizeof(CtrlMsg));
+    txqp_.send(&msg, sizeof(CtrlMsg));
+    int ret = txqp_.recv(&msg, sizeof(CtrlMsg));
     if (ret) {
       return -1;
     }
@@ -75,13 +75,13 @@ int ResourceManager::connect(const std::string &daemon_name) noexcept {
 }
 
 int ResourceManager::disconnect() noexcept {
-  std::unique_lock<std::mutex> lk(_mtx);
+  std::unique_lock<std::mutex> lk(mtx_);
   try {
     unsigned int prio = 0;
-    CtrlMsg msg{.id = _id, .op = CtrlOpCode::DISCONNECT};
+    CtrlMsg msg{.id = id_, .op = CtrlOpCode::DISCONNECT};
 
-    _txqp.send(&msg, sizeof(CtrlMsg));
-    int ret = _txqp.recv(&msg, sizeof(CtrlMsg));
+    txqp_.send(&msg, sizeof(CtrlMsg));
+    int ret = txqp_.recv(&msg, sizeof(CtrlMsg));
     if (ret) {
       return -1;
     }
@@ -99,15 +99,15 @@ int ResourceManager::disconnect() noexcept {
 }
 
 int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
-  std::unique_lock<std::mutex> lk(_mtx);
-  CtrlMsg msg{.id = _id,
+  std::unique_lock<std::mutex> lk(mtx_);
+  CtrlMsg msg{.id = id_,
               .op = overcommit ? CtrlOpCode::OVERCOMMIT : CtrlOpCode::ALLOC,
               .mmsg = {.size = kRegionSize}};
-  _txqp.send(&msg, sizeof(msg));
+  txqp_.send(&msg, sizeof(msg));
 
   unsigned prio;
   CtrlMsg ret_msg;
-  int ret = _txqp.recv(&ret_msg, sizeof(ret_msg));
+  int ret = txqp_.recv(&ret_msg, sizeof(ret_msg));
   if (ret) {
     LOG(kError) << ": in recv msg, ret: " << ret;
     return -1;
@@ -118,10 +118,10 @@ int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
   }
 
   int64_t region_id = ret_msg.mmsg.region_id;
-  assert(_region_map.find(region_id) == _region_map.cend());
+  assert(region_map_.find(region_id) == region_map_.cend());
 
-  auto region = std::make_shared<Region>(_id, region_id);
-  _region_map[region_id] = region;
+  auto region = std::make_shared<Region>(id_, region_id);
+  region_map_[region_id] = region;
   assert(region->Size() == ret_msg.mmsg.size);
   assert((reinterpret_cast<uint64_t>(region->Addr()) & (~kRegionMask)) == 0);
 
@@ -131,7 +131,7 @@ int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
 }
 
 void ResourceManager::FreeRegion(int64_t rid) noexcept {
-  std::unique_lock<std::mutex> lk(_mtx);
+  std::unique_lock<std::mutex> lk(mtx_);
   int64_t freed_bytes = free_region(rid);
   if (freed_bytes == -1) {
     LOG(kError) << "Failed to free region " << rid;
@@ -139,11 +139,11 @@ void ResourceManager::FreeRegion(int64_t rid) noexcept {
 }
 
 void ResourceManager::FreeRegions(size_t size) noexcept {
-  std::unique_lock<std::mutex> lk(_mtx);
+  std::unique_lock<std::mutex> lk(mtx_);
   size_t total_freed = 0;
   int nr_freed_chunks = 0;
-  while (!_region_map.empty()) {
-    auto region_iter = _region_map.begin();
+  while (!region_map_.empty()) {
+    auto region_iter = region_map_.begin();
     int64_t freed_bytes = free_region(region_iter->second->ID());
     if (freed_bytes == -1) {
       LOG(kError) << "Failed to free region " << region_iter->second->ID();
@@ -161,24 +161,24 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
 
 /** This function is supposed to be called inside a locked section */
 inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
-  auto region_iter = _region_map.find(region_id);
-  if (region_iter == _region_map.cend()) {
+  auto region_iter = region_map_.find(region_id);
+  if (region_iter == region_map_.cend()) {
     LOG(kError) << "Invalid region_id " << region_id;
     return -1;
   }
 
   int64_t size = region_iter->second->Size();
   try {
-    CtrlMsg msg{.id = _id,
+    CtrlMsg msg{.id = id_,
                 .op = CtrlOpCode::FREE,
                 .mmsg = {.region_id = region_id, .size = size}};
-    _txqp.send(&msg, sizeof(msg));
+    txqp_.send(&msg, sizeof(msg));
 
     LOG(kDebug) << "Free region " << region_id;
 
     CtrlMsg ack;
     unsigned prio;
-    int ret = _txqp.recv(&ack, sizeof(ack));
+    int ret = txqp_.recv(&ack, sizeof(ack));
     assert(ret == 0);
     if (ack.op != CtrlOpCode::FREE || ack.ret != CtrlRetCode::MEM_SUCC)
       return -1;
@@ -186,8 +186,8 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
     LOG(kError) << e.what();
   }
 
-  _region_map.erase(region_id);
-  LOG(kDebug) << "page_chunk_map size: " << _region_map.size();
+  region_map_.erase(region_id);
+  LOG(kDebug) << "page_chunk_map size: " << region_map_.size();
   return size;
 }
 

@@ -13,22 +13,22 @@ static inline uint64_t get_unique_id() {
 }
 
 inline VRange ResourceManager::GetRegion(int64_t region_id) noexcept {
-  std::unique_lock<std::mutex> lk(_mtx);
-  if (_region_map.find(region_id) == _region_map.cend())
+  std::unique_lock<std::mutex> lk(mtx_);
+  if (region_map_.find(region_id) == region_map_.cend())
     return VRange();
-  auto &region = _region_map[region_id];
+  auto &region = region_map_[region_id];
   return VRange(region->Addr(), region->Size());
 }
 
 /* A thread safe way to create a global manager and get its reference. */
 inline ResourceManager *ResourceManager::global_manager() noexcept {
-  static std::mutex _mtx;
+  static std::mutex mtx_;
   static std::unique_ptr<ResourceManager> _rmanager(nullptr);
 
   if (likely(_rmanager.get() != nullptr))
     return _rmanager.get();
 
-  std::unique_lock<std::mutex> lk(_mtx);
+  std::unique_lock<std::mutex> lk(mtx_);
   if (unlikely(_rmanager.get() != nullptr))
     return _rmanager.get();
 

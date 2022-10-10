@@ -58,13 +58,13 @@ private:
   int disconnect() noexcept;
   size_t free_region(int64_t region_id) noexcept;
 
-  uint64_t _id;
-  std::mutex _mtx;
+  uint64_t id_;
+  std::mutex mtx_;
 
-  QPair _txqp;
-  QPair _rxqp;
+  QPair txqp_;
+  QPair rxqp_;
 
-  std::map<int64_t, std::shared_ptr<Region>> _region_map;
+  std::map<int64_t, std::shared_ptr<Region>> region_map_;
 };
 
 } // namespace cachebank
