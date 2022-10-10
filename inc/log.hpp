@@ -55,6 +55,7 @@ public:
   void seal() noexcept;
   void destroy();
 
+  float get_alive_ratio() const noexcept;
   void scan();
   void evacuate();
 
