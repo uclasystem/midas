@@ -2,7 +2,7 @@
 
 namespace cachebank {
 
-inline Evacuator::Evacuator() { init(); }
+inline Evacuator::Evacuator() : active(0) { init(); }
 
 inline void Evacuator::init() {}
 

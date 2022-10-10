@@ -9,6 +9,11 @@
 
 namespace cachebank {
 void Evacuator::evacuate(int nr_thds) {
+  if (active.fetch_add(1) > 0) {
+    active.fetch_add(-1);
+    return;
+  }
+
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
 
@@ -43,9 +48,15 @@ void Evacuator::evacuate(int nr_thds) {
   LOG(kError) << "After  evacuation: " << regions.size() << " regions";
 
   delete[] tasks;
+  active.fetch_add(-1);
 }
 
 void Evacuator::scan(int nr_thds) {
+  if (active.fetch_add(1) > 0) {
+    active.fetch_add(-1);
+    return;
+  }
+
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
 
@@ -75,6 +86,7 @@ void Evacuator::scan(int nr_thds) {
   gc_thds.clear();
 
   delete[] tasks;
+  active.fetch_add(-1);
 }
 
 inline void Evacuator::scan_region(LogRegion *region) {
