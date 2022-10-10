@@ -26,7 +26,7 @@ private:
   void scan_region(LogRegion *region);
   void parallelizer(work_fn fn);
 
-  std::atomic_int_fast32_t active;
+  std::atomic_int_fast32_t nr_master_thd;
 };
 
 } // namespace cachebank
