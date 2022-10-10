@@ -21,13 +21,13 @@ template <typename T> T *SlabAllocator::alloc(uint32_t cnt) {
 
 /* A thread safe way to create a global allocator and get its reference. */
 inline SlabAllocator *SlabAllocator::global_allocator() {
-  static std::mutex _mtx;
+  static std::mutex mtx_;
   static std::unique_ptr<SlabAllocator> _allocator(nullptr);
 
   if (likely(_allocator.get() != nullptr))
     return _allocator.get();
 
-  std::unique_lock<std::mutex> lk(_mtx);
+  std::unique_lock<std::mutex> lk(mtx_);
   if (unlikely(_allocator.get() != nullptr))
     return _allocator.get();
 

@@ -84,13 +84,13 @@ inline void LogAllocator::seal_pcab() {
 
 /* A thread safe way to create a global allocator and get its reference. */
 inline LogAllocator *LogAllocator::global_allocator() noexcept {
-  static std::mutex _mtx;
+  static std::mutex mtx_;
   static std::unique_ptr<LogAllocator> _allocator(nullptr);
 
   if (likely(_allocator.get() != nullptr))
     return _allocator.get();
 
-  std::unique_lock<std::mutex> lk(_mtx);
+  std::unique_lock<std::mutex> lk(mtx_);
   if (unlikely(_allocator.get() != nullptr))
     return _allocator.get();
 

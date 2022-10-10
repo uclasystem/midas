@@ -48,11 +48,11 @@ inline uint64_t ObjLocker::hash_val(uint64_t input) {
 }
 
 inline ObjLocker *ObjLocker::global_objlocker() noexcept {
-  static std::mutex _mtx;
+  static std::mutex mtx_;
   static std::shared_ptr<ObjLocker> locker_;
   if (locker_)
     return locker_.get();
-  std::unique_lock<std::mutex> ul(_mtx);
+  std::unique_lock<std::mutex> ul(mtx_);
   if (locker_)
     return locker_.get();
   locker_ = std::make_shared<ObjLocker>();
