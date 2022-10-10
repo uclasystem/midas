@@ -111,6 +111,8 @@ bool LogChunk::scan() {
              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
              << ", alive ratio: "
              << static_cast<float>(alive_bytes_) / kLogChunkSize;
+
+  assert(nr_failed == 0);
   return nr_failed == 0;
 }
 
@@ -187,6 +189,7 @@ bool LogChunk::evacuate() {
   }
   LOG(kInfo) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
+  assert(nr_failed == 0);
   return nr_failed == 0;
 }
 
