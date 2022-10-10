@@ -10,9 +10,9 @@ class Evacuator {
 public:
   Evacuator();
   // ~Evacuator();
+  void gc(int nr_thds = kNumGCThds);
   void evacuate(int nr_thds = kNumGCThds);
   void scan(int nr_thds = kNumGCThds);
-  void gc(int nr_thds = kNumGCThds);
 
   static Evacuator *global_evacuator();
 
