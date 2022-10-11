@@ -105,7 +105,7 @@ bool LogChunk::scan() {
     obj_ptr.unlock(lock_id);
     break;
   }
-  LOG(kInfo) << "nr_scanned_small_objs: " << nr_small_objs
+  LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
              << ", nr_non_present: " << nr_non_present
              << ", nr_deactivated: " << nr_deactivated
              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
@@ -187,7 +187,7 @@ bool LogChunk::evacuate() {
     obj_ptr.unlock(lock_id);
     break;
   }
-  LOG(kInfo) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
+  LOG(kDebug) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
   assert(nr_failed == 0);
   return nr_failed == 0;
@@ -260,7 +260,6 @@ inline std::shared_ptr<LogRegion> LogAllocator::allocRegion(bool overcommit) {
 
   auto region = std::make_shared<LogRegion>(
       rid, reinterpret_cast<uint64_t>(range.stt_addr));
-  vRegions_.push_back(region);
 
   return region;
 }
@@ -275,9 +274,12 @@ inline std::shared_ptr<LogChunk> LogAllocator::allocChunk(bool overcommit) {
       return chunk;
   }
 
+  ul.unlock();
   region = allocRegion(overcommit);
+  ul.lock();
   if (!region)
     return nullptr;
+  vRegions_.push_back(region);
   return region->allocChunk();
 }
 
