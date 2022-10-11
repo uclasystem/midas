@@ -22,13 +22,13 @@ inline RealType zipf_table_distribution<IntType, RealType>::s() const {
 }
 
 template <class IntType, class RealType>
-inline zipf_table_distribution<IntType, RealType>::result_type
+inline IntType
 zipf_table_distribution<IntType, RealType>::min() const {
   return 0;
 }
 
 template <class IntType, class RealType>
-inline zipf_table_distribution<IntType, RealType>::result_type
+inline IntType
 zipf_table_distribution<IntType, RealType>::max() const {
   return n_ - 1;
 }

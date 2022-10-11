@@ -54,6 +54,6 @@ private:
   /** Initialize the probability mass function */
   IntType init(const IntType n, const RealType q);
 };
-} // namespace far_memory
+} // namespace cachebank
 
 #include "impl/zipf.ipp"
