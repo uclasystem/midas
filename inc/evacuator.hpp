@@ -10,14 +10,14 @@ class Evacuator {
 public:
   Evacuator();
   // ~Evacuator();
-  void gc(int nr_thds = kNumGCThds);
+  int64_t gc(int64_t nr_to_reclaim);
   void evacuate(int nr_thds = kNumGCThds);
   void scan(int nr_thds = kNumGCThds);
 
   static Evacuator *global_evacuator();
 
 private:
-  constexpr static int kNumGCThds = 1;
+  constexpr static int kNumGCThds = 8;
 
   void init();
 
@@ -26,6 +26,7 @@ private:
   void scan_region(LogRegion *region);
   void parallelizer(work_fn fn);
 
+  int nr_gc_thds_;
   std::atomic_int_fast32_t nr_master_thd;
 };
 
