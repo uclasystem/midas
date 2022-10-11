@@ -2,6 +2,9 @@
 #include "logging.hpp"
 #include "shm_types.hpp"
 #include "utils.hpp"
+#include <chrono>
+#include <fstream>
+#include <thread>
 
 namespace cachebank {
 
@@ -91,6 +94,24 @@ void Client::free_region(int64_t region_id) {
   cq.send(&ack, sizeof(ack));
 }
 
+void Client::reclaim_regions(uint64_t mem_limit) {
+  region_limit_ = mem_limit / kRegionSize;
+  if (region_cnt_ <= region_limit_)
+    return;
+
+  int64_t nr_regions = region_cnt_ - region_limit_;
+
+  CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
+  MemMsg mm{.size = nr_regions};
+
+  CtrlMsg msg{.op = CtrlOpCode::RECLAIM, .ret = ret, .mmsg = mm};
+  txqp.send(&msg, sizeof(msg));
+
+  CtrlMsg ack;
+  txqp.recv(&ack, sizeof(ack));
+  // assert(ack.ret == CtrlRetCode::MEM_SUCC);
+}
+
 void Client::destroy() {
   for (const auto &kv : regions) {
     const std::string name = utils::get_region_name(id, kv.first);
@@ -99,8 +120,9 @@ void Client::destroy() {
 }
 
 /** Daemon */
-Daemon::Daemon(const std::string ctrlq_name)
-    : ctrlq_name_(utils::get_rq_name(ctrlq_name, true)) {
+Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
+    : cfg_file_(cfg_file), ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
+      mem_limit_(kRegionLimit * kRegionSize) {
   MsgQueue::remove(ctrlq_name_.c_str());
   ctrlq_ = std::make_shared<MsgQueue>(boost::interprocess::create_only,
                                       ctrlq_name_.c_str(), kDaemonQDepth,
@@ -121,7 +143,8 @@ int Daemon::do_connect(const CtrlMsg &msg) {
       return -1;
     }
     // clients_[msg.id] = std::move(Client(msg.id));
-    clients_.insert(std::make_pair(msg.id, Client(msg.id, kRegionLimit)));
+    clients_.insert(
+        std::make_pair(msg.id, Client(msg.id, mem_limit_ / kRegionSize)));
     auto client_iter = clients_.find(msg.id);
     assert(client_iter != clients_.cend());
     auto &client = client_iter->second;
@@ -201,8 +224,32 @@ int Daemon::do_free(const CtrlMsg &msg) {
   return 0;
 }
 
+void Daemon::monitor() {
+  while (true) {
+    uint64_t prev_mem_limit = mem_limit_;
+    std::ifstream cfg(cfg_file_);
+    if (!cfg.is_open()) {
+      LOG(kError) << "open " << cfg_file_ << " failed!";
+      return;
+    }
+    cfg >> mem_limit_;
+    cfg.close();
+
+    if (mem_limit_ != prev_mem_limit) {
+      LOG(kError) << mem_limit_ << " != " << prev_mem_limit;
+      for (auto &[id, client] : clients_) {
+        client.reclaim_regions(mem_limit_);
+      }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  }
+}
+
 void Daemon::serve() {
   LOG(kInfo) << "Daemon starts listening...";
+
+  std::thread monitor_thd([&]() { monitor(); });
 
   while (true) {
     CtrlMsg msg;
@@ -213,7 +260,7 @@ void Daemon::serve() {
     if (recvd_size != sizeof(CtrlMsg)) {
       break;
     }
-    LOG(kInfo) << "Daemon recved msg " << msg.op;
+    LOG(kDebug) << "Daemon recved msg " << msg.op;
     switch (msg.op) {
     case CONNECT:
       do_connect(msg);
@@ -234,6 +281,8 @@ void Daemon::serve() {
       LOG(kError) << "Recved unknown message: " << msg.op;
     }
   }
+
+  monitor_thd.join();
 }
 
 } // namespace cachebank

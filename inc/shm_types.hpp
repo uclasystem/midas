@@ -12,6 +12,7 @@ enum CtrlOpCode {
   ALLOC,
   OVERCOMMIT,
   FREE,
+  RECLAIM,
 };
 
 enum CtrlRetCode {

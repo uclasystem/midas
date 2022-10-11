@@ -35,6 +35,7 @@ public:
   void alloc_region(size_t size);
   void overcommit_region(size_t size);
   void free_region(int64_t region_id);
+  void reclaim_regions(uint64_t mem_limit);
 
 private:
   inline int64_t new_region_id_() noexcept;
@@ -52,7 +53,8 @@ private:
 
 class Daemon {
 public:
-  Daemon(const std::string ctrlq_name = kNameCtrlQ);
+  Daemon(const std::string cfg_file = kDaemonCfgFile,
+         const std::string ctrlq_name = kNameCtrlQ);
   ~Daemon();
   void serve();
 
@@ -65,11 +67,16 @@ private:
   int do_overcommit(const CtrlMsg &msg);
   int do_free(const CtrlMsg &msg);
 
+  void monitor();
+
   const std::string ctrlq_name_;
   std::shared_ptr<MsgQueue> ctrlq_;
   std::unordered_map<uint64_t, Client> clients_;
 
-  constexpr static uint64_t kRegionLimit = (16ull << 20) / kRegionSize; // 16GB
+  uint64_t mem_limit_;
+  std::string cfg_file_;
+  constexpr static uint64_t kRegionLimit = (1ull << 30) / kRegionSize; // 1GB
+  constexpr static char kDaemonCfgFile[] = "config/mem.config";
 };
 
 } // namespace cachebank
