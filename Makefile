@@ -44,12 +44,15 @@ test_concurrent_evacuator2_src = test/test_concurrent_evacuator2.cpp
 test_concurrent_evacuator2_obj = $(test_concurrent_evacuator2_src:.cpp=.o)
 test_concurrent_evacuator3_src = test/test_concurrent_evacuator3.cpp
 test_concurrent_evacuator3_obj = $(test_concurrent_evacuator3_src:.cpp=.o)
+test_skewed_hashmap_src = test/test_skewed_hashmap.cpp
+test_skewed_hashmap_obj = $(test_skewed_hashmap_src:.cpp=.o)
 
 .PHONY: all clean
 
 all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_slab bin/test_sync_hashmap bin/test_log \
 	bin/test_parallel_evacuator \
-	bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3
+	bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
+	bin/test_skewed_hashmap
 
 
 bin/daemon_main: $(daemon_main_obj)
@@ -80,6 +83,9 @@ bin/test_concurrent_evacuator2: $(test_concurrent_evacuator2_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_concurrent_evacuator3: $(test_concurrent_evacuator3_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_skewed_hashmap: $(test_skewed_hashmap_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 %.o: %.cpp Makefile
