@@ -1,4 +1,7 @@
 #pragma once
+#include <boost/date_time/posix_time/posix_time_duration.hpp>
+#include <boost/date_time/posix_time/ptime.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "logging.hpp"
 
@@ -34,6 +37,29 @@ inline int QSingle::recv(void *buffer, size_t buffer_size) {
     unsigned priority;
     size_t recvd_size;
     _q->receive(buffer, buffer_size, recvd_size, priority);
+    if (recvd_size != buffer_size) {
+      LOG(kError) << "Q " << _name << " recv error: " << recvd_size
+                  << "!=" << buffer_size;
+      return -1;
+    }
+  } catch (boost::interprocess::interprocess_exception &e) {
+    LOG(kError) << e.what();
+    return -1;
+  }
+  return 0;
+}
+
+inline int QSingle::timed_recv(void *buffer, size_t buffer_size, int timeout) {
+  try {
+    using namespace boost::posix_time;
+    using namespace boost::gregorian;
+
+    unsigned priority;
+    size_t recvd_size;
+    if (!_q->timed_receive(
+            buffer, buffer_size, recvd_size, priority,
+            ptime(second_clock::local_time() + seconds(timeout))))
+      return -1;
     if (recvd_size != buffer_size) {
       LOG(kError) << "Q " << _name << " recv error: " << recvd_size
                   << "!=" << buffer_size;
@@ -85,5 +111,9 @@ inline int QPair::send(const void *buffer, size_t buffer_size) {
 
 inline int QPair::recv(void *buffer, size_t buffer_size) {
   return _rq->recv(buffer, buffer_size);
+}
+
+inline int QPair::timed_recv(void *buffer, size_t buffer_size, int timeout) {
+  return _rq->timed_recv(buffer, buffer_size, timeout);
 }
 } // namespace cachebank

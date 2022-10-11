@@ -38,6 +38,7 @@ public:
 
   inline int send(const void *buffer, size_t buffer_size);
   inline int recv(void *buffer, size_t buffer_size);
+  inline int timed_recv(void *buffer, size_t buffer_size, int timeout);
 
   inline void init(bool create);
 
@@ -62,6 +63,7 @@ public:
 
   inline int send(const void *buffer, size_t buffer_size);
   inline int recv(void *buffer, size_t buffer_size);
+  inline int timed_recv(void *buffer, size_t buffer_size, int timeout);
 
   inline QSingle &SendQ() const noexcept { return *_sq; }
   inline QSingle &RecvQ() const noexcept { return *_rq; }
