@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 
+#include "evacuator.hpp"
 #include "logging.hpp"
 #include "qpair.hpp"
 #include "resource_manager.hpp"
@@ -40,11 +41,15 @@ ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
                                       true)),
-      rxqp_(std::to_string(id_), true) {
+      rxqp_(std::to_string(id_), true), stop_(false) {
+  handler_thd_ = std::make_shared<std::thread>([&]() { pressure_handler(); });
   connect(daemon_name);
 }
 
 ResourceManager::~ResourceManager() noexcept {
+  stop_ = true;
+  handler_thd_->join();
+
   disconnect();
   rxqp_.destroy();
   txqp_.RecvQ().destroy();
@@ -98,7 +103,47 @@ int ResourceManager::disconnect() noexcept {
   return 0;
 }
 
+void ResourceManager::pressure_handler() {
+  stop_ = false;
+  LOG(kError) << "pressure handler thd is running...";
+
+  while (!stop_) {
+    CtrlMsg msg;
+    if (rxqp_.timed_recv(&msg, sizeof(msg), 1) == -1)
+      continue;
+
+    LOG(kInfo) << "PressureHandler recved msg " << msg.op;
+    switch (msg.op) {
+    case RECLAIM:
+      do_reclaim(msg);
+      break;
+    default:
+      LOG(kError) << "Recved unknown message: " << msg.op;
+    }
+  }
+}
+
+void ResourceManager::do_reclaim(CtrlMsg &msg) {
+  assert(msg.mmsg.size != 0);
+
+  int64_t nr_to_reclaim = msg.mmsg.size;
+  LOG(kError) << nr_to_reclaim;
+  int64_t nr_reclaimed = Evacuator::global_evacuator()->gc(nr_to_reclaim);
+  LOG(kError) << nr_reclaimed;
+
+  MemMsg mm;
+  CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
+  // if (nr_reclaimed >= nr_to_reclaim) {
+  if (true) {
+    ret = CtrlRetCode::MEM_SUCC;
+    mm.size = nr_reclaimed;
+  }
+  CtrlMsg ack{.op = CtrlOpCode::RECLAIM, .ret = ret, .mmsg = mm};
+  rxqp_.send(&ack, sizeof(ack));
+}
+
 int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
+retry:
   std::unique_lock<std::mutex> lk(mtx_);
   CtrlMsg msg{.id = id_,
               .op = overcommit ? CtrlOpCode::OVERCOMMIT : CtrlOpCode::ALLOC,
@@ -114,6 +159,11 @@ int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
     // LOG(kError);
+    lk.unlock();
+    if (Evacuator::global_evacuator()->gc(
+            std::max<int64_t>(region_map_.size() / 100, 1)) > 0) {
+      goto retry;
+    }
     return -1;
   }
 

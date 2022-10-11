@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 #include "qpair.hpp"
 #include "utils.hpp"
@@ -58,6 +59,9 @@ private:
   int disconnect() noexcept;
   size_t free_region(int64_t region_id) noexcept;
 
+  void pressure_handler();
+  void do_reclaim(CtrlMsg &msg);
+
   uint64_t id_;
   std::mutex mtx_;
 
@@ -65,6 +69,9 @@ private:
   QPair rxqp_;
 
   std::map<int64_t, std::shared_ptr<Region>> region_map_;
+
+  std::shared_ptr<std::thread> handler_thd_;
+  bool stop_;
 };
 
 } // namespace cachebank
