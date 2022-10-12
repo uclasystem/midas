@@ -110,6 +110,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
         return true;
       } else {
         delete_node(prev_next, node);
+        break;
       }
     }
   }
