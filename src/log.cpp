@@ -146,8 +146,12 @@ bool LogChunk::evacuate() {
       ret = obj_ptr.is_present();
       if (ret == RetCode::True) {
         nr_present++;
+        obj_ptr.unlock(lock_id);
         auto allocator = LogAllocator::global_allocator();
         auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+        lock_id = optptr->lock();
+        assert(lock_id != -1 && !obj_ptr.null());
+
         if (optptr) {
           auto new_ptr = *optptr;
           ret = new_ptr.move_from(obj_ptr);
