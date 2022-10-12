@@ -28,6 +28,7 @@ public:
   template <typename K1> bool get(K1 &&key, Tp &v);
   template <typename K1, typename Tp1> bool set(const K1 &key, const Tp1 &v);
   template <typename K1> bool remove(K1 &&key);
+  bool clear();
   // std::vector<Pair> get_all_pairs();
 
 private:

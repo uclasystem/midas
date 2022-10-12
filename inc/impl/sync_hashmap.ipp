@@ -125,6 +125,22 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
   return true;
 }
 
+template <size_t NBuckets, typename Key, typename Tp, typename Hash,
+          typename Pred, typename Alloc, typename Lock>
+bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::clear() {
+  auto allocator = LogAllocator::global_allocator();
+  for (int idx = 0; idx < NBuckets; idx++) {
+    auto &lock = _locks[idx];
+    lock.lock();
+    auto prev_next = &_buckets[idx];
+    auto node = _buckets[idx];
+    while (node)
+      node = delete_node(prev_next, node);
+    lock.unlock();
+  }
+  return true;
+}
+
 /** Utility functions */
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
