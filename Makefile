@@ -34,6 +34,8 @@ test_slab_src = test/test_slab.cpp
 test_slab_obj = $(test_slab_src:.cpp=.o)
 test_sync_hashmap_src = test/test_sync_hashmap.cpp
 test_sync_hashmap_obj = $(test_sync_hashmap_src:.cpp=.o)
+test_hashmap_clear_src = test/test_hashmap_clear.cpp
+test_hashmap_clear_obj = $(test_hashmap_clear_src:.cpp=.o)
 test_log_src = test/test_log.cpp
 test_log_obj = $(test_log_src:.cpp=.o)
 test_parallel_evacuator_src = test/test_parallel_evacuator.cpp
@@ -49,8 +51,8 @@ test_skewed_hashmap_obj = $(test_skewed_hashmap_src:.cpp=.o)
 
 .PHONY: all clean
 
-all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_slab bin/test_sync_hashmap bin/test_log \
-	bin/test_parallel_evacuator \
+all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_log bin/test_parallel_evacuator \
+	bin/test_sync_hashmap bin/test_hashmap_clear \
 	bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
 	bin/test_skewed_hashmap
 
@@ -68,6 +70,9 @@ bin/test_slab: $(test_slab_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_sync_hashmap: $(test_sync_hashmap_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_hashmap_clear: $(test_hashmap_clear_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_log: $(test_log_obj) $(lib_obj)
