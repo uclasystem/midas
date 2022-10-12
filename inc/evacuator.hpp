@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
 
 namespace cachebank {
 
@@ -27,7 +28,7 @@ private:
   void parallelizer(work_fn fn);
 
   int nr_gc_thds_;
-  std::atomic_int_fast32_t nr_master_thd;
+  std::mutex mtx_;
 };
 
 } // namespace cachebank

@@ -13,10 +13,7 @@
 namespace cachebank {
 
 int64_t Evacuator::gc(int64_t nr_to_reclaim) {
-  if (nr_master_thd.fetch_add(1) > 0) {
-    nr_master_thd.fetch_add(-1);
-    return -1;
-  }
+  std::unique_lock<std::mutex> ul(mtx_);
 
   auto stt = std::chrono::steady_clock::now();
   auto allocator = LogAllocator::global_allocator();
@@ -88,19 +85,15 @@ int64_t Evacuator::gc(int64_t nr_to_reclaim) {
   auto curr_nr_regions = regions.size();
   auto end = std::chrono::steady_clock::now();
 
-  LOG(kError) << "Evacuation: " << prev_nr_regions << " --> " << curr_nr_regions
+  LOG(kDebug) << "Evacuation: " << prev_nr_regions << " --> " << curr_nr_regions
               << " regions ("
               << std::chrono::duration<double>(end - stt).count() << "s).";
 
-  nr_master_thd.fetch_add(-1);
   return prev_nr_regions - curr_nr_regions;
 }
 
 void Evacuator::evacuate(int nr_thds) {
-  if (nr_master_thd.fetch_add(1) > 0) {
-    nr_master_thd.fetch_add(-1);
-    return;
-  }
+  std::unique_lock<std::mutex> ul(mtx_);
 
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
@@ -137,14 +130,10 @@ void Evacuator::evacuate(int nr_thds) {
   LOG(kError) << "After  evacuation: " << curr_nr_regions << " regions";
 
   delete[] tasks;
-  nr_master_thd.fetch_add(-1);
 }
 
 void Evacuator::scan(int nr_thds) {
-  if (nr_master_thd.fetch_add(1) > 0) {
-    nr_master_thd.fetch_add(-1);
-    return;
-  }
+  std::unique_lock<std::mutex> ul(mtx_);
 
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
@@ -175,7 +164,6 @@ void Evacuator::scan(int nr_thds) {
   gc_thds.clear();
 
   delete[] tasks;
-  nr_master_thd.fetch_add(-1);
 }
 
 inline void Evacuator::scan_region(LogRegion *region) {
