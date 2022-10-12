@@ -48,7 +48,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   }
   assert(node);
   if (node->pair.null() || !node->pair.copy_to(&v, sizeof(Tp), sizeof(Key))) {
-    delete_node(prev_next, node);
+    node = delete_node(prev_next, node);
     lock.unlock();
     return false;
   }
@@ -109,7 +109,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
         lock.unlock();
         return true;
       } else {
-        delete_node(prev_next, node);
+        node = delete_node(prev_next, node);
         break;
       }
     }
@@ -165,6 +165,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
 }
 
 /** remove bucket_node from the list */
+// should always use as `node = delete_node()` when iterating the list
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 inline BNPtr
