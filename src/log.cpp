@@ -192,7 +192,77 @@ bool LogChunk::evacuate() {
     break;
   }
   LOG(kDebug) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
-             << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
+              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
+
+  assert(nr_failed == 0);
+  return nr_failed == 0;
+}
+
+bool LogChunk::free() {
+  if (!sealed_)
+    return false;
+
+  int nr_non_present = 0;
+  int nr_freed = 0;
+  int nr_small_objs = 0;
+  int nr_failed = 0;
+
+  GenericObjectHdr hdr;
+
+  auto pos = start_addr_;
+  while (pos < pos_) {
+    ObjectPtr obj_ptr;
+
+    auto ret = obj_ptr.init_from_soft(pos);
+    if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
+      break;
+    } else if (ret == RetCode::Fault) {
+      LOG(kError) << "chunk is unmapped under the hood";
+      break;
+    }
+    assert(ret == RetCode::Succ);
+
+    auto lock_id = obj_ptr.lock();
+    assert(lock_id != -1 && !obj_ptr.null());
+    if (obj_ptr.is_small_obj()) {
+      auto obj_size = obj_ptr.total_size();
+      nr_small_objs++;
+
+      RetCode ret = obj_ptr.is_present();
+      if (ret == RetCode::True) {
+        if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+          goto faulted;
+        nr_freed++;
+      } else if (ret == RetCode::False)
+        nr_non_present++;
+      else
+        goto faulted;
+
+      pos += obj_size;
+    } else { // TODO: large object
+      LOG(kError) << "Not implemented yet!";
+      exit(-1);
+      ret = obj_ptr.is_continue();
+      if (ret == RetCode::Fault)
+        goto faulted;
+      if (ret == RetCode::True) {
+        // this is a inner chunk storing a large object.
+      } else {
+        // this is the head chunk of a large object.
+      }
+    }
+    obj_ptr.unlock(lock_id);
+    continue;
+  faulted:
+    nr_failed++;
+    LOG(kError) << "chunk is unmapped under the hood";
+    obj_ptr.unlock(lock_id);
+    break;
+  }
+  LOG(kDebug) << "nr_freed: " << nr_freed
+              << ", nr_non_present: " << nr_non_present
+              << ", nr_failed: " << nr_failed;
+
   assert(nr_failed == 0);
   return nr_failed == 0;
 }
@@ -240,6 +310,18 @@ void LogRegion::evacuate() {
   if (ret)
     destroy();
 }
+
+void LogRegion::free() {
+  if (!sealed_)
+    return;
+  bool ret = true;
+  for (auto &chunk : vLogChunks_) {
+    ret &= chunk->free();
+  }
+  if (ret)
+    destroy();
+}
+
 
 /** LogAllocator */
 // must be called under lock protection

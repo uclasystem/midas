@@ -83,6 +83,20 @@ int64_t Evacuator::gc(int64_t nr_to_reclaim) {
 
   allocator->cleanup_regions();
   auto curr_nr_regions = regions.size();
+
+  if (curr_nr_regions > prev_nr_regions - nr_to_reclaim) {
+    int nr_remain = nr_to_reclaim - (prev_nr_regions - curr_nr_regions);
+    int i = 0;
+    for (auto &region : regions) {
+      region->free();
+      i++;
+      if (i >= nr_remain)
+        break;
+    }
+    allocator->cleanup_regions();
+    curr_nr_regions = regions.size();
+  }
+
   auto end = std::chrono::steady_clock::now();
 
   LOG(kDebug) << "Evacuation: " << prev_nr_regions << " --> " << curr_nr_regions

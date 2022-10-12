@@ -25,6 +25,7 @@ public:
 
   bool scan();
   bool evacuate();
+  bool free();
 
 private:
   void init(uint64_t addr);
@@ -58,6 +59,7 @@ public:
   float get_alive_ratio() const noexcept;
   void scan();
   void evacuate();
+  void free();
 
 private:
   std::atomic_int32_t alive_bytes_;
