@@ -4,6 +4,8 @@
 #include <mutex>
 #include <optional>
 
+#include "robinhood.h"
+
 namespace cachebank {
 
 inline std::optional<LockID> ObjLocker::try_lock(const TransientPtr &tptr) {
@@ -43,8 +45,7 @@ inline void ObjLocker::_unlock(uint64_t obj_addr) {
 }
 
 inline uint64_t ObjLocker::hash_val(uint64_t input) {
-  static auto hasher = std::hash<uint64_t>();
-  return hasher(input);
+  return robin_hood::hash_int(input);
 }
 
 inline ObjLocker *ObjLocker::global_objlocker() noexcept {
