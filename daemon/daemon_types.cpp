@@ -250,6 +250,7 @@ void Daemon::serve() {
   LOG(kInfo) << "Daemon starts listening...";
 
   std::thread monitor_thd([&]() { monitor(); });
+  monitor_thd.detach();
 
   while (true) {
     CtrlMsg msg;
