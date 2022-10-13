@@ -111,6 +111,9 @@ public:
   void set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() const noexcept;
 
+  void set_next(uint64_t addr) noexcept;
+  uint64_t get_next() const noexcept;
+
   bool is_present() const noexcept;
   void set_present() noexcept;
   void clr_present() noexcept;
@@ -129,6 +132,7 @@ private:
   uint32_t size;
   uint32_t flags;
   uint64_t rref; // reverse reference
+  uint64_t next; // pointer to the next chunk
 #pragma pack(pop)
 
   void _large_obj() noexcept;
@@ -141,7 +145,7 @@ private:
   constexpr static decltype(flags) kContinueBit = kFlagShift - 5;
 };
 
-static_assert(sizeof(LargeObjectHdr) <= 16,
+static_assert(sizeof(LargeObjectHdr) <= 24,
               "LargeObjHdr is not correctly aligned!");
 
 struct ObjectPtr {

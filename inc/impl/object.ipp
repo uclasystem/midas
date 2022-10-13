@@ -90,13 +90,13 @@ inline void SmallObjectHdr::_small_obj() noexcept {
 }
 
 /** Large Object */
-inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0) {}
+inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0), next(0) {}
 
 inline void LargeObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
   set_size(size_);
-  set_rref(rref);
   set_present();
   _large_obj();
+  set_rref(rref);
 }
 
 inline void LargeObjectHdr::set_invalid() noexcept {
@@ -116,6 +116,9 @@ inline uint32_t LargeObjectHdr::get_size() const noexcept { return size; }
 
 inline void LargeObjectHdr::set_rref(uint64_t addr) noexcept { rref = addr; }
 inline uint64_t LargeObjectHdr::get_rref() const noexcept { return rref; }
+
+inline void LargeObjectHdr::set_next(uint64_t addr) noexcept { next = addr; }
+inline uint64_t LargeObjectHdr::get_next() const noexcept { return next; }
 
 inline bool LargeObjectHdr::is_present() const noexcept {
   return flags & (1 << kPresentBit);
