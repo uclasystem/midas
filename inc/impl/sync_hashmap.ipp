@@ -196,7 +196,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::iterate_list(
     node = node->next;
     return false;
   }
-  std::aligned_storage_t<sizeof(Key), alignof(Key)> k_buf;
+  std::byte k_buf[sizeof(Key)];
   auto tmp_k = std::launder(reinterpret_cast<Key *>(&k_buf));
   // Key tmp_k;
   if (node->pair.null() || !node->pair.copy_to(tmp_k, sizeof(Key))) {
