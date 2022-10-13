@@ -160,6 +160,7 @@ public:
   bool null() const noexcept;
 
   /** Header related */
+  bool is_small_obj() const noexcept;
   static size_t total_size(size_t data_size) noexcept;
   size_t total_size() const noexcept;
   size_t hdr_size() const noexcept;
@@ -173,8 +174,6 @@ public:
   ObjectPtr *get_rref() noexcept;
 
   RetCode upd_rref() noexcept;
-
-  bool is_small_obj() const noexcept;
 
   RetCode is_present() noexcept;
   RetCode set_present() noexcept;
