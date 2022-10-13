@@ -7,7 +7,7 @@ class SlabAllocator;
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap() {
-  memset(_buckets, 0, sizeof(_buckets));
+  memset(buckets_, 0, sizeof(buckets_));
 }
 
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
@@ -31,11 +31,11 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   auto key_hash = hasher(k);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = _locks[bucket_idx];
+  auto &lock = locks_[bucket_idx];
   lock.lock();
 
-  auto prev_next = &_buckets[bucket_idx];
-  BNPtr node = _buckets[bucket_idx];
+  auto prev_next = &buckets_[bucket_idx];
+  BNPtr node = buckets_[bucket_idx];
   bool found = false;
   while (node) {
     found = iterate_list(key_hash, k, prev_next, node);
@@ -64,11 +64,11 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
   auto key_hash = hasher(k);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = _locks[bucket_idx];
+  auto &lock = locks_[bucket_idx];
   lock.lock();
 
-  auto prev_next = &_buckets[bucket_idx];
-  BNPtr node = _buckets[bucket_idx];
+  auto prev_next = &buckets_[bucket_idx];
+  BNPtr node = buckets_[bucket_idx];
   bool found = false;
   while (node) {
     found = iterate_list(key_hash, k, prev_next, node);
@@ -94,11 +94,11 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
   auto key_hash = hasher(k);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = _locks[bucket_idx];
+  auto &lock = locks_[bucket_idx];
   lock.lock();
 
-  auto prev_next = &_buckets[bucket_idx];
-  auto node = _buckets[bucket_idx];
+  auto prev_next = &buckets_[bucket_idx];
+  auto node = buckets_[bucket_idx];
   while (node) {
     auto found = iterate_list(key_hash, k, prev_next, node);
     if (found) {
@@ -130,10 +130,10 @@ template <size_t NBuckets, typename Key, typename Tp, typename Hash,
 bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::clear() {
   auto allocator = LogAllocator::global_allocator();
   for (int idx = 0; idx < NBuckets; idx++) {
-    auto &lock = _locks[idx];
+    auto &lock = locks_[idx];
     lock.lock();
-    auto prev_next = &_buckets[idx];
-    auto node = _buckets[idx];
+    auto prev_next = &buckets_[idx];
+    auto node = buckets_[idx];
     while (node)
       node = delete_node(prev_next, node);
     lock.unlock();

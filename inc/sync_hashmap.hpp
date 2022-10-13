@@ -39,8 +39,8 @@ private:
   bool iterate_list(uint64_t key_hash, K1 &&key, BNPtr *&prev_next,
                     BNPtr &node);
   template <typename K1> BNPtr *find(K1 &&key, bool remove = false);
-  Lock _locks[NBuckets];
-  BucketNode *_buckets[NBuckets];
+  Lock locks_[NBuckets];
+  BucketNode *buckets_[NBuckets];
 };
 
 } // namespace cachebank
