@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
       for (auto &op : ops[tid]) {
         auto k = op.key;
         auto v = op.val;
-        bool ret = false;
+        bool ret = true;
         if (op.opcode == Op::Set)
           ret = hashmap->set(k, v);
         else if (op.opcode == Op::Get) {

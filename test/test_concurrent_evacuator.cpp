@@ -109,6 +109,10 @@ int main(int argc, char *argv[]) {
 
   if (nr_errs == 0)
     std::cout << "Test passed!" << std::endl;
-
+  else
+    std::cout << "Test failed, nr_errs: " << nr_errs << std::endl
+              << "Note: errors are expected when evacute period is short, and "
+                 "objects are evicted."
+              << std::endl;
   return 0;
 }
