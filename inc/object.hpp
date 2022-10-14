@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "transient_ptr.hpp"
 
@@ -19,7 +20,23 @@ public:
   GenericObjectHdr();
   void set_invalid() noexcept;
   bool is_valid() const noexcept;
+
   bool is_small_obj() const noexcept;
+  void set_small_obj() noexcept;
+  void set_large_obj() noexcept;
+
+  bool is_present() const noexcept;
+  void set_present() noexcept;
+  void clr_present() noexcept;
+  bool is_accessed() const noexcept;
+  void set_accessed() noexcept;
+  void clr_accessed() noexcept;
+  bool is_evacuate() const noexcept;
+  void set_evacuate() noexcept;
+  void clr_evacuate() noexcept;
+  bool is_continue() const noexcept;
+  void set_continue() noexcept;
+  void clr_continue() noexcept;
 
 private:
   constexpr static uint32_t kFlagShift =
@@ -28,7 +45,12 @@ private:
   constexpr static decltype(flags) kAccessedBit = kFlagShift - 2;
   constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
   constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
+
+  constexpr static decltype(flags) kContinueBit = kFlagShift - 5;
 };
+
+static_assert(sizeof(GenericObjectHdr) <= sizeof(uint64_t),
+              "GenericObjHdr is not correctly aligned!");
 
 struct SmallObjectHdr {
   // Format:
@@ -55,15 +77,8 @@ public:
   void set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() const noexcept;
 
-  bool is_present() const noexcept;
-  void set_present() noexcept;
-  void clr_present() noexcept;
-  bool is_accessed() const noexcept;
-  void set_accessed() noexcept;
-  void clr_accessed() noexcept;
-  bool is_evacuate() const noexcept;
-  void set_evacuate() noexcept;
-  void clr_evacuate() noexcept;
+  void set_flags(uint8_t flags) noexcept;
+  uint8_t get_flags() const noexcept;
 
 private:
 #pragma pack(push, 1)
@@ -71,16 +86,9 @@ private:
   uint16_t size : 12; // object size / 8 (8 Bytes is the base unit)
   uint8_t flags : 4;
 #pragma pack(pop)
-
-  void _small_obj() noexcept;
-  constexpr static decltype(flags) kFlagShift = 4;
-  constexpr static decltype(flags) kPresentBit = kFlagShift - 1;
-  constexpr static decltype(flags) kAccessedBit = kFlagShift - 2;
-  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
-  constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
 };
 
-static_assert(sizeof(SmallObjectHdr) <= 8,
+static_assert(sizeof(SmallObjectHdr) <= sizeof(uint64_t),
               "SmallObjHdr is not correctly aligned!");
 
 struct LargeObjectHdr {
@@ -114,18 +122,8 @@ public:
   void set_next(uint64_t addr) noexcept;
   uint64_t get_next() const noexcept;
 
-  bool is_present() const noexcept;
-  void set_present() noexcept;
-  void clr_present() noexcept;
-  bool is_accessed() const noexcept;
-  void set_accessed() noexcept;
-  void clr_accessed() noexcept;
-  bool is_evacuate() const noexcept;
-  void set_evacuate() noexcept;
-  void clr_evacuate() noexcept;
-  bool is_continue() const noexcept;
-  void set_continue() noexcept;
-  void clr_continue() noexcept;
+  void set_flags(uint32_t flags) noexcept;
+  uint32_t get_flags() const noexcept;
 
 private:
 #pragma pack(push, 1)
@@ -134,15 +132,6 @@ private:
   uint64_t rref; // reverse reference
   uint64_t next; // pointer to the next chunk
 #pragma pack(pop)
-
-  void _large_obj() noexcept;
-  constexpr static uint32_t kFlagShift =
-      sizeof(flags) * 8; // start from the highest bit
-  constexpr static decltype(flags) kPresentBit = kFlagShift - 1;
-  constexpr static decltype(flags) kAccessedBit = kFlagShift - 2;
-  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
-  constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
-  constexpr static decltype(flags) kContinueBit = kFlagShift - 5;
 };
 
 static_assert(sizeof(LargeObjectHdr) <= 24,
@@ -179,18 +168,9 @@ public:
 
   RetCode upd_rref() noexcept;
 
-  RetCode is_present() noexcept;
-  RetCode set_present() noexcept;
-  RetCode clr_present() noexcept;
-  RetCode is_accessed() noexcept;
-  RetCode set_accessed() noexcept;
-  RetCode clr_accessed() noexcept;
-  RetCode is_evacuate() noexcept;
-  RetCode set_evacuate() noexcept;
-  RetCode clr_evacuate() noexcept;
-  RetCode is_continue() noexcept;
-  RetCode set_continue() noexcept;
-  RetCode clr_continue() noexcept;
+  /** Flags related */
+  std::optional<GenericObjectHdr> get_meta_hdr() noexcept;
+  RetCode set_meta_hdr(const GenericObjectHdr &meta_hdr) noexcept;
 
   /** Data related */
   bool cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval);

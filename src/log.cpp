@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include "log.hpp"
 #include "logging.hpp"
@@ -66,35 +67,41 @@ bool LogChunk::scan() {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
-      RetCode ret = obj_ptr.is_present();
-      if (ret == RetCode::True) {
-        ret = obj_ptr.is_accessed();
-        if (ret == RetCode::True) {
-          if (obj_ptr.clr_accessed() == RetCode::Fault)
-            goto faulted;
-          nr_deactivated++;
-          upd_alive_bytes(obj_size);
-        } else {
-          if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
-            goto faulted;
-          nr_freed++;
-        }
-      } else if (ret == RetCode::False)
-        nr_non_present++;
-      else
+      auto opt_meta = obj_ptr.get_meta_hdr();
+      if (!opt_meta)
         goto faulted;
+      else {
+        auto meta_hdr = *opt_meta;
+        if (meta_hdr.is_present()) {
+          if (meta_hdr.is_accessed()) {
+            meta_hdr.clr_accessed();
+            if (obj_ptr.set_meta_hdr(meta_hdr) == RetCode::Fault)
+              goto faulted;
+            nr_deactivated++;
+            upd_alive_bytes(obj_size);
+          } else {
+            if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+              goto faulted;
+            nr_freed++;
+          }
+        } else if (ret == RetCode::False)
+          nr_non_present++;
+      }
 
       pos += obj_size;
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      ret = obj_ptr.is_continue();
-      if (ret == RetCode::Fault)
+      auto opt_meta = obj_ptr.get_meta_hdr();
+      if (!opt_meta)
         goto faulted;
-      if (ret == RetCode::True) {
-        // this is a inner chunk storing a large object.
-      } else {
-        // this is the head chunk of a large object.
+      else {
+        auto meta_hdr = *opt_meta;
+        if (meta_hdr.is_continue()) {
+          // this is a inner chunk storing a large object.
+        } else {
+          // this is the head chunk of a large object.
+        }
       }
     }
     obj_ptr.unlock(lock_id);
@@ -106,11 +113,11 @@ bool LogChunk::scan() {
     break;
   }
   LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
-             << ", nr_non_present: " << nr_non_present
-             << ", nr_deactivated: " << nr_deactivated
-             << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
-             << ", alive ratio: "
-             << static_cast<float>(alive_bytes_) / kLogChunkSize;
+              << ", nr_non_present: " << nr_non_present
+              << ", nr_deactivated: " << nr_deactivated
+              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
+              << ", alive ratio: "
+              << static_cast<float>(alive_bytes_) / kLogChunkSize;
 
   assert(nr_failed == 0);
   return nr_failed == 0;
@@ -143,45 +150,54 @@ bool LogChunk::evacuate() {
     if (obj_ptr.is_small_obj()) {
       nr_small_objs++;
       auto obj_size = obj_ptr.total_size();
-      ret = obj_ptr.is_present();
-      if (ret == RetCode::True) {
-        nr_present++;
-        obj_ptr.unlock(lock_id);
-        auto allocator = LogAllocator::global_allocator();
-        auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
-        lock_id = optptr->lock();
-        assert(lock_id != -1 && !obj_ptr.null());
 
-        if (optptr) {
-          auto new_ptr = *optptr;
-          ret = new_ptr.move_from(obj_ptr);
-          if (ret == RetCode::Succ) {
-            nr_moved++;
-          } else if (ret == RetCode::Fail) {
-            LOG(kError) << "Failed to move the object!";
+      auto opt_meta = obj_ptr.get_meta_hdr();
+      if (!opt_meta)
+        goto faulted;
+      else {
+        auto meta_hdr = *opt_meta;
+        if (meta_hdr.is_present()) {
+          nr_present++;
+          obj_ptr.unlock(lock_id);
+          auto allocator = LogAllocator::global_allocator();
+          auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+          lock_id = optptr->lock();
+          assert(lock_id != -1 && !obj_ptr.null());
+
+          if (optptr) {
+            auto new_ptr = *optptr;
+            ret = new_ptr.move_from(obj_ptr);
+            if (ret == RetCode::Succ) {
+              nr_moved++;
+            } else if (ret == RetCode::Fail) {
+              LOG(kError) << "Failed to move the object!";
+              nr_failed++;
+            } else
+              goto faulted;
+          } else {
             nr_failed++;
-          } else
-            goto faulted;
+          }
         } else {
-          nr_failed++;
+          nr_freed++;
         }
-      } else {
-        if (ret == RetCode::Fault)
-          goto faulted;
-        nr_freed++;
-      }
 
-      pos += obj_size;
+        pos += obj_size;
+      }
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      ret = obj_ptr.is_continue();
-      if (ret == RetCode::True) {
-        // this is a inner chunk storing a large object.
-      } else if (ret == RetCode::False) {
-        // this is the head chunk of a large object.
-      } else
+      auto opt_meta = obj_ptr.get_meta_hdr();
+      if (!opt_meta)
         goto faulted;
+      else {
+        auto meta_hdr = *opt_meta;
+        if (meta_hdr.is_continue()) {
+          // this is a inner chunk storing a large object.
+        } else {
+          // this is the head chunk of a large object.
+          goto faulted;
+        }
+      }
     }
     obj_ptr.unlock(lock_id);
     continue;
@@ -228,27 +244,34 @@ bool LogChunk::free() {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
-      RetCode ret = obj_ptr.is_present();
-      if (ret == RetCode::True) {
-        if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
-          goto faulted;
-        nr_freed++;
-      } else if (ret == RetCode::False)
-        nr_non_present++;
-      else
+      auto opt_meta = obj_ptr.get_meta_hdr();
+      if (!opt_meta)
         goto faulted;
+      else {
+        auto meta_hdr = *opt_meta;
+        if (meta_hdr.is_present()) {
+          if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+            goto faulted;
+          nr_freed++;
+        } else
+          nr_non_present++;
 
-      pos += obj_size;
+        pos += obj_size;
+      }
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      ret = obj_ptr.is_continue();
-      if (ret == RetCode::Fault)
+      auto opt_meta = obj_ptr.get_meta_hdr();
+      if (!opt_meta)
         goto faulted;
-      if (ret == RetCode::True) {
-        // this is a inner chunk storing a large object.
-      } else {
-        // this is the head chunk of a large object.
+      else {
+        auto meta_hdr = *opt_meta;
+        if (meta_hdr.is_continue()) {
+          // this is a inner chunk storing a large object.
+        } else {
+          // this is the head chunk of a large object.
+          goto faulted;
+        }
       }
     }
     obj_ptr.unlock(lock_id);

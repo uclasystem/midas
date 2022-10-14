@@ -19,27 +19,78 @@ inline bool GenericObjectHdr::is_valid() const noexcept {
 inline bool GenericObjectHdr::is_small_obj() const noexcept {
   return (flags & (1ull << kSmallObjBit));
 }
+inline void GenericObjectHdr::set_small_obj() noexcept {
+  flags |= (1ull << kSmallObjBit);
+}
+
+inline void GenericObjectHdr::set_large_obj() noexcept {
+  flags &= ~(1ull << kSmallObjBit);
+}
+
+inline bool GenericObjectHdr::is_present() const noexcept {
+  return flags & (1ull << kPresentBit);
+}
+inline void GenericObjectHdr::set_present() noexcept {
+  flags |= (1ull << kPresentBit);
+}
+inline void GenericObjectHdr::clr_present() noexcept {
+  flags &= ~(1ull << kPresentBit);
+}
+
+inline bool GenericObjectHdr::is_accessed() const noexcept {
+  return flags & (1ull << kAccessedBit);
+}
+inline void GenericObjectHdr::set_accessed() noexcept {
+  flags |= (1ull << kAccessedBit);
+}
+inline void GenericObjectHdr::clr_accessed() noexcept {
+  flags &= ~(1ull << kAccessedBit);
+}
+
+inline bool GenericObjectHdr::is_evacuate() const noexcept {
+  return flags & (1ull << kEvacuateBit);
+}
+inline void GenericObjectHdr::set_evacuate() noexcept {
+  flags |= (1ull << kEvacuateBit);
+}
+inline void GenericObjectHdr::clr_evacuate() noexcept {
+  flags &= ~(1ull << kEvacuateBit);
+}
+
+inline bool GenericObjectHdr::is_continue() const noexcept {
+  return flags & (1ull << kContinueBit);
+}
+inline void GenericObjectHdr::set_continue() noexcept {
+  flags |= (1ull << kContinueBit);
+}
+inline void GenericObjectHdr::clr_continue() noexcept {
+  flags &= ~(1ull << kContinueBit);
+}
 
 /** Small Object */
 inline SmallObjectHdr::SmallObjectHdr() : rref(0), size(0), flags(0) {}
 
 inline void SmallObjectHdr::init(uint32_t size, uint64_t rref) noexcept {
+  auto meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  meta_hdr->set_present();
+  meta_hdr->set_small_obj();
+
   set_size(size);
   set_rref(rref);
-  set_present();
-  _small_obj();
 }
 
-inline void SmallObjectHdr::free() noexcept { clr_present(); }
 
 inline void SmallObjectHdr::set_invalid() noexcept {
-  auto *meta = reinterpret_cast<uint64_t *>(this);
-  *meta = kInvalidHdr;
+  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  meta_hdr->set_invalid();
+
+  auto bytes = *(reinterpret_cast<uint64_t *>(this));
+  assert(bytes == kInvalidHdr);
 }
 
 inline bool SmallObjectHdr::is_valid() noexcept {
-  auto *meta = reinterpret_cast<uint64_t *>(this);
-  return *meta != kInvalidHdr;
+  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  return meta_hdr->is_valid();
 }
 
 inline void SmallObjectHdr::set_size(uint32_t size_) noexcept {
@@ -55,61 +106,33 @@ inline uint32_t SmallObjectHdr::get_size() const noexcept {
 inline void SmallObjectHdr::set_rref(uint64_t addr) noexcept { rref = addr; }
 inline uint64_t SmallObjectHdr::get_rref() const noexcept { return rref; }
 
-inline bool SmallObjectHdr::is_present() const noexcept {
-  return flags & (1 << kPresentBit);
+inline void SmallObjectHdr::set_flags(uint8_t flags_) noexcept {
+  flags = flags_;
 }
-inline void SmallObjectHdr::set_present() noexcept {
-  flags |= (1 << kPresentBit);
-}
-inline void SmallObjectHdr::clr_present() noexcept {
-  flags &= ~(1 << kPresentBit);
-}
-
-inline bool SmallObjectHdr::is_accessed() const noexcept {
-  return flags & (1 << kAccessedBit);
-}
-inline void SmallObjectHdr::set_accessed() noexcept {
-  flags |= (1 << kAccessedBit);
-}
-inline void SmallObjectHdr::clr_accessed() noexcept {
-  flags &= ~(1 << kAccessedBit);
-}
-
-inline bool SmallObjectHdr::is_evacuate() const noexcept {
-  return flags & (1 << kEvacuateBit);
-}
-inline void SmallObjectHdr::set_evacuate() noexcept {
-  flags |= (1 << kEvacuateBit);
-}
-inline void SmallObjectHdr::clr_evacuate() noexcept {
-  flags &= ~(1 << kEvacuateBit);
-}
-
-inline void SmallObjectHdr::_small_obj() noexcept {
-  flags |= 1 << kSmallObjBit;
-}
+inline uint8_t SmallObjectHdr::get_flags() const noexcept { return flags; }
 
 /** Large Object */
 inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0), next(0) {}
 
 inline void LargeObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
+  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  meta_hdr->set_present();
+  meta_hdr->set_large_obj();
+  meta_hdr->clr_continue();
+
   set_size(size_);
-  set_present();
-  _large_obj();
   set_rref(rref);
 }
 
 inline void LargeObjectHdr::set_invalid() noexcept {
-  auto *meta = reinterpret_cast<uint64_t *>(this);
-  *meta = kInvalidHdr;
+  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  meta_hdr->set_invalid();
 }
 
 inline bool LargeObjectHdr::is_valid() noexcept {
-  auto *meta = reinterpret_cast<uint64_t *>(this);
-  return *meta != kInvalidHdr;
+  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  return meta_hdr->is_valid();
 }
-
-inline void LargeObjectHdr::free() noexcept { clr_present(); }
 
 inline void LargeObjectHdr::set_size(uint32_t size_) noexcept { size = size_; }
 inline uint32_t LargeObjectHdr::get_size() const noexcept { return size; }
@@ -120,49 +143,10 @@ inline uint64_t LargeObjectHdr::get_rref() const noexcept { return rref; }
 inline void LargeObjectHdr::set_next(uint64_t addr) noexcept { next = addr; }
 inline uint64_t LargeObjectHdr::get_next() const noexcept { return next; }
 
-inline bool LargeObjectHdr::is_present() const noexcept {
-  return flags & (1 << kPresentBit);
+inline void LargeObjectHdr::set_flags(uint32_t flags_) noexcept {
+  flags = flags_;
 }
-inline void LargeObjectHdr::set_present() noexcept {
-  flags |= (1 << kPresentBit);
-}
-inline void LargeObjectHdr::clr_present() noexcept {
-  flags &= ~(1 << kPresentBit);
-}
-
-inline bool LargeObjectHdr::is_accessed() const noexcept {
-  return flags & (1 << kAccessedBit);
-}
-inline void LargeObjectHdr::set_accessed() noexcept {
-  flags |= (1 << kAccessedBit);
-}
-inline void LargeObjectHdr::clr_accessed() noexcept {
-  flags &= ~(1 << kAccessedBit);
-}
-
-inline bool LargeObjectHdr::is_evacuate() const noexcept {
-  return flags & (1 << kEvacuateBit);
-}
-inline void LargeObjectHdr::set_evacuate() noexcept {
-  flags |= (1 << kEvacuateBit);
-}
-inline void LargeObjectHdr::clr_evacuate() noexcept {
-  flags &= ~(1 << kEvacuateBit);
-}
-
-inline bool LargeObjectHdr::is_continue() const noexcept {
-  return flags & (1 << kContinueBit);
-}
-inline void LargeObjectHdr::set_continue() noexcept {
-  flags |= (1 << kContinueBit);
-}
-inline void LargeObjectHdr::clr_continue() noexcept {
-  flags &= ~(1 << kContinueBit);
-}
-
-inline void LargeObjectHdr::_large_obj() noexcept {
-  flags &= ~(1 << kSmallObjBit);
-}
+inline uint32_t LargeObjectHdr::get_flags() const noexcept { return flags; }
 
 /** ObjectPtr */
 inline ObjectPtr::ObjectPtr() : size_(0), obj_() {}
@@ -247,10 +231,16 @@ inline RetCode ObjectPtr::free(bool locked) noexcept {
 
 inline RetCode ObjectPtr::free_() noexcept {
   assert(!null());
-  auto ret = is_valid();
-  if (ret != RetCode::True)
-    return ret;
-  ret = clr_present();
+
+  auto opt_meta = get_meta_hdr();
+  if (!opt_meta)
+    return RetCode::Fault;
+
+  auto meta_hdr = *opt_meta;
+  if (!meta_hdr.is_valid())
+    return RetCode::Fail;
+  meta_hdr.clr_present();
+  auto ret = set_meta_hdr(meta_hdr);
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
     rref->obj_.reset();
@@ -306,231 +296,34 @@ inline RetCode ObjectPtr::upd_rref() noexcept {
   return RetCode::Succ;
 }
 
-inline RetCode ObjectPtr::is_valid() noexcept {
-  assert(!null());
-  GenericObjectHdr hdr;
-  if (!obj_.copy_to(&hdr, sizeof(hdr)))
-    return RetCode::Fault;
-  return hdr.is_valid() ? RetCode::True : RetCode::False;
+inline std::optional<GenericObjectHdr> ObjectPtr::get_meta_hdr() noexcept {
+  GenericObjectHdr meta_hdr;
+  if (!obj_.copy_to(&meta_hdr, sizeof(meta_hdr)))
+    return std::nullopt;
+  return meta_hdr;
 }
 
-inline RetCode ObjectPtr::set_invalid() noexcept {
-  assert(!null());
-  GenericObjectHdr hdr;
-  hdr.set_invalid();
-  return obj_.copy_from(&hdr, sizeof(GenericObjectHdr)) ? RetCode::Succ
-                                                        : RetCode::Fault;
-}
-
-inline RetCode ObjectPtr::is_present() noexcept {
-  assert(!null());
+inline RetCode
+ObjectPtr::set_meta_hdr(const GenericObjectHdr &meta_hdr) noexcept {
   if (is_small_obj()) {
+    auto flags =
+        reinterpret_cast<const SmallObjectHdr *>(&meta_hdr)->get_flags();
     SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+    if (!obj_.copy_to(&hdr, sizeof(hdr)))
       return RetCode::Fault;
-    return hdr.is_present() ? RetCode::True : RetCode::False;
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    return hdr.is_present() ? RetCode::True : RetCode::False;
-  }
-  LOG(kError) << "impossible to reach here!";
-  return RetCode::Fault;
-}
-
-inline RetCode ObjectPtr::set_present() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    hdr.set_present();
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+    hdr.set_flags(flags);
+    if (!obj_.copy_from(&hdr, sizeof(hdr)))
       return RetCode::Fault;
   } else {
-    LOG(kError) << "large obj allocation is not implemented yet!";
+    auto flags =
+        reinterpret_cast<const LargeObjectHdr *>(&meta_hdr)->get_flags();
     LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+    if (!obj_.copy_to(&hdr, sizeof(hdr)))
       return RetCode::Fault;
-    hdr.set_present();
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+    hdr.set_flags(flags);
+    if (!obj_.copy_from(&hdr, sizeof(hdr)))
       return RetCode::Fault;
   }
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::clr_present() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    hdr.clr_present();
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-  } else {
-    LOG(kError) << "large obj allocation is not implemented yet!";
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    hdr.clr_present();
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-  }
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::is_accessed() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    return hdr.is_accessed() ? RetCode::True : RetCode::False;
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    return hdr.is_accessed() ? RetCode::True : RetCode::False;
-  }
-  LOG(kError) << "impossible to reach here!";
-  return RetCode::Fault;
-}
-
-inline RetCode ObjectPtr::set_accessed() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    hdr.set_accessed();
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    hdr.set_accessed();
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-  }
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::clr_accessed() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    hdr.clr_accessed();
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    hdr.clr_accessed();
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-  }
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::is_evacuate() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    hdr.is_evacuate();
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    hdr.is_evacuate();
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-  }
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::set_evacuate() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    hdr.set_evacuate();
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    hdr.set_evacuate();
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-  }
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::clr_evacuate() noexcept {
-  assert(!null());
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-    hdr.clr_evacuate();
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
-      return RetCode::Fault;
-  } else {
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-    hdr.clr_evacuate();
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-  }
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::is_continue() noexcept {
-  assert(!null());
-  assert(!is_small_obj());
-
-  LargeObjectHdr hdr;
-  if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-    return RetCode::Fault;
-  return hdr.is_continue() ? RetCode::True : RetCode::False;
-}
-
-inline RetCode ObjectPtr::set_continue() noexcept {
-  assert(!null());
-  assert(!is_small_obj());
-
-  LargeObjectHdr hdr;
-  if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-    return RetCode::Fault;
-  hdr.set_continue();
-  if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-      return RetCode::Fault;
-  return RetCode::Succ;
-}
-
-inline RetCode ObjectPtr::clr_continue() noexcept {
-  assert(!null());
-  assert(!is_small_obj());
-
-  LargeObjectHdr hdr;
-  if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
-    return RetCode::Fault;
-  hdr.clr_continue();
-  if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
-    return RetCode::Fault;
   return RetCode::Succ;
 }
 
@@ -548,11 +341,24 @@ inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
   auto lock_id = lock();
   if (lock_id == -1) // lock failed as obj_ has just been reset.
     return false;
-  if (null() || is_present() != RetCode::Succ ||
-      set_accessed() != RetCode::Succ)
-    goto done;
+  if (!null()) {
+    auto opt_meta = get_meta_hdr();
+    if (!opt_meta) {
+      LOG(kError);
+      goto done;
+    }
+    auto meta_hdr = *opt_meta;
+    if (!meta_hdr.is_present()) {
+      LOG(kError);
+      goto done;
+    }
+    meta_hdr.set_accessed();
+    if (set_meta_hdr(meta_hdr) != RetCode::Succ)
+      goto done;
 
-  ret = obj_.copy_from(src, len, hdr_size() + offset);
+    ret = obj_.copy_from(src, len, hdr_size() + offset);
+    assert(ret);
+  }
 done:
   unlock(lock_id);
   return ret;
@@ -565,11 +371,19 @@ inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
   auto lock_id = lock();
   if (lock_id == -1) // lock failed as obj_ has just been reset.
     return false;
-  if (null() || is_present() != RetCode::Succ ||
-      set_accessed() != RetCode::Succ)
-    goto done;
+  if (!null()) {
+    auto opt_meta = get_meta_hdr();
+    if (!opt_meta)
+      goto done;
+    auto meta_hdr = *opt_meta;
+    if (!meta_hdr.is_present())
+      goto done;
+    meta_hdr.set_accessed();
+    if (set_meta_hdr(meta_hdr) != RetCode::Succ)
+      goto done;
 
-  ret = obj_.copy_to(dst, len, hdr_size() + offset);
+    ret = obj_.copy_to(dst, len, hdr_size() + offset);
+  }
 done:
   unlock(lock_id);
   return ret;
@@ -588,10 +402,15 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
    */
   if (!obj_.copy_from(src.obj_, src.total_size()))
     return RetCode::Fail;
-  ret = src.free(/* locked = */true);
+  ret = src.free(/* locked = */ true);
   if (ret != RetCode::Succ)
     return ret;
-  ret = set_present();
+  auto opt_meta = get_meta_hdr();
+  if (!opt_meta)
+    return ret;
+  auto meta_hdr = *opt_meta;
+  meta_hdr.set_present();
+  ret = set_meta_hdr(meta_hdr);
   if (ret != RetCode::Succ)
     return ret;
   ret = upd_rref();
