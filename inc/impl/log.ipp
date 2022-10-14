@@ -10,17 +10,16 @@ inline LogChunk::LogChunk(LogRegion *region, uint64_t addr)
 inline void LogChunk::seal() noexcept {
   if (sealed_)
     return;
-  GenericObjectHdr endHdr;
+  MetaObjectHdr endHdr;
   endHdr.set_invalid();
-  auto endPtr = TransientPtr(pos_, sizeof(GenericObjectHdr));
-  endPtr.copy_from(&endHdr, sizeof(endHdr)); // ignore return value
-  pos_ += sizeof(GenericObjectHdr);
+  auto endPtr = TransientPtr(pos_, sizeof(MetaObjectHdr));
+  auto _ = endPtr.copy_from(&endHdr, sizeof(endHdr)); // ignore return value
+  pos_ += sizeof(MetaObjectHdr);
   sealed_ = true;
 }
 
 inline bool LogChunk::full() noexcept {
-  return sealed_ ||
-         pos_ + sizeof(GenericObjectHdr) > start_addr_ + kLogChunkSize;
+  return sealed_ || pos_ + sizeof(MetaObjectHdr) > start_addr_ + kLogChunkSize;
 }
 
 inline void LogChunk::upd_alive_bytes(int32_t obj_size) noexcept {

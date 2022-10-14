@@ -18,7 +18,7 @@ using RetCode = ObjectPtr::RetCode;
 /** LogChunk */
 inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
   auto obj_size = ObjectPtr::total_size(size);
-  if (pos_ + obj_size + sizeof(GenericObjectHdr) >=
+  if (pos_ + obj_size + sizeof(MetaObjectHdr) >=
       start_addr_ + kLogChunkSize) { // current chunk is full
     assert(!full());
     seal();
@@ -46,7 +46,7 @@ bool LogChunk::scan() {
   int nr_small_objs = 0;
   int nr_failed = 0;
 
-  GenericObjectHdr hdr;
+  MetaObjectHdr hdr;
 
   auto pos = start_addr_;
   while (pos < pos_) {
@@ -223,7 +223,7 @@ bool LogChunk::free() {
   int nr_small_objs = 0;
   int nr_failed = 0;
 
-  GenericObjectHdr hdr;
+  MetaObjectHdr hdr;
 
   auto pos = start_addr_;
   while (pos < pos_) {

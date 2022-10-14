@@ -8,62 +8,62 @@
 namespace cachebank {
 
 /** Generic Object */
-inline GenericObjectHdr::GenericObjectHdr() : flags(0) {}
+inline MetaObjectHdr::MetaObjectHdr() : flags(0) {}
 
-inline void GenericObjectHdr::set_invalid() noexcept { flags = kInvalidHdr; }
+inline void MetaObjectHdr::set_invalid() noexcept { flags = kInvalidHdr; }
 
-inline bool GenericObjectHdr::is_valid() const noexcept {
+inline bool MetaObjectHdr::is_valid() const noexcept {
   return flags != kInvalidHdr;
 }
 
-inline bool GenericObjectHdr::is_small_obj() const noexcept {
+inline bool MetaObjectHdr::is_small_obj() const noexcept {
   return (flags & (1ull << kSmallObjBit));
 }
-inline void GenericObjectHdr::set_small_obj() noexcept {
+inline void MetaObjectHdr::set_small_obj() noexcept {
   flags |= (1ull << kSmallObjBit);
 }
 
-inline void GenericObjectHdr::set_large_obj() noexcept {
+inline void MetaObjectHdr::set_large_obj() noexcept {
   flags &= ~(1ull << kSmallObjBit);
 }
 
-inline bool GenericObjectHdr::is_present() const noexcept {
+inline bool MetaObjectHdr::is_present() const noexcept {
   return flags & (1ull << kPresentBit);
 }
-inline void GenericObjectHdr::set_present() noexcept {
+inline void MetaObjectHdr::set_present() noexcept {
   flags |= (1ull << kPresentBit);
 }
-inline void GenericObjectHdr::clr_present() noexcept {
+inline void MetaObjectHdr::clr_present() noexcept {
   flags &= ~(1ull << kPresentBit);
 }
 
-inline bool GenericObjectHdr::is_accessed() const noexcept {
+inline bool MetaObjectHdr::is_accessed() const noexcept {
   return flags & (1ull << kAccessedBit);
 }
-inline void GenericObjectHdr::set_accessed() noexcept {
+inline void MetaObjectHdr::set_accessed() noexcept {
   flags |= (1ull << kAccessedBit);
 }
-inline void GenericObjectHdr::clr_accessed() noexcept {
+inline void MetaObjectHdr::clr_accessed() noexcept {
   flags &= ~(1ull << kAccessedBit);
 }
 
-inline bool GenericObjectHdr::is_evacuate() const noexcept {
+inline bool MetaObjectHdr::is_evacuate() const noexcept {
   return flags & (1ull << kEvacuateBit);
 }
-inline void GenericObjectHdr::set_evacuate() noexcept {
+inline void MetaObjectHdr::set_evacuate() noexcept {
   flags |= (1ull << kEvacuateBit);
 }
-inline void GenericObjectHdr::clr_evacuate() noexcept {
+inline void MetaObjectHdr::clr_evacuate() noexcept {
   flags &= ~(1ull << kEvacuateBit);
 }
 
-inline bool GenericObjectHdr::is_continue() const noexcept {
+inline bool MetaObjectHdr::is_continue() const noexcept {
   return flags & (1ull << kContinueBit);
 }
-inline void GenericObjectHdr::set_continue() noexcept {
+inline void MetaObjectHdr::set_continue() noexcept {
   flags |= (1ull << kContinueBit);
 }
-inline void GenericObjectHdr::clr_continue() noexcept {
+inline void MetaObjectHdr::clr_continue() noexcept {
   flags &= ~(1ull << kContinueBit);
 }
 
@@ -71,7 +71,7 @@ inline void GenericObjectHdr::clr_continue() noexcept {
 inline SmallObjectHdr::SmallObjectHdr() : rref(0), size(0), flags(0) {}
 
 inline void SmallObjectHdr::init(uint32_t size, uint64_t rref) noexcept {
-  auto meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  auto meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   meta_hdr->set_present();
   meta_hdr->set_small_obj();
 
@@ -79,9 +79,8 @@ inline void SmallObjectHdr::init(uint32_t size, uint64_t rref) noexcept {
   set_rref(rref);
 }
 
-
 inline void SmallObjectHdr::set_invalid() noexcept {
-  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   meta_hdr->set_invalid();
 
   auto bytes = *(reinterpret_cast<uint64_t *>(this));
@@ -89,7 +88,7 @@ inline void SmallObjectHdr::set_invalid() noexcept {
 }
 
 inline bool SmallObjectHdr::is_valid() noexcept {
-  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   return meta_hdr->is_valid();
 }
 
@@ -115,7 +114,7 @@ inline uint8_t SmallObjectHdr::get_flags() const noexcept { return flags; }
 inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0), next(0) {}
 
 inline void LargeObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
-  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   meta_hdr->set_present();
   meta_hdr->set_large_obj();
   meta_hdr->clr_continue();
@@ -125,12 +124,12 @@ inline void LargeObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
 }
 
 inline void LargeObjectHdr::set_invalid() noexcept {
-  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   meta_hdr->set_invalid();
 }
 
 inline bool LargeObjectHdr::is_valid() noexcept {
-  auto *meta_hdr = reinterpret_cast<GenericObjectHdr *>(this);
+  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   return meta_hdr->is_valid();
 }
 
@@ -192,8 +191,8 @@ inline RetCode ObjectPtr::set(uint64_t stt_addr, size_t data_size) {
 }
 
 inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {
-  GenericObjectHdr hdr;
-  obj_ = TransientPtr(soft_addr, sizeof(GenericObjectHdr));
+  MetaObjectHdr hdr;
+  obj_ = TransientPtr(soft_addr, sizeof(MetaObjectHdr));
   if (!obj_.copy_to(&hdr, sizeof(hdr)))
     return RetCode::Fault;
 
@@ -296,15 +295,14 @@ inline RetCode ObjectPtr::upd_rref() noexcept {
   return RetCode::Succ;
 }
 
-inline std::optional<GenericObjectHdr> ObjectPtr::get_meta_hdr() noexcept {
-  GenericObjectHdr meta_hdr;
+inline std::optional<MetaObjectHdr> ObjectPtr::get_meta_hdr() noexcept {
+  MetaObjectHdr meta_hdr;
   if (!obj_.copy_to(&meta_hdr, sizeof(meta_hdr)))
     return std::nullopt;
   return meta_hdr;
 }
 
-inline RetCode
-ObjectPtr::set_meta_hdr(const GenericObjectHdr &meta_hdr) noexcept {
+inline RetCode ObjectPtr::set_meta_hdr(const MetaObjectHdr &meta_hdr) noexcept {
   if (is_small_obj()) {
     auto flags =
         reinterpret_cast<const SmallObjectHdr *>(&meta_hdr)->get_flags();
@@ -357,7 +355,6 @@ inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
       goto done;
 
     ret = obj_.copy_from(src, len, hdr_size() + offset);
-    assert(ret);
   }
 done:
   unlock(lock_id);

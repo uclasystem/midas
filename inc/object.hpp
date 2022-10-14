@@ -13,11 +13,11 @@ constexpr static uint32_t kSmallObjThreshold = 8 << 12; /* 32KB */
 constexpr static uint64_t kInvalidHdr = 0x0'000'1f1f1f1f1f1f;
 constexpr static uint64_t kInvalidFlags = 0;
 
-struct GenericObjectHdr {
+struct MetaObjectHdr {
 public:
   uint64_t flags;
 
-  GenericObjectHdr();
+  MetaObjectHdr();
   void set_invalid() noexcept;
   bool is_valid() const noexcept;
 
@@ -49,7 +49,7 @@ private:
   constexpr static decltype(flags) kContinueBit = kFlagShift - 5;
 };
 
-static_assert(sizeof(GenericObjectHdr) <= sizeof(uint64_t),
+static_assert(sizeof(MetaObjectHdr) <= sizeof(uint64_t),
               "GenericObjHdr is not correctly aligned!");
 
 struct SmallObjectHdr {
@@ -169,8 +169,8 @@ public:
   RetCode upd_rref() noexcept;
 
   /** Flags related */
-  std::optional<GenericObjectHdr> get_meta_hdr() noexcept;
-  RetCode set_meta_hdr(const GenericObjectHdr &meta_hdr) noexcept;
+  std::optional<MetaObjectHdr> get_meta_hdr() noexcept;
+  RetCode set_meta_hdr(const MetaObjectHdr &meta_hdr) noexcept;
 
   /** Data related */
   bool cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval);
