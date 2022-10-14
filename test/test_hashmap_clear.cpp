@@ -12,9 +12,9 @@
 #include "slab.hpp"
 #include "sync_hashmap.hpp"
 
-constexpr int kNBuckets = (1 << 10);
+constexpr int kNBuckets = (1 << 16);
 constexpr int kNumInsertThds = 40;
-constexpr int kNumObjs = 409600;
+constexpr int kNumObjs = 102400;
 constexpr int kKLen = 61;
 constexpr int kVLen = 10;
 
