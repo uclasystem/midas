@@ -43,6 +43,8 @@ private:
   bool sealed_;
   uint64_t start_addr_;
   uint64_t pos_;
+
+  friend class LogAllocator;
 };
 
 class LogRegion {
@@ -88,6 +90,7 @@ public:
 
 private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
+  std::optional<ObjectPtr> alloc_large(size_t size);
   std::shared_ptr<LogRegion> getRegion();
   std::shared_ptr<LogRegion> allocRegion(bool overcommit = false);
   std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);

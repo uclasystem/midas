@@ -345,7 +345,6 @@ void LogRegion::free() {
     destroy();
 }
 
-
 /** LogAllocator */
 // must be called under lock protection
 // try to get a non-empty region
@@ -395,8 +394,8 @@ inline std::shared_ptr<LogChunk> LogAllocator::allocChunk(bool overcommit) {
 std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
   size = round_up_to_align(size, kSmallObjSizeUnit);
   if (size >= kSmallObjThreshold) { // large obj
-    LOG(kError) << "large obj allocation is not implemented yet!";
-    return std::nullopt;
+    // LOG(kError) << "large obj allocation is not implemented yet!";
+    return alloc_large(size);
   }
 
   if (pcab.get()) {
@@ -416,6 +415,84 @@ std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
   return ret;
 }
 
+// Large objects
+std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
+  constexpr static size_t kLogChunkAvailSize =
+      kLogChunkSize - sizeof(LargeObjectHdr);
+  assert(size >= kSmallObjThreshold);
+
+  ObjectPtr obj_ptr;
+
+  size_t nr_chunks = (size + kLogChunkAvailSize - 1) / kLogChunkAvailSize;
+  std::vector<std::shared_ptr<LogRegion>> regions;
+  std::vector<std::shared_ptr<LogChunk>> chunks;
+  LogChunk *head_chunk = nullptr;
+
+  auto region = allocRegion();
+  if (!region)
+    goto failed;
+  regions.push_back(region);
+
+  while (chunks.size() < nr_chunks) {
+    auto chunk = region->allocChunk();
+    if (!chunk) {
+      region = allocRegion();
+      if (!region)
+        goto failed;
+      regions.push_back(region);
+      chunk = region->allocChunk();
+      if (!chunk)
+        goto failed;
+    }
+    chunks.push_back(chunk);
+  }
+
+  for (int i = 0; i < nr_chunks; i++) {
+    const bool tail = i == nr_chunks - 1;
+    auto chunk = chunks[i];
+    LargeObjectHdr hdr;
+    if (!head_chunk) {
+      head_chunk = chunk.get();
+      hdr.init(size);
+    } else {
+      hdr.init(std::min(kLogChunkAvailSize, size - i * kLogChunkAvailSize));
+      auto meta_hdr = reinterpret_cast<MetaObjectHdr *>(&hdr);
+      meta_hdr->set_continue();
+      hdr.set_rref(
+          reinterpret_cast<uint64_t>(head_chunk)); // treat as ref to head
+    }
+    if (!tail) {
+      hdr.set_next(chunks[i + 1]->start_addr_);
+    } else {
+      hdr.set_next(0);
+    }
+
+    TransientPtr tptr(chunk->pos_, sizeof(hdr));
+    if (!tptr.copy_from(&hdr, sizeof(hdr)))
+      goto failed;
+    chunk->pos_ += sizeof(hdr);
+    if (size - i * kLogChunkAvailSize >= kLogChunkAvailSize)
+      chunk->seal();
+  }
+
+  assert(head_chunk);
+  if (obj_ptr.init_from_soft(head_chunk->start_addr_) != RetCode::Succ)
+    goto failed;
+
+  lock_.lock();
+  for (auto region : regions)
+    vRegions_.push_back(region);
+  lock_.unlock();
+  return obj_ptr;
+
+failed:
+  for (auto region : regions)
+    region->destroy();
+
+  return std::nullopt;
+}
+
+// Define PCAB
 thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;
 
 } // namespace cachebank

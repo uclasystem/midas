@@ -38,6 +38,8 @@ public:
   void set_continue() noexcept;
   void clr_continue() noexcept;
 
+  static MetaObjectHdr *cast_from(void *hdr) noexcept;
+
 private:
   constexpr static uint32_t kFlagShift =
       sizeof(flags) * 8; // start from the highest bit
@@ -187,7 +189,12 @@ public:
   static void unlock(LockID id);
 
 private:
-  RetCode free_() noexcept;
+  RetCode free_small() noexcept;
+  RetCode free_large() noexcept;
+  bool copy_from_small(const void *src, size_t len, int64_t offset);
+  bool copy_to_small(void *dst, size_t len, int64_t offset);
+  bool copy_from_large(const void *src, size_t len, int64_t offset);
+  bool copy_to_large(void *dst, size_t len, int64_t offset);
 
   size_t size_;
   TransientPtr obj_;

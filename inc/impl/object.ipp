@@ -67,6 +67,10 @@ inline void MetaObjectHdr::clr_continue() noexcept {
   flags &= ~(1ull << kContinueBit);
 }
 
+inline MetaObjectHdr *MetaObjectHdr::cast_from(void *hdr) noexcept {
+  return reinterpret_cast<MetaObjectHdr *>(hdr);
+}
+
 /** Small Object */
 inline SmallObjectHdr::SmallObjectHdr() : rref(0), size(0), flags(0) {}
 
@@ -214,21 +218,7 @@ inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {
   return RetCode::Succ;
 }
 
-inline RetCode ObjectPtr::free(bool locked) noexcept {
-  if (locked)
-    return free_();
-
-  auto ret = RetCode::Fail;
-  LockID lock_id = lock();
-  if (lock_id == -1) // lock failed as obj_ has just been reset.
-    return RetCode::Fail;
-  if (!null())
-    ret = free_();
-  unlock(lock_id);
-  return ret;
-}
-
-inline RetCode ObjectPtr::free_() noexcept {
+inline RetCode ObjectPtr::free_small() noexcept {
   assert(!null());
 
   auto opt_meta = get_meta_hdr();
@@ -244,6 +234,44 @@ inline RetCode ObjectPtr::free_() noexcept {
   if (rref)
     rref->obj_.reset();
   return ret;
+}
+
+inline RetCode ObjectPtr::free_large() noexcept {
+  assert(!null());
+
+  auto opt_meta = get_meta_hdr();
+  if (!opt_meta)
+    return RetCode::Fault;
+  LargeObjectHdr hdr;
+  if (!obj_.copy_to(&hdr, sizeof(hdr)))
+    return RetCode::Fault;
+
+  auto meta_hdr = *opt_meta;
+  if (!meta_hdr.is_valid())
+    return RetCode::Fail;
+  meta_hdr.clr_present();
+  auto ret = set_meta_hdr(meta_hdr);
+
+  auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
+  if (rref)
+    rref->obj_.reset();
+
+  auto next = hdr.get_next();
+  while (next) {
+    ObjectPtr optr;
+    if (optr.init_from_soft(next) != RetCode::Succ ||
+        !optr.obj_.copy_to(&hdr, sizeof(hdr))) {
+      return RetCode::Fault;
+    }
+    next = hdr.get_next();
+
+    auto meta_hdr = MetaObjectHdr::cast_from(this);
+    meta_hdr->clr_present();
+    if (!optr.obj_.copy_from(&hdr, sizeof(hdr))) {
+      return RetCode::Fault;
+    }
+  }
+  return RetCode::Succ;
 }
 
 inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
@@ -333,57 +361,13 @@ inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval,
 }
 
 inline bool ObjectPtr::copy_from(const void *src, size_t len, int64_t offset) {
-  auto ret = false;
-  if (null())
-    return false;
-  auto lock_id = lock();
-  if (lock_id == -1) // lock failed as obj_ has just been reset.
-    return false;
-  if (!null()) {
-    auto opt_meta = get_meta_hdr();
-    if (!opt_meta) {
-      LOG(kError);
-      goto done;
-    }
-    auto meta_hdr = *opt_meta;
-    if (!meta_hdr.is_present()) {
-      LOG(kError);
-      goto done;
-    }
-    meta_hdr.set_accessed();
-    if (set_meta_hdr(meta_hdr) != RetCode::Succ)
-      goto done;
-
-    ret = obj_.copy_from(src, len, hdr_size() + offset);
-  }
-done:
-  unlock(lock_id);
-  return ret;
+  return is_small_obj() ? copy_from_small(src, len, offset)
+                        : copy_from_large(src, len, offset);
 }
 
 inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
-  auto ret = false;
-  if (null())
-    return false;
-  auto lock_id = lock();
-  if (lock_id == -1) // lock failed as obj_ has just been reset.
-    return false;
-  if (!null()) {
-    auto opt_meta = get_meta_hdr();
-    if (!opt_meta)
-      goto done;
-    auto meta_hdr = *opt_meta;
-    if (!meta_hdr.is_present())
-      goto done;
-    meta_hdr.set_accessed();
-    if (set_meta_hdr(meta_hdr) != RetCode::Succ)
-      goto done;
-
-    ret = obj_.copy_to(dst, len, hdr_size() + offset);
-  }
-done:
-  unlock(lock_id);
-  return ret;
+  return is_small_obj() ? copy_to_small(dst, len, offset)
+                        : copy_to_large(dst, len, offset);
 }
 
 inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
