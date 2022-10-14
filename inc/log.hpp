@@ -89,8 +89,8 @@ public:
 private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::shared_ptr<LogRegion> getRegion();
-  std::shared_ptr<LogRegion> allocRegion(bool overcommit);
-  std::shared_ptr<LogChunk> allocChunk(bool overcommit);
+  std::shared_ptr<LogRegion> allocRegion(bool overcommit = false);
+  std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);
 
   std::mutex lock_;
   std::list<std::shared_ptr<LogRegion>> vRegions_;
