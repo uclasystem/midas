@@ -152,7 +152,7 @@ inline void LargeObjectHdr::set_flags(uint32_t flags_) noexcept {
 inline uint32_t LargeObjectHdr::get_flags() const noexcept { return flags; }
 
 /** ObjectPtr */
-inline ObjectPtr::ObjectPtr() : size_(0), obj_() {}
+inline ObjectPtr::ObjectPtr() : small_obj_(true), size_(0), obj_() {}
 
 inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
 
@@ -171,7 +171,7 @@ inline size_t ObjectPtr::hdr_size() const noexcept {
 inline size_t ObjectPtr::data_size() const noexcept { return size_; }
 
 inline bool ObjectPtr::is_small_obj() const noexcept {
-  return size_ < kSmallObjThreshold;
+  return small_obj_;
 }
 
 using RetCode = ObjectPtr::RetCode;
@@ -205,12 +205,14 @@ inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {
 
   if (hdr.is_small_obj()) {
     SmallObjectHdr shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
+    small_obj_ = true;
     size_ = shdr.get_size();
     obj_ = TransientPtr(soft_addr, total_size());
   } else {
     LargeObjectHdr lhdr;
     if (!obj_.copy_to(&lhdr, sizeof(lhdr)))
       return RetCode::Fault;
+    small_obj_ = false;
     size_ = lhdr.get_size();
     obj_ = TransientPtr(soft_addr, total_size());
   }

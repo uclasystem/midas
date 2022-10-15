@@ -192,7 +192,8 @@ private:
   bool copy_from_large(const void *src, size_t len, int64_t offset);
   bool copy_to_large(void *dst, size_t len, int64_t offset);
 
-  size_t size_;
+  bool small_obj_;
+  uint32_t size_;
   TransientPtr obj_;
 
   template <class T> friend
