@@ -128,15 +128,11 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len,
                                            copy_len);
       offset_in_chunk = 0; // start from the beginning for all followed chunks
 
-      if (!optr.obj_.copy_to(&hdr, sizeof(hdr))) {
-        LOG(kError);
+      if (!optr.obj_.copy_to(&hdr, sizeof(hdr)))
         goto done;
-      }
       auto next = hdr.get_next();
-      if (next && optr.init_from_soft(next) != RetCode::Succ) {
-        LOG(kError) << (int)optr.init_from_soft(next) << " " << (int)RetCode::Succ;
+      if (next && optr.init_from_soft(next) != RetCode::Succ)
         goto done;
-      }
 
       i++;
     }
