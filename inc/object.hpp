@@ -170,10 +170,6 @@ public:
 
   RetCode upd_rref() noexcept;
 
-  /** Flags related */
-  std::optional<MetaObjectHdr> get_meta_hdr() noexcept;
-  RetCode set_meta_hdr(const MetaObjectHdr &meta_hdr) noexcept;
-
   /** Data related */
   bool cmpxchg(int64_t offset, uint64_t oldval, uint64_t newval);
 
@@ -198,8 +194,15 @@ private:
 
   size_t size_;
   TransientPtr obj_;
+
+  template <class T> friend
+  std::optional<T> load_hdr(ObjectPtr &obj_hdr) noexcept;
+  template <class T>
+  friend bool store_hdr(const T &hdr, ObjectPtr &obj_hdr) noexcept;
 };
 
+template <class T> std::optional<T> load_hdr(ObjectPtr &obj_ptr) noexcept;
+template <class T> bool store_hdr(const T &hdr, ObjectPtr &obj_ptr) noexcept;
 } // namespace cachebank
 
 #include "impl/object.ipp"

@@ -221,7 +221,7 @@ inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {
 inline RetCode ObjectPtr::free_small() noexcept {
   assert(!null());
 
-  auto opt_meta = get_meta_hdr();
+  auto opt_meta = load_hdr<MetaObjectHdr>(*this);
   if (!opt_meta)
     return RetCode::Fault;
 
@@ -229,7 +229,8 @@ inline RetCode ObjectPtr::free_small() noexcept {
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
   meta_hdr.clr_present();
-  auto ret = set_meta_hdr(meta_hdr);
+  auto ret = store_hdr<>(meta_hdr, *this) ? RetCode::Succ
+                                                       : RetCode::Fault;
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
     rref->obj_.reset();
@@ -239,7 +240,7 @@ inline RetCode ObjectPtr::free_small() noexcept {
 inline RetCode ObjectPtr::free_large() noexcept {
   assert(!null());
 
-  auto opt_meta = get_meta_hdr();
+  auto opt_meta = load_hdr<MetaObjectHdr>(*this);
   if (!opt_meta)
     return RetCode::Fault;
   LargeObjectHdr hdr;
@@ -250,7 +251,7 @@ inline RetCode ObjectPtr::free_large() noexcept {
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
   meta_hdr.clr_present();
-  auto ret = set_meta_hdr(meta_hdr);
+  auto ret = store_hdr<>(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
 
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
@@ -271,7 +272,7 @@ inline RetCode ObjectPtr::free_large() noexcept {
       return RetCode::Fault;
     }
   }
-  return RetCode::Succ;
+  return ret;
 }
 
 inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
@@ -323,36 +324,6 @@ inline RetCode ObjectPtr::upd_rref() noexcept {
   return RetCode::Succ;
 }
 
-inline std::optional<MetaObjectHdr> ObjectPtr::get_meta_hdr() noexcept {
-  MetaObjectHdr meta_hdr;
-  if (!obj_.copy_to(&meta_hdr, sizeof(meta_hdr)))
-    return std::nullopt;
-  return meta_hdr;
-}
-
-inline RetCode ObjectPtr::set_meta_hdr(const MetaObjectHdr &meta_hdr) noexcept {
-  if (is_small_obj()) {
-    auto flags =
-        reinterpret_cast<const SmallObjectHdr *>(&meta_hdr)->get_flags();
-    SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(hdr)))
-      return RetCode::Fault;
-    hdr.set_flags(flags);
-    if (!obj_.copy_from(&hdr, sizeof(hdr)))
-      return RetCode::Fault;
-  } else {
-    auto flags =
-        reinterpret_cast<const LargeObjectHdr *>(&meta_hdr)->get_flags();
-    LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(hdr)))
-      return RetCode::Fault;
-    hdr.set_flags(flags);
-    if (!obj_.copy_from(&hdr, sizeof(hdr)))
-      return RetCode::Fault;
-  }
-  return RetCode::Succ;
-}
-
 inline bool ObjectPtr::cmpxchg(int64_t offset, uint64_t oldval,
                                uint64_t newval) {
   if (null())
@@ -386,18 +357,31 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   ret = src.free(/* locked = */ true);
   if (ret != RetCode::Succ)
     return ret;
-  auto opt_meta = get_meta_hdr();
+  auto opt_meta = load_hdr<MetaObjectHdr>(*this);
   if (!opt_meta)
     return ret;
   auto meta_hdr = *opt_meta;
   meta_hdr.set_present();
-  ret = set_meta_hdr(meta_hdr);
-  if (ret != RetCode::Succ)
+  if (!store_hdr<>(meta_hdr, *this))
     return ret;
   ret = upd_rref();
   if (ret != RetCode::Succ)
     return ret;
   return RetCode::Succ;
+}
+
+
+template <class T>
+inline std::optional<T> load_hdr(ObjectPtr &obj_hdr) noexcept {
+  T hdr;
+  if (!obj_hdr.obj_.copy_to(&hdr, sizeof(hdr)))
+    return std::nullopt;
+  return hdr;
+}
+
+template <class T>
+inline bool store_hdr(const T &hdr, ObjectPtr &obj_ptr) noexcept {
+  return obj_ptr.obj_.copy_from(&hdr, sizeof(hdr));
 }
 
 } // namespace cachebank

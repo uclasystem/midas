@@ -67,7 +67,7 @@ bool LogChunk::scan() {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
-      auto opt_meta = obj_ptr.get_meta_hdr();
+      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
       if (!opt_meta)
         goto faulted;
       else {
@@ -75,7 +75,7 @@ bool LogChunk::scan() {
         if (meta_hdr.is_present()) {
           if (meta_hdr.is_accessed()) {
             meta_hdr.clr_accessed();
-            if (obj_ptr.set_meta_hdr(meta_hdr) == RetCode::Fault)
+            if (!store_hdr<>(meta_hdr, obj_ptr))
               goto faulted;
             nr_deactivated++;
             upd_alive_bytes(obj_size);
@@ -92,7 +92,7 @@ bool LogChunk::scan() {
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      auto opt_meta = obj_ptr.get_meta_hdr();
+      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
       if (!opt_meta)
         goto faulted;
       else {
@@ -151,7 +151,7 @@ bool LogChunk::evacuate() {
       nr_small_objs++;
       auto obj_size = obj_ptr.total_size();
 
-      auto opt_meta = obj_ptr.get_meta_hdr();
+      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
       if (!opt_meta)
         goto faulted;
       else {
@@ -186,7 +186,7 @@ bool LogChunk::evacuate() {
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      auto opt_meta = obj_ptr.get_meta_hdr();
+      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
       if (!opt_meta)
         goto faulted;
       else {
@@ -244,7 +244,7 @@ bool LogChunk::free() {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
-      auto opt_meta = obj_ptr.get_meta_hdr();
+      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
       if (!opt_meta)
         goto faulted;
       else {
@@ -261,7 +261,7 @@ bool LogChunk::free() {
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      auto opt_meta = obj_ptr.get_meta_hdr();
+      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
       if (!opt_meta)
         goto faulted;
       else {
