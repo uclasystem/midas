@@ -117,11 +117,12 @@ inline uint8_t SmallObjectHdr::get_flags() const noexcept { return flags; }
 /** Large Object */
 inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0), next(0) {}
 
-inline void LargeObjectHdr::init(uint32_t size_, uint64_t rref) noexcept {
+inline void LargeObjectHdr::init(uint32_t size_, bool head,
+                                 uint64_t rref) noexcept {
   auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   meta_hdr->set_present();
   meta_hdr->set_large_obj();
-  meta_hdr->clr_continue();
+  head ? meta_hdr->clr_continue() : meta_hdr->set_continue();
 
   set_size(size_);
   set_rref(rref);
@@ -175,23 +176,26 @@ inline bool ObjectPtr::is_small_obj() const noexcept {
 }
 
 using RetCode = ObjectPtr::RetCode;
-inline RetCode ObjectPtr::set(uint64_t stt_addr, size_t data_size) {
+
+inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
+  small_obj_ = true;
   size_ = round_up_to_align(data_size, kSmallObjSizeUnit);
 
-  auto obj_size = total_size();
-  if (is_small_obj()) {
-    SmallObjectHdr hdr;
-    hdr.init(data_size);
-    obj_ = TransientPtr(stt_addr, obj_size);
-    return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
-  } else { // large obj
-    LargeObjectHdr hdr;
-    hdr.init(data_size);
-    obj_ = TransientPtr(stt_addr, obj_size);
-    return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
-  }
-  LOG(kError) << "impossible to reach here!";
-  return RetCode::Fail;
+  SmallObjectHdr hdr;
+  hdr.init(size_);
+  obj_ = TransientPtr(stt_addr, total_size());
+  return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
+}
+
+inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
+                                     bool head) {
+  small_obj_ = false;
+  size_ = round_up_to_align(data_size, kSmallObjSizeUnit);
+
+  LargeObjectHdr hdr;
+  hdr.init(size_, head);
+  obj_ = TransientPtr(stt_addr, total_size());
+  return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
 }
 
 inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {

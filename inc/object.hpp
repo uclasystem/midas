@@ -109,7 +109,7 @@ struct LargeObjectHdr {
 public:
   LargeObjectHdr();
 
-  void init(uint32_t size_, uint64_t rref = 0) noexcept;
+  void init(uint32_t size_, bool head, uint64_t rref = 0) noexcept;
   void free() noexcept;
 
   void set_invalid() noexcept;
@@ -149,7 +149,8 @@ public:
    */
   enum class RetCode { True = 0, False = 1, Fault, Succ = True, Fail = False };
 
-  RetCode set(uint64_t stt_addr, size_t data_size);
+  RetCode init_small(uint64_t stt_addr, size_t data_size);
+  RetCode init_large(uint64_t stt_addr, size_t data_size, bool head);
   RetCode init_from_soft(uint64_t soft_addr);
   RetCode free(bool locked = false) noexcept;
   bool null() const noexcept;

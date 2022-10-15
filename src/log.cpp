@@ -25,7 +25,7 @@ inline std::optional<ObjectPtr> LogChunk::alloc(size_t size) {
     return std::nullopt;
   }
   ObjectPtr obj_ptr;
-  if (obj_ptr.set(pos_, size) != RetCode::Succ)
+  if (obj_ptr.init_small(pos_, size) != RetCode::Succ)
     return std::nullopt;
   pos_ += obj_size;
   return obj_ptr;
@@ -453,11 +453,10 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
     LargeObjectHdr hdr;
     if (!head_chunk) {
       head_chunk = chunk.get();
-      hdr.init(size);
+      hdr.init(size, true);
     } else {
-      hdr.init(std::min(kLogChunkAvailSize, size - i * kLogChunkAvailSize));
-      auto meta_hdr = reinterpret_cast<MetaObjectHdr *>(&hdr);
-      meta_hdr->set_continue();
+      hdr.init(std::min(kLogChunkAvailSize, size - i * kLogChunkAvailSize),
+               false);
       hdr.set_rref(
           reinterpret_cast<uint64_t>(head_chunk)); // treat as ref to head
     }
