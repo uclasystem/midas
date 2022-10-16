@@ -26,7 +26,7 @@ int main() {
   //           << std::endl;
 
   cachebank::LargeObjectHdr large_obj;
-  large_obj.init(32 * 1024 - 7, reinterpret_cast<uint64_t>(&ref));
+  large_obj.init(32 * 1024 - 7, true, reinterpret_cast<uint64_t>(&ref), 0);
   std::cout << large_obj.get_size() << " " << std::hex << large_obj.get_rref()
             << std::endl;
   std::cout << std::hex << *(reinterpret_cast<uint32_t *>(&large_obj)) << " "
