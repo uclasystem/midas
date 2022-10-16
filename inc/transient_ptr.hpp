@@ -41,6 +41,11 @@ public:
   bool assign_to_local_region(TransientPtr *dst);
   bool assign_to_foreign_region(TransientPtr *dst);
 
+  /**
+   *  CAUTION! get raw address
+   */
+  uint64_t to_normal_address() const noexcept;
+
 private:
   uint64_t ptr_;
 

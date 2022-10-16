@@ -129,4 +129,8 @@ inline bool TransientPtr::assign_to_foreign_region(TransientPtr *dst) {
   *dst = *this;
   return true;
 }
+
+inline uint64_t TransientPtr::to_normal_address() const noexcept {
+  return ptr_;
+}
 } // namespace cachebank
