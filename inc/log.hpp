@@ -9,6 +9,7 @@
 #include <list>
 
 #include "object.hpp"
+#include "transient_ptr.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -18,7 +19,9 @@ class LogRegion;
 class LogChunk {
 public:
   LogChunk(LogRegion *region, uint64_t addr);
-  std::optional<ObjectPtr> alloc(size_t size);
+  std::optional<ObjectPtr> alloc_small(size_t size);
+  std::optional<std::pair<TransientPtr, size_t>>
+  alloc_large(size_t size, TransientPtr head_addr, TransientPtr prev_addr);
   bool free(ObjectPtr &ptr);
   void seal() noexcept;
   bool full() noexcept;
@@ -91,6 +94,7 @@ public:
 private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::optional<ObjectPtr> alloc_large(size_t size);
+  std::shared_ptr<LogChunk> getChunk();
   std::shared_ptr<LogRegion> getRegion();
   std::shared_ptr<LogRegion> allocRegion(bool overcommit = false);
   std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);

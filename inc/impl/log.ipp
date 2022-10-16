@@ -8,8 +8,11 @@ inline LogChunk::LogChunk(LogRegion *region, uint64_t addr)
       sealed_(false) {}
 
 inline void LogChunk::seal() noexcept {
-  if (sealed_)
+  if (full()) {
+    sealed_ = true;
     return;
+  }
+
   MetaObjectHdr endHdr;
   endHdr.set_invalid();
   auto endPtr = TransientPtr(pos_, sizeof(MetaObjectHdr));
