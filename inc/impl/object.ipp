@@ -117,8 +117,8 @@ inline uint8_t SmallObjectHdr::get_flags() const noexcept { return flags; }
 /** Large Object */
 inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0), next(0) {}
 
-inline void LargeObjectHdr::init(uint32_t size_, bool is_head,
-                                 uint64_t rref_, uint64_t next_) noexcept {
+inline void LargeObjectHdr::init(uint32_t size_, bool is_head, uint64_t rref_,
+                                 uint64_t next_) noexcept {
   auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   meta_hdr->set_present();
   meta_hdr->set_large_obj();
@@ -172,9 +172,7 @@ inline size_t ObjectPtr::hdr_size() const noexcept {
 }
 inline size_t ObjectPtr::data_size() const noexcept { return size_; }
 
-inline bool ObjectPtr::is_small_obj() const noexcept {
-  return small_obj_;
-}
+inline bool ObjectPtr::is_small_obj() const noexcept { return small_obj_; }
 
 using RetCode = ObjectPtr::RetCode;
 
@@ -188,9 +186,10 @@ inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
   return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
 }
 
-inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size, bool is_head,
-                                          uint64_t rref, uint64_t next) {
-  assert(is_head || data_size <= kLogChunkSize - sizeof(LargeObjectHdr));
+inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
+                                     bool is_head, uint64_t rref,
+                                     uint64_t next) {
+  assert(data_size <= kLogChunkSize - sizeof(LargeObjectHdr));
   small_obj_ = false;
 
   LargeObjectHdr hdr;
@@ -236,8 +235,7 @@ inline RetCode ObjectPtr::free_small() noexcept {
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
   meta_hdr.clr_present();
-  auto ret = store_hdr<>(meta_hdr, *this) ? RetCode::Succ
-                                                       : RetCode::Fault;
+  auto ret = store_hdr<>(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
     rref->obj_.reset();
@@ -376,7 +374,6 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
     return ret;
   return RetCode::Succ;
 }
-
 
 template <class T>
 inline std::optional<T> load_hdr(ObjectPtr &obj_hdr) noexcept {

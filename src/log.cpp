@@ -46,7 +46,7 @@ LogChunk::alloc_large(size_t size, TransientPtr head_tptr,
   size_t trunced_size = std::min(
       kLogChunkSize - (pos_ - start_addr_) - sizeof(LargeObjectHdr), size);
   const bool is_head = head_tptr.null();
-  if (obj_ptr.init_large(pos_, is_head ? size : trunced_size, is_head,
+  if (obj_ptr.init_large(pos_, trunced_size, is_head,
                          head_tptr.to_normal_address(), 0) != RetCode::Succ)
     return std::nullopt;
   if (!prev_tptr.null()) {
