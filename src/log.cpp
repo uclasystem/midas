@@ -42,12 +42,12 @@ LogChunk::alloc_large(size_t size, TransientPtr head_tptr,
   }
 
   ObjectPtr obj_ptr;
-  uint64_t addr = pos_;
   size_t trunced_size = std::min(
       kLogChunkSize - (pos_ - start_addr_) - sizeof(LargeObjectHdr), size);
+  TransientPtr addr(pos_, sizeof(LargeObjectHdr) + trunced_size);
   const bool is_head = head_tptr.null();
-  if (obj_ptr.init_large(pos_, trunced_size, is_head,
-                         head_tptr.to_normal_address(), 0) != RetCode::Succ)
+  if (obj_ptr.init_large(pos_, trunced_size, is_head, head_tptr,
+                         TransientPtr()) != RetCode::Succ)
     return std::nullopt;
   if (!prev_tptr.null()) {
     LargeObjectHdr lhdr;
@@ -61,8 +61,7 @@ LogChunk::alloc_large(size_t size, TransientPtr head_tptr,
   pos_ += sizeof(LargeObjectHdr) + trunced_size;
   seal();
 
-  return std::make_pair(
-      TransientPtr(addr, sizeof(LargeObjectHdr) + trunced_size), trunced_size);
+  return std::make_pair(addr, trunced_size);
 }
 
 inline bool LogChunk::free(ObjectPtr &ptr) {
@@ -86,7 +85,7 @@ bool LogChunk::scan() {
   while (pos < pos_) {
     ObjectPtr obj_ptr;
 
-    auto ret = obj_ptr.init_from_soft(pos);
+    auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
     if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
       break;
     } else if (ret == RetCode::Fault) {
@@ -170,7 +169,7 @@ bool LogChunk::evacuate() {
   auto pos = start_addr_;
   while (pos < pos_) {
     ObjectPtr obj_ptr;
-    auto ret = obj_ptr.init_from_soft(pos);
+    auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
     if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
       break;
     } else if (ret == RetCode::Fault) {
@@ -263,7 +262,7 @@ bool LogChunk::free() {
   while (pos < pos_) {
     ObjectPtr obj_ptr;
 
-    auto ret = obj_ptr.init_from_soft(pos);
+    auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
     if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
       break;
     } else if (ret == RetCode::Fault) {
@@ -478,7 +477,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
       goto failed;
 
     auto [head_tptr, alloced_size] = *option;
-    if (obj_ptr.init_from_soft(head_tptr.to_normal_address()) != RetCode::Succ)
+    if (obj_ptr.init_from_soft(head_tptr) != RetCode::Succ)
       goto failed;
 
     auto prev_tptr = head_tptr;

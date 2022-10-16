@@ -110,7 +110,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
       if (!option)
         goto done;
       auto next = option->get_next();
-      if (!next || optr.init_from_soft(next) != RetCode::Succ)
+      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
     // Now optr is pointing to the first part for copy
@@ -131,7 +131,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
       if (!option)
         goto done;
       auto next = option->get_next();
-      if (!next || optr.init_from_soft(next) != RetCode::Succ)
+      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
     ret = true;
@@ -171,7 +171,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
       if (!option)
         goto done;
       auto next = option->get_next();
-      if (!next || optr.init_from_soft(next) != RetCode::Succ)
+      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
     // Now optr is pointing to the first part for copy
@@ -192,7 +192,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
       if (!option)
         goto done;
       auto next = option->get_next();
-      if (!next || optr.init_from_soft(next) != RetCode::Succ)
+      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
     ret = true;

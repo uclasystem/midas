@@ -117,15 +117,17 @@ inline uint8_t SmallObjectHdr::get_flags() const noexcept { return flags; }
 /** Large Object */
 inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0), next(0) {}
 
-inline void LargeObjectHdr::init(uint32_t size_, bool is_head, uint64_t rref_,
-                                 uint64_t next_) noexcept {
+inline void LargeObjectHdr::init(uint32_t size_, bool is_head,
+                                 TransientPtr head_,
+                                 TransientPtr next_) noexcept {
   auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
   meta_hdr->set_present();
   meta_hdr->set_large_obj();
   is_head ? meta_hdr->clr_continue() : meta_hdr->set_continue();
 
   set_size(size_);
-  set_rref(rref_);
+  assert(!is_head || head_.null());
+  set_head(head_); // for the first part of a large obj, head_ must be 0.
   set_next(next_);
 }
 
@@ -145,8 +147,19 @@ inline uint32_t LargeObjectHdr::get_size() const noexcept { return size; }
 inline void LargeObjectHdr::set_rref(uint64_t addr) noexcept { rref = addr; }
 inline uint64_t LargeObjectHdr::get_rref() const noexcept { return rref; }
 
-inline void LargeObjectHdr::set_next(uint64_t addr) noexcept { next = addr; }
-inline uint64_t LargeObjectHdr::get_next() const noexcept { return next; }
+inline void LargeObjectHdr::set_next(TransientPtr ptr) noexcept {
+  next = ptr.to_normal_address();
+}
+inline TransientPtr LargeObjectHdr::get_next() const noexcept {
+  return TransientPtr(next, sizeof(LargeObjectHdr));
+}
+
+inline void LargeObjectHdr::set_head(TransientPtr ptr) noexcept {
+  rref = ptr.to_normal_address();
+}
+inline TransientPtr LargeObjectHdr::get_head() const noexcept {
+  return TransientPtr(rref, sizeof(LargeObjectHdr));
+}
 
 inline void LargeObjectHdr::set_flags(uint32_t flags_) noexcept {
   flags = flags_;
@@ -187,21 +200,21 @@ inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
 }
 
 inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
-                                     bool is_head, uint64_t rref,
-                                     uint64_t next) {
+                                     bool is_head, TransientPtr head,
+                                     TransientPtr next) {
   assert(data_size <= kLogChunkSize - sizeof(LargeObjectHdr));
   small_obj_ = false;
   size_ = data_size;
 
   LargeObjectHdr hdr;
-  hdr.init(data_size, is_head, rref, next);
+  hdr.init(data_size, is_head, head, next);
   obj_ = TransientPtr(stt_addr, total_size());
   return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
 }
 
-inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {
+inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
   MetaObjectHdr hdr;
-  obj_ = TransientPtr(soft_addr, sizeof(MetaObjectHdr));
+  obj_ = soft_ptr;
   if (!obj_.copy_to(&hdr, sizeof(hdr)))
     return RetCode::Fault;
 
@@ -212,14 +225,14 @@ inline RetCode ObjectPtr::init_from_soft(uint64_t soft_addr) {
     SmallObjectHdr shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
     small_obj_ = true;
     size_ = shdr.get_size();
-    obj_ = TransientPtr(soft_addr, total_size());
+    obj_ = TransientPtr(soft_ptr.to_normal_address(), total_size());
   } else {
     LargeObjectHdr lhdr;
     if (!obj_.copy_to(&lhdr, sizeof(lhdr)))
       return RetCode::Fault;
     small_obj_ = false;
     size_ = lhdr.get_size();
-    obj_ = TransientPtr(soft_addr, total_size());
+    obj_ = TransientPtr(soft_ptr.to_normal_address(), total_size());
   }
 
   return RetCode::Succ;
@@ -264,7 +277,7 @@ inline RetCode ObjectPtr::free_large() noexcept {
     rref->obj_.reset();
 
   auto next = hdr.get_next();
-  while (next) {
+  while (!next.null()) {
     ObjectPtr optr;
     if (optr.init_from_soft(next) != RetCode::Succ ||
         !optr.obj_.copy_to(&hdr, sizeof(hdr))) {

@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "object.hpp"
+#include "transient_ptr.hpp"
 
 int main() {
   void *ref = nullptr;
@@ -26,7 +27,10 @@ int main() {
   //           << std::endl;
 
   cachebank::LargeObjectHdr large_obj;
-  large_obj.init(32 * 1024 - 7, true, reinterpret_cast<uint64_t>(&ref), 0);
+  large_obj.init(32 * 1024 - 7, true,
+                 cachebank::TransientPtr(reinterpret_cast<uint64_t>(&ref),
+                                         sizeof(cachebank::LargeObjectHdr)),
+                 cachebank::TransientPtr());
   std::cout << large_obj.get_size() << " " << std::hex << large_obj.get_rref()
             << std::endl;
   std::cout << std::hex << *(reinterpret_cast<uint32_t *>(&large_obj)) << " "

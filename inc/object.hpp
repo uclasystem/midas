@@ -109,7 +109,8 @@ struct LargeObjectHdr {
 public:
   LargeObjectHdr();
 
-  void init(uint32_t size_, bool head, uint64_t rref, uint64_t next) noexcept;
+  void init(uint32_t size_, bool is_head, TransientPtr head,
+            TransientPtr next) noexcept;
   void free() noexcept;
 
   void set_invalid() noexcept;
@@ -121,11 +122,16 @@ public:
   void set_rref(uint64_t addr) noexcept;
   uint64_t get_rref() const noexcept;
 
-  void set_next(uint64_t addr) noexcept;
-  uint64_t get_next() const noexcept;
+  void set_next(TransientPtr ptr) noexcept;
+  TransientPtr get_next() const noexcept;
 
   void set_flags(uint32_t flags) noexcept;
   uint32_t get_flags() const noexcept;
+
+  // Used by the continued parts of a large object only.
+  // head is stored in the `rref` field to reuse the space for cont'd parts.
+  void set_head(TransientPtr hdr) noexcept;
+  TransientPtr get_head() const noexcept;
 
 private:
 #pragma pack(push, 1)
@@ -151,8 +157,8 @@ public:
 
   RetCode init_small(uint64_t stt_addr, size_t data_size);
   RetCode init_large(uint64_t stt_addr, size_t data_size, bool is_head,
-                     uint64_t rref, uint64_t next);
-  RetCode init_from_soft(uint64_t soft_addr);
+                     TransientPtr head, TransientPtr next);
+  RetCode init_from_soft(TransientPtr soft_addr);
   RetCode free(bool locked = false) noexcept;
   bool null() const noexcept;
 
