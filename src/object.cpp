@@ -1,4 +1,5 @@
 #include "object.hpp"
+#include "logging.hpp"
 #include "obj_locker.hpp"
 
 namespace cachebank {
@@ -80,15 +81,7 @@ done:
   return ret;
 }
 
-bool ObjectPtr::copy_from_large(const void *src, size_t len,
-                                       int64_t offset) {
-  constexpr static size_t kLogChunkAvailSize =
-      kLogChunkSize - sizeof(LargeObjectHdr);
-
-  const size_t stt_chunk = offset / kLogChunkAvailSize;
-  const size_t end_chunk = (offset + len - 1) / kLogChunkAvailSize;
-  int i = 0;
-
+bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
   auto ret = false;
   if (null())
     return false;
@@ -104,37 +97,42 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len,
       goto done;
     meta_hdr.set_accessed();
 
-    LargeObjectHdr hdr;
+    int64_t remaining_offset = offset;
     ObjectPtr optr = *this;
-    while (i < stt_chunk) {
+    while (remaining_offset > 0) {
       if (optr.null())
         goto done;
-      if (!optr.obj_.copy_to(&hdr, sizeof(hdr)))
+      if (remaining_offset < optr.data_size())
+        break;
+      remaining_offset -= optr.data_size();
+
+      auto option = load_hdr<LargeObjectHdr>(optr);
+      if (!option)
         goto done;
-      auto next = hdr.get_next();
-      if (optr.init_from_soft(next) != RetCode::Succ)
+      auto next = option->get_next();
+      if (!next || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
-      i++;
     }
-    auto remaining_len = len;
-    int64_t offset_in_chunk = offset - stt_chunk * kLogChunkAvailSize;
-    while (i <= end_chunk) {
-      const auto copy_len = std::min<>(remaining_len, kLogChunkAvailSize);
+    // Now optr is pointing to the first part for copy
+    int64_t remaining_len = len;
+    while (remaining_len > 0) {
+      const auto copy_len = std::min<int64_t>(remaining_len, optr.data_size());
       if (!optr.obj_.copy_from(src, copy_len,
-                                sizeof(LargeObjectHdr) + offset_in_chunk))
+                               sizeof(LargeObjectHdr) + remaining_offset))
         goto done;
+      remaining_offset = 0; // copy from the beginning for non-head parts
       remaining_len -= copy_len;
+      if (remaining_len <= 0)
+        break;
       src = reinterpret_cast<const void *>(reinterpret_cast<uint64_t>(src) +
                                            copy_len);
-      offset_in_chunk = 0; // start from the beginning for all followed chunks
 
-      if (!optr.obj_.copy_to(&hdr, sizeof(hdr)))
+      auto option = load_hdr<LargeObjectHdr>(optr);
+      if (!option)
         goto done;
-      auto next = hdr.get_next();
-      if (next && optr.init_from_soft(next) != RetCode::Succ)
+      auto next = option->get_next();
+      if (!next || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
-
-      i++;
     }
     ret = true;
   }
@@ -145,13 +143,6 @@ done:
 }
 
 bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
-  constexpr static size_t kLogChunkAvailSize =
-      kLogChunkSize - sizeof(LargeObjectHdr);
-
-  const size_t stt_chunk = offset / kLogChunkAvailSize;
-  const size_t end_chunk = (offset + len - 1) / kLogChunkAvailSize;
-  int i = 0;
-
   auto ret = false;
   if (null())
     return false;
@@ -167,35 +158,42 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
       goto done;
     meta_hdr.set_accessed();
 
-    LargeObjectHdr hdr;
+    int64_t remaining_offset = offset;
     ObjectPtr optr = *this;
-    while (i < stt_chunk) {
-      if (!optr.obj_.copy_to(&hdr, sizeof(hdr)))
+    while (remaining_offset > 0) {
+      if (optr.null())
         goto done;
-      auto next = hdr.get_next();
-      if (optr.init_from_soft(next) != RetCode::Succ)
+      if (remaining_offset < optr.data_size())
+        break;
+      remaining_offset -= optr.data_size();
+
+      auto option = load_hdr<LargeObjectHdr>(optr);
+      if (!option)
         goto done;
-      i++;
+      auto next = option->get_next();
+      if (!next || optr.init_from_soft(next) != RetCode::Succ)
+        goto done;
     }
-    auto remaining_len = len;
-    auto offset_in_chunk = offset - i * kLogChunkAvailSize;
-    while (i <= end_chunk) {
-      const auto copy_len = std::min<>(remaining_len, kLogChunkAvailSize);
+    // Now optr is pointing to the first part for copy
+    int64_t remaining_len = len;
+    while (remaining_len > 0) {
+      const auto copy_len = std::min<int64_t>(remaining_len, optr.data_size());
       if (!optr.obj_.copy_to(dst, copy_len,
-                              sizeof(LargeObjectHdr) + offset_in_chunk))
+                             sizeof(LargeObjectHdr) + remaining_offset))
         goto done;
+      remaining_offset = 0; // copy from the beginning for non-head parts
       remaining_len -= copy_len;
+      if (remaining_len <= 0)
+        break;
       dst =
           reinterpret_cast<void *>(reinterpret_cast<uint64_t>(dst) + copy_len);
-      offset_in_chunk = 0; // start from the beginning for all followed chunks
 
-      if (!optr.obj_.copy_to(&hdr, sizeof(hdr)))
+      auto option = load_hdr<LargeObjectHdr>(optr);
+      if (!option)
         goto done;
-      auto next = hdr.get_next();
-      if (next && optr.init_from_soft(next) != RetCode::Succ)
+      auto next = option->get_next();
+      if (!next || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
-
-      i++;
     }
     ret = true;
   }

@@ -191,9 +191,10 @@ inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
                                      uint64_t next) {
   assert(data_size <= kLogChunkSize - sizeof(LargeObjectHdr));
   small_obj_ = false;
+  size_ = data_size;
 
   LargeObjectHdr hdr;
-  hdr.init(size_, is_head, rref, next);
+  hdr.init(data_size, is_head, rref, next);
   obj_ = TransientPtr(stt_addr, total_size());
   return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
 }
