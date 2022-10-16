@@ -12,19 +12,32 @@
 #include "slab.hpp"
 #include "sync_hashmap.hpp"
 
-constexpr int kNBuckets = (1 << 20);
-constexpr int kNumInsertThds = 20;
-constexpr int kNumRemoveThds = 20;
-constexpr int kNumObjs = 102400;
-constexpr int kKLen = 61;
-constexpr int kVLen = 10;
+#define TEST_OBJECT 1
+#define TEST_LARGE 0
+
+constexpr static int kNBuckets = (1 << 20);
+constexpr static int kNumInsertThds = 20;
+constexpr static int kNumRemoveThds = 20;
+
+#if TEST_LARGE
+constexpr static int kNumObjs = 1024;
+constexpr static int kKLen = 61;
+constexpr static int kVLen = 100000;
+#else // !TEST_LARGE
+constexpr static int kNumObjs = 102400;
+constexpr static int kKLen = 61;
+constexpr static int kVLen = 10;
+#endif // TEST_LARGE
 
 template <int Len> struct Object;
 
-// using K = int;
-// using V = int;
+#if TEST_OBJECT
 using K = Object<kKLen>;
 using V = Object<kVLen>;
+#else // !TEST_OBJECT
+using K = int;
+using V = int;
+#endif // TEST_OBJECT
 
 /** YIFAN: string is not supported! Its reference will be lost after data copy
  */
@@ -74,8 +87,18 @@ template <> std::string get_V() {
   static std::uniform_int_distribution<int> dist('A', 'z');
 
   std::string str = "";
-  for (uint32_t i = 0; i < kVLen - 1; i++)
-    str += dist(mt);
+  if (kVLen <= 10000) {
+    for (uint32_t i = 0; i < kVLen - 1; i++)
+      str += dist(mt);
+  }
+  else {
+    constexpr static int kFillStride = 1000;
+    for (uint32_t i = 0; i < kVLen - 1; i++)
+      if (i % kFillStride == 0)
+        str += dist(mt);
+      else
+        str += static_cast<char>(i % ('z' - 'A')) + 'A';
+  }
   str += '\0';
   return str;
 }
