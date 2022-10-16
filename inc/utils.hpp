@@ -9,11 +9,12 @@ constexpr static uint32_t kSmallObjSizeUnit = sizeof(uint64_t);
 
 constexpr static uint32_t kShmObjNameLen = 128;
 constexpr static uint32_t kPageSize = 4096;            // 4KB
-constexpr static uint32_t kPageChunkSize = 512 * 4096; // 2MB == Huge Page
+constexpr static uint32_t kPageChunkSize = 512 * kPageSize; // 2MB == Huge Page
 constexpr static uint64_t kVolatileSttAddr = 0x01f'000'000'000;
 
 // log structured allocator related
 constexpr static uint32_t kLogChunkSize = kPageChunkSize;
+constexpr static uint64_t kLogChunkMask = ~(kLogChunkSize - 1ull);
 constexpr static uint32_t kRegionSize = kLogChunkSize;
 constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
 
