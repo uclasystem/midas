@@ -106,10 +106,8 @@ int main(int argc, char *argv[]) {
       }
 
       for (auto ptr : ptrs[tid]) {
-        if (!allocator->free(*ptr)) {
+        if (!allocator->free(*ptr))
           nr_errs++;
-          std::cout << "sd" << std::endl;
-        }
       }
     }));
   }
