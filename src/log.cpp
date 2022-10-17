@@ -100,11 +100,10 @@ bool LogChunk::scan() {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
-      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
-      if (!opt_meta)
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr<>(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto meta_hdr = *opt_meta;
         if (meta_hdr.is_present()) {
           if (meta_hdr.is_accessed()) {
             meta_hdr.clr_accessed();
@@ -125,11 +124,10 @@ bool LogChunk::scan() {
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
-      if (!opt_meta)
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr<>(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto meta_hdr = *opt_meta;
         if (meta_hdr.is_continue()) {
           // this is a inner chunk storing a large object.
         } else {
@@ -184,11 +182,10 @@ bool LogChunk::evacuate() {
       nr_small_objs++;
       auto obj_size = obj_ptr.total_size();
 
-      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
-      if (!opt_meta)
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr<>(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto meta_hdr = *opt_meta;
         if (meta_hdr.is_present()) {
           nr_present++;
           obj_ptr.unlock(lock_id);
@@ -219,11 +216,10 @@ bool LogChunk::evacuate() {
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
-      if (!opt_meta)
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr<>(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto meta_hdr = *opt_meta;
         if (meta_hdr.is_continue()) {
           // this is a inner chunk storing a large object.
         } else {
@@ -277,11 +273,10 @@ bool LogChunk::free() {
       auto obj_size = obj_ptr.total_size();
       nr_small_objs++;
 
-      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
-      if (!opt_meta)
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr<>(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto meta_hdr = *opt_meta;
         if (meta_hdr.is_present()) {
           if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
             goto faulted;
@@ -294,11 +289,10 @@ bool LogChunk::free() {
     } else { // TODO: large object
       LOG(kError) << "Not implemented yet!";
       exit(-1);
-      auto opt_meta = load_hdr<MetaObjectHdr>(obj_ptr);
-      if (!opt_meta)
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr<>(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto meta_hdr = *opt_meta;
         if (meta_hdr.is_continue()) {
           // this is a inner chunk storing a large object.
         } else {

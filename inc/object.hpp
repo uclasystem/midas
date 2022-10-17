@@ -211,8 +211,7 @@ private:
   TransientPtr obj_;
 #pragma pack(pop)
 
-  template <class T> friend
-  std::optional<T> load_hdr(ObjectPtr &obj_hdr) noexcept;
+  template <class T> friend bool load_hdr(T &hdr, ObjectPtr &obj_hdr) noexcept;
   template <class T>
   friend bool store_hdr(const T &hdr, ObjectPtr &obj_hdr) noexcept;
 };
@@ -220,7 +219,7 @@ private:
 static_assert(sizeof(ObjectPtr) <= 16,
               "ObjectPtr is not correctly aligned!");
 
-template <class T> std::optional<T> load_hdr(ObjectPtr &obj_ptr) noexcept;
+template <class T> bool load_hdr(T &hdr, ObjectPtr &obj_ptr) noexcept;
 template <class T> bool store_hdr(const T &hdr, ObjectPtr &obj_ptr) noexcept;
 } // namespace cachebank
 

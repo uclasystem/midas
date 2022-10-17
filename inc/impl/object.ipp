@@ -256,11 +256,10 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
 inline RetCode ObjectPtr::free_small() noexcept {
   assert(!null());
 
-  auto opt_meta = load_hdr<MetaObjectHdr>(*this);
-  if (!opt_meta)
+  MetaObjectHdr meta_hdr;
+  if (!load_hdr<MetaObjectHdr>(meta_hdr, *this))
     return RetCode::Fault;
 
-  auto meta_hdr = *opt_meta;
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
   meta_hdr.clr_present();
@@ -274,16 +273,15 @@ inline RetCode ObjectPtr::free_small() noexcept {
 inline RetCode ObjectPtr::free_large() noexcept {
   assert(!null());
 
-  auto opt_meta = load_hdr<MetaObjectHdr>(*this);
-  if (!opt_meta)
+  MetaObjectHdr meta_hdr;
+  if (!load_hdr<>(meta_hdr, *this))
     return RetCode::Fault;
-  LargeObjectHdr hdr;
-  if (!obj_.copy_to(&hdr, sizeof(hdr)))
-    return RetCode::Fault;
-
-  auto meta_hdr = *opt_meta;
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
+
+  LargeObjectHdr hdr;
+  if (!load_hdr<>(hdr, *this))
+    return RetCode::Fault;
   meta_hdr.clr_present();
   auto ret = store_hdr<>(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
 
@@ -391,10 +389,9 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   ret = src.free(/* locked = */ true);
   if (ret != RetCode::Succ)
     return ret;
-  auto opt_meta = load_hdr<MetaObjectHdr>(*this);
-  if (!opt_meta)
+  MetaObjectHdr meta_hdr;
+  if (!load_hdr<>(meta_hdr, *this))
     return ret;
-  auto meta_hdr = *opt_meta;
   meta_hdr.set_present();
   if (!store_hdr<>(meta_hdr, *this))
     return ret;
@@ -404,12 +401,8 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   return RetCode::Succ;
 }
 
-template <class T>
-inline std::optional<T> load_hdr(ObjectPtr &obj_hdr) noexcept {
-  T hdr;
-  if (!obj_hdr.obj_.copy_to(&hdr, sizeof(hdr)))
-    return std::nullopt;
-  return hdr;
+template <class T> inline bool load_hdr(T &hdr, ObjectPtr &obj_hdr) noexcept {
+  return obj_hdr.obj_.copy_to(&hdr, sizeof(hdr));
 }
 
 template <class T>

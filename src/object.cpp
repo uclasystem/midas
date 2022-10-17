@@ -35,12 +35,11 @@ bool ObjectPtr::copy_from_small(const void *src, size_t len, int64_t offset) {
   if (lock_id == -1) // lock failed as obj_ has just been reset.
     return false;
   if (!null()) {
-    auto opt_meta = load_hdr<MetaObjectHdr>(*this);
-    if (!opt_meta) {
+    MetaObjectHdr meta_hdr;
+    if (!load_hdr<>(meta_hdr, *this)) {
       LOG(kError);
       goto done;
     }
-    auto meta_hdr = *opt_meta;
     if (!meta_hdr.is_present()) {
       LOG(kError);
       goto done;
@@ -64,10 +63,9 @@ bool ObjectPtr::copy_to_small(void *dst, size_t len, int64_t offset) {
   if (lock_id == -1) // lock failed as obj_ has just been reset.
     return false;
   if (!null()) {
-    auto opt_meta = load_hdr<MetaObjectHdr>(*this);
-    if (!opt_meta)
+    MetaObjectHdr meta_hdr;
+    if (!load_hdr<>(meta_hdr, *this))
       goto done;
-    auto meta_hdr = *opt_meta;
     if (!meta_hdr.is_present())
       goto done;
     meta_hdr.set_accessed();
@@ -89,10 +87,9 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
   if (lock_id == -1)
     return false;
   if (!null()) {
-    auto opt_meta = load_hdr<MetaObjectHdr>(*this);
-    if (!opt_meta)
+    MetaObjectHdr meta_hdr;
+    if (!load_hdr<>(meta_hdr, *this))
       goto done;
-    auto meta_hdr = *opt_meta;
     if (meta_hdr.is_continue() || !meta_hdr.is_present())
       goto done;
     meta_hdr.set_accessed();
@@ -106,10 +103,10 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
         break;
       remaining_offset -= optr.data_size();
 
-      auto option = load_hdr<LargeObjectHdr>(optr);
-      if (!option)
+      LargeObjectHdr lhdr;
+      if (!load_hdr<>(lhdr, optr))
         goto done;
-      auto next = option->get_next();
+      auto next = lhdr.get_next();
       if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
@@ -127,10 +124,10 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
       src = reinterpret_cast<const void *>(reinterpret_cast<uint64_t>(src) +
                                            copy_len);
 
-      auto option = load_hdr<LargeObjectHdr>(optr);
-      if (!option)
+      LargeObjectHdr lhdr;
+      if (!load_hdr<>(lhdr, optr))
         goto done;
-      auto next = option->get_next();
+      auto next = lhdr.get_next();
       if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
@@ -150,10 +147,9 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
   if (lock_id == -1)
     return false;
   if (!null()) {
-    auto opt_meta = load_hdr<MetaObjectHdr>(*this);
-    if (!opt_meta)
+    MetaObjectHdr meta_hdr;
+    if (!load_hdr<>(meta_hdr, *this))
       goto done;
-    auto meta_hdr = *opt_meta;
     if (meta_hdr.is_continue() || !meta_hdr.is_present())
       goto done;
     meta_hdr.set_accessed();
@@ -167,10 +163,10 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
         break;
       remaining_offset -= optr.data_size();
 
-      auto option = load_hdr<LargeObjectHdr>(optr);
-      if (!option)
+      LargeObjectHdr lhdr;
+      if (!load_hdr<>(lhdr, optr))
         goto done;
-      auto next = option->get_next();
+      auto next = lhdr.get_next();
       if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
@@ -188,10 +184,10 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
       dst =
           reinterpret_cast<void *>(reinterpret_cast<uint64_t>(dst) + copy_len);
 
-      auto option = load_hdr<LargeObjectHdr>(optr);
-      if (!option)
+      LargeObjectHdr lhdr;
+      if (!load_hdr<>(lhdr, optr))
         goto done;
-      auto next = option->get_next();
+      auto next = lhdr.get_next();
       if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
         goto done;
     }
