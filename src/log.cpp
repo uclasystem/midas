@@ -101,13 +101,13 @@ bool LogChunk::scan() {
       nr_small_objs++;
 
       MetaObjectHdr meta_hdr;
-      if (!load_hdr<>(meta_hdr, obj_ptr))
+      if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
         if (meta_hdr.is_present()) {
           if (meta_hdr.is_accessed()) {
             meta_hdr.clr_accessed();
-            if (!store_hdr<>(meta_hdr, obj_ptr))
+            if (!store_hdr(meta_hdr, obj_ptr))
               goto faulted;
             nr_deactivated++;
             upd_alive_bytes(obj_size);
@@ -125,7 +125,7 @@ bool LogChunk::scan() {
       LOG(kError) << "Not implemented yet!";
       exit(-1);
       MetaObjectHdr meta_hdr;
-      if (!load_hdr<>(meta_hdr, obj_ptr))
+      if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
         if (meta_hdr.is_continue()) {
@@ -183,7 +183,7 @@ bool LogChunk::evacuate() {
       auto obj_size = obj_ptr.total_size();
 
       MetaObjectHdr meta_hdr;
-      if (!load_hdr<>(meta_hdr, obj_ptr))
+      if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
         if (meta_hdr.is_present()) {
@@ -217,7 +217,7 @@ bool LogChunk::evacuate() {
       LOG(kError) << "Not implemented yet!";
       exit(-1);
       MetaObjectHdr meta_hdr;
-      if (!load_hdr<>(meta_hdr, obj_ptr))
+      if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
         if (meta_hdr.is_continue()) {
@@ -274,7 +274,7 @@ bool LogChunk::free() {
       nr_small_objs++;
 
       MetaObjectHdr meta_hdr;
-      if (!load_hdr<>(meta_hdr, obj_ptr))
+      if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
         if (meta_hdr.is_present()) {
@@ -290,7 +290,7 @@ bool LogChunk::free() {
       LOG(kError) << "Not implemented yet!";
       exit(-1);
       MetaObjectHdr meta_hdr;
-      if (!load_hdr<>(meta_hdr, obj_ptr))
+      if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
         if (meta_hdr.is_continue()) {

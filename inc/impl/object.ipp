@@ -230,7 +230,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
 
   MetaObjectHdr hdr;
   obj_ = soft_ptr;
-  if (!obj_.copy_to(&hdr, sizeof(hdr)))
+  if (!load_hdr(hdr, *this))
     return RetCode::Fault;
 
   if (!hdr.is_valid())
@@ -263,7 +263,7 @@ inline RetCode ObjectPtr::free_small() noexcept {
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
   meta_hdr.clr_present();
-  auto ret = store_hdr<>(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
+  auto ret = store_hdr(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
     rref->obj_.reset();
@@ -274,16 +274,16 @@ inline RetCode ObjectPtr::free_large() noexcept {
   assert(!null());
 
   MetaObjectHdr meta_hdr;
-  if (!load_hdr<>(meta_hdr, *this))
+  if (!load_hdr(meta_hdr, *this))
     return RetCode::Fault;
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
 
   LargeObjectHdr hdr;
-  if (!load_hdr<>(hdr, *this))
+  if (!load_hdr(hdr, *this))
     return RetCode::Fault;
   meta_hdr.clr_present();
-  auto ret = store_hdr<>(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
+  auto ret = store_hdr(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
 
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
@@ -390,10 +390,10 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   if (ret != RetCode::Succ)
     return ret;
   MetaObjectHdr meta_hdr;
-  if (!load_hdr<>(meta_hdr, *this))
+  if (!load_hdr(meta_hdr, *this))
     return ret;
   meta_hdr.set_present();
-  if (!store_hdr<>(meta_hdr, *this))
+  if (!store_hdr(meta_hdr, *this))
     return ret;
   ret = upd_rref();
   if (ret != RetCode::Succ)
