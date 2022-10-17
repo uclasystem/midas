@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <random>
 #include <string>
@@ -85,16 +86,29 @@ class CachebankTest {
 private:
   cachebank::SyncHashMap<kNBuckets, K, V> *hashmap;
   std::unordered_map<K, V> std_maps[kNumMutatorThds];
-  std::atomic_int32_t nr_succ;
-  std::atomic_int32_t nr_err;
 
   std::vector<K> ks[kNumMutatorThds];
   std::vector<V> vs[kNumMutatorThds];
   std::vector<Op> ops[kNumMutatorThds];
   std::vector<int> zipf_idxes[kNumMutatorThds];
 
-  std::atomic_int32_t nr_hit;
-  std::atomic_int32_t nr_miss;
+  struct alignas(64) Stats {
+    int64_t nr_succ;
+    int64_t nr_err;
+    int64_t nr_hit;
+    int64_t nr_miss;
+
+    Stats() : nr_succ(0), nr_err(0), nr_hit(0), nr_miss(0) {}
+    void reset() { nr_succ = nr_err = nr_hit = nr_miss = 0; }
+    Stats &accum(const Stats &rhs) {
+      nr_succ += rhs.nr_succ;
+      nr_err += rhs.nr_err;
+      nr_hit += rhs.nr_hit;
+      nr_miss += rhs.nr_miss;
+      return *this;
+    }
+  };
+  Stats stats;
 
   bool stop;
   std::shared_ptr<std::thread> evac_thd;
@@ -108,13 +122,13 @@ private:
     hashmap = new cachebank::SyncHashMap<kNBuckets, K, V>();
     stop = false;
 
-    nr_succ = nr_err = 0;
-    nr_hit = nr_miss = 0;
+    stats.reset();
   }
 
   void prepare() {
-    nr_succ = nr_err = 0;
+    stats.reset();
 
+    Stats perthd_stats[kNumMutatorThds];
     std::vector<std::thread> thds;
     for (int tid = 0; tid < kNumMutatorThds; tid++) {
       thds.push_back(std::thread([&, tid = tid]() {
@@ -124,17 +138,21 @@ private:
           ks[tid].emplace_back(k);
           vs[tid].emplace_back(v);
           if (hashmap->set(k, v))
-            nr_succ++;
+            perthd_stats[tid].nr_succ++;
           else
-            nr_err++;
+            perthd_stats[tid].nr_err++;
         }
       }));
     }
     for (auto &thd : thds)
       thd.join();
     std::cout << "Finish preparation." << std::endl;
-    if (nr_err > 0)
-      std::cout << "Set succ " << nr_succ << ", fail " << nr_err << std::endl;
+    for (int i = 0; i < kNumMutatorThds; i++) {
+      stats.accum(perthd_stats[i]);
+    }
+    if (stats.nr_err > 0)
+      std::cout << "Set succ " << stats.nr_succ << ", fail " << stats.nr_err
+                << std::endl;
     // std::this_thread::sleep_for(std::chrono::seconds(5));
   }
 
@@ -187,11 +205,11 @@ public:
   }
 
   int run() {
-    nr_succ = nr_err = 0;
-    nr_hit = nr_miss = 0;
+    stats.reset();
 
     auto stt = std::chrono::steady_clock::now();
 
+    Stats perthd_stats[kNumMutatorThds];
     std::vector<std::thread> thds;
     for (int tid = 0; tid < kNumMutatorThds; tid++) {
       thds.push_back(std::thread([&, tid = tid]() {
@@ -203,13 +221,13 @@ public:
           auto optv = hashmap->get(k);
           if (optv) {
             ret = (v == *optv);
-            nr_hit++;
+            perthd_stats[tid].nr_hit++;
           } else {
-            nr_miss++;
             ret = hashmap->set(k, v);
+            perthd_stats[tid].nr_miss++;
           }
 
-          ret ? nr_succ++ : nr_err++;
+          ret ? perthd_stats[tid].nr_succ++ : perthd_stats[tid].nr_err++;
         }
       }));
     }
@@ -222,14 +240,19 @@ public:
               << std::chrono::duration<double>(end - stt).count() << "s"
               << std::endl;
 
+    for (int i = 0; i < kNumMutatorThds; i++) {
+      stats.accum(perthd_stats[i]);
+    }
     std::cout << "cache hit ratio: "
-              << static_cast<float>(nr_hit) / (nr_hit + nr_miss) << std::endl;
+              << static_cast<float>(stats.nr_hit) /
+                     (stats.nr_hit + stats.nr_miss)
+              << std::endl;
 
-    if (nr_err == 0)
+    if (stats.nr_err == 0)
       std::cout << "Test passed!" << std::endl;
     else
-      std::cout << "Get test failed! " << nr_succ << " passed, " << nr_err
-                << " failed." << std::endl;
+      std::cout << "Get test failed! " << stats.nr_succ << " passed, "
+                << stats.nr_err << " failed." << std::endl;
 
     std::cout << "Cooling down..." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
