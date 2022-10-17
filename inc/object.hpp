@@ -7,7 +7,7 @@
 
 namespace cachebank {
 
-constexpr static uint32_t kSmallObjThreshold = 8 << 12; /* 32KB */
+constexpr static uint32_t kSmallObjThreshold = 8 << 10; /* 8KB */
 
 /** flags = 0, size = 0; rref = 0x1f1f1f1f1f1f */
 constexpr static uint64_t kInvalidHdr = 0x0'000'1f1f1f1f1f1f;
@@ -34,6 +34,9 @@ public:
   bool is_evacuate() const noexcept;
   void set_evacuate() noexcept;
   void clr_evacuate() noexcept;
+  bool is_mutate() const noexcept;
+  void set_mutate() noexcept;
+  void clr_mutate() noexcept;
   bool is_continue() const noexcept;
   void set_continue() noexcept;
   void clr_continue() noexcept;
@@ -44,11 +47,12 @@ private:
   constexpr static uint32_t kFlagShift =
       sizeof(flags) * 8; // start from the highest bit
   constexpr static decltype(flags) kPresentBit = kFlagShift - 1;
-  constexpr static decltype(flags) kAccessedBit = kFlagShift - 2;
-  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
-  constexpr static decltype(flags) kSmallObjBit = kFlagShift - 4;
+  constexpr static decltype(flags) kSmallObjBit = kFlagShift - 2;
+  constexpr static decltype(flags) kAccessedBit = kFlagShift - 3;
+  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 4;
+  constexpr static decltype(flags) kMutateBit = kFlagShift - 5;
 
-  constexpr static decltype(flags) kContinueBit = kFlagShift - 5;
+  constexpr static decltype(flags) kContinueBit = kFlagShift - 7;
 };
 
 static_assert(sizeof(MetaObjectHdr) <= sizeof(uint64_t),
@@ -61,7 +65,7 @@ struct SmallObjectHdr {
   //                   A: accessed bits.
   //                   E: The pointed data is being evacuated.
   //                   S: small obj bit, meaning the object is a small obj (size
-  //                     <= 8B * 2^12 == 32KB).
+  //                     <= 8B * 2^10 == 8KB).
   //         Object Size: the size of the pointed object.
   //   Reverse reference: the only pointer referencing this object.
 public:
@@ -85,8 +89,8 @@ public:
 private:
 #pragma pack(push, 1)
   uint64_t rref : 48; // reverse reference to the single to-be-updated
-  uint16_t size : 12; // object size / 8 (8 Bytes is the base unit)
-  uint8_t flags : 4;
+  uint16_t size : 10; // object size / 8 (8 Bytes is the base unit)
+  uint8_t flags : 6;
 #pragma pack(pop)
 };
 
@@ -101,7 +105,7 @@ struct LargeObjectHdr {
   //                   A: accessed bits.
   //                   E: evacuate bit, meaning the data is being evacuated.
   //                   S: small obj bit, meaning the object is a small obj
-  //                     (size <= 8B * 2^12 == 32KB).
+  //                     (size <= 8B * 2^10 == 32KB).
   //                   C: continue bit, meaning the objct is a large obj and
   //                      the current chunk is a continued chunk.
   //         Object Size: the size of the pointed object.
@@ -200,15 +204,21 @@ private:
   bool copy_from_large(const void *src, size_t len, int64_t offset);
   bool copy_to_large(void *dst, size_t len, int64_t offset);
 
-  bool small_obj_;
-  uint32_t size_;
+#pragma pack(push, 1)
+  bool small_obj_ : 1;
+  uint32_t size_ : 31; // not in use for now. Support up to 2^31 = 2GB.
+  uint32_t deref_cnt_;
   TransientPtr obj_;
+#pragma pack(pop)
 
   template <class T> friend
   std::optional<T> load_hdr(ObjectPtr &obj_hdr) noexcept;
   template <class T>
   friend bool store_hdr(const T &hdr, ObjectPtr &obj_hdr) noexcept;
 };
+
+static_assert(sizeof(ObjectPtr) <= 16,
+              "ObjectPtr is not correctly aligned!");
 
 template <class T> std::optional<T> load_hdr(ObjectPtr &obj_ptr) noexcept;
 template <class T> bool store_hdr(const T &hdr, ObjectPtr &obj_ptr) noexcept;

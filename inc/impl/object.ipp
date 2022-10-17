@@ -57,6 +57,16 @@ inline void MetaObjectHdr::clr_evacuate() noexcept {
   flags &= ~(1ull << kEvacuateBit);
 }
 
+inline bool MetaObjectHdr::is_mutate() const noexcept {
+  return flags & (1ull << kMutateBit);
+}
+inline void MetaObjectHdr::set_mutate() noexcept {
+  flags |= (1ull << kMutateBit);
+}
+inline void MetaObjectHdr::clr_mutate() noexcept {
+  flags &= ~(1ull << kMutateBit);
+}
+
 inline bool MetaObjectHdr::is_continue() const noexcept {
   return flags & (1ull << kContinueBit);
 }
@@ -167,7 +177,8 @@ inline void LargeObjectHdr::set_flags(uint32_t flags_) noexcept {
 inline uint32_t LargeObjectHdr::get_flags() const noexcept { return flags; }
 
 /** ObjectPtr */
-inline ObjectPtr::ObjectPtr() : small_obj_(true), size_(0), obj_() {}
+inline ObjectPtr::ObjectPtr()
+    : small_obj_(true), size_(0), deref_cnt_(0), obj_() {}
 
 inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
 
@@ -192,6 +203,7 @@ using RetCode = ObjectPtr::RetCode;
 inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
   small_obj_ = true;
   size_ = round_up_to_align(data_size, kSmallObjSizeUnit);
+  deref_cnt_ = 0;
 
   SmallObjectHdr hdr;
   hdr.init(size_);
@@ -205,6 +217,7 @@ inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
   assert(data_size <= kLogChunkSize - sizeof(LargeObjectHdr));
   small_obj_ = false;
   size_ = data_size;
+  deref_cnt_ = 0;
 
   LargeObjectHdr hdr;
   hdr.init(data_size, is_head, head, next);
@@ -213,6 +226,8 @@ inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
 }
 
 inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
+  deref_cnt_ = 0;
+
   MetaObjectHdr hdr;
   obj_ = soft_ptr;
   if (!obj_.copy_to(&hdr, sizeof(hdr)))
