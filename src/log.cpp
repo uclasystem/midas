@@ -82,7 +82,7 @@ bool LogChunk::scan() {
   MetaObjectHdr hdr;
 
   auto pos = start_addr_;
-  while (pos < pos_) {
+  while (pos + sizeof(MetaObjectHdr) <= pos_) {
     ObjectPtr obj_ptr;
 
     auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
@@ -165,7 +165,7 @@ bool LogChunk::evacuate() {
   int nr_failed = 0;
 
   auto pos = start_addr_;
-  while (pos < pos_) {
+  while (pos + sizeof(MetaObjectHdr) <= pos_) {
     ObjectPtr obj_ptr;
     auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
     if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
@@ -255,7 +255,7 @@ bool LogChunk::free() {
   MetaObjectHdr hdr;
 
   auto pos = start_addr_;
-  while (pos < pos_) {
+  while (pos + sizeof(MetaObjectHdr) <= pos_) {
     ObjectPtr obj_ptr;
 
     auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));

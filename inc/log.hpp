@@ -47,6 +47,7 @@ private:
   uint64_t start_addr_;
   uint64_t pos_;
 
+  friend class Evacuator;
   friend class LogAllocator;
 };
 
@@ -78,6 +79,7 @@ private:
   std::list<std::shared_ptr<LogChunk>> vLogChunks_;
 
   friend class LogChunk;
+  friend class Evacuator;
 };
 
 class LogAllocator {
