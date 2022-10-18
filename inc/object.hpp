@@ -29,7 +29,8 @@ public:
   void set_present() noexcept;
   void clr_present() noexcept;
   bool is_accessed() const noexcept;
-  void set_accessed() noexcept;
+  void inc_accessed() noexcept;
+  void dec_accessed() noexcept;
   void clr_accessed() noexcept;
   bool is_evacuate() const noexcept;
   void set_evacuate() noexcept;
@@ -48,9 +49,10 @@ private:
       sizeof(flags) * 8; // start from the highest bit
   constexpr static decltype(flags) kPresentBit = kFlagShift - 1;
   constexpr static decltype(flags) kSmallObjBit = kFlagShift - 2;
-  constexpr static decltype(flags) kAccessedBit = kFlagShift - 3;
-  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 4;
-  constexpr static decltype(flags) kMutateBit = kFlagShift - 5;
+  constexpr static decltype(flags) kEvacuateBit = kFlagShift - 3;
+  constexpr static decltype(flags) kMutateBit = kFlagShift - 4;
+  constexpr static decltype(flags) kAccessedBit = kFlagShift - 6;
+  constexpr static decltype(flags) kAccessedMask = (3ull << kAccessedBit);
 
   constexpr static decltype(flags) kContinueBit = kFlagShift - 7;
 };

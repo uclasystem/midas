@@ -38,13 +38,24 @@ inline void MetaObjectHdr::clr_present() noexcept {
 }
 
 inline bool MetaObjectHdr::is_accessed() const noexcept {
-  return flags & (1ull << kAccessedBit);
+  return flags & kAccessedMask;
 }
-inline void MetaObjectHdr::set_accessed() noexcept {
-  flags |= (1ull << kAccessedBit);
+inline void MetaObjectHdr::inc_accessed() noexcept {
+  int64_t accessed = (flags & kAccessedMask) >> kAccessedBit;
+  accessed = std::min<int64_t>(accessed + 1, 3ll);
+
+  flags &= ~kAccessedMask;
+  flags |= (accessed << kAccessedBit);
+}
+inline void MetaObjectHdr::dec_accessed() noexcept {
+  int64_t accessed = (flags & kAccessedMask) >> kAccessedBit;
+  accessed = std::max<int64_t>(accessed - 1, 0ll);
+
+  flags &= ~kAccessedMask;
+  flags |= (accessed << kAccessedBit);
 }
 inline void MetaObjectHdr::clr_accessed() noexcept {
-  flags &= ~(1ull << kAccessedBit);
+  flags &= ~kAccessedMask;
 }
 
 inline bool MetaObjectHdr::is_evacuate() const noexcept {

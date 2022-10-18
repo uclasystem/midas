@@ -106,7 +106,7 @@ bool LogChunk::scan() {
       else {
         if (meta_hdr.is_present()) {
           if (meta_hdr.is_accessed()) {
-            meta_hdr.clr_accessed();
+            meta_hdr.dec_accessed();
             if (!store_hdr(meta_hdr, obj_ptr))
               goto faulted;
             nr_deactivated++;

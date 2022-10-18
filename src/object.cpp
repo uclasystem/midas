@@ -44,7 +44,7 @@ bool ObjectPtr::copy_from_small(const void *src, size_t len, int64_t offset) {
       LOG(kError);
       goto done;
     }
-    meta_hdr.set_accessed();
+    meta_hdr.inc_accessed();
     if (!store_hdr(meta_hdr, *this))
       goto done;
 
@@ -68,7 +68,7 @@ bool ObjectPtr::copy_to_small(void *dst, size_t len, int64_t offset) {
       goto done;
     if (!meta_hdr.is_present())
       goto done;
-    meta_hdr.set_accessed();
+    meta_hdr.inc_accessed();
     if (!store_hdr(meta_hdr, *this))
       goto done;
 
@@ -92,7 +92,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
       goto done;
     if (meta_hdr.is_continue() || !meta_hdr.is_present())
       goto done;
-    meta_hdr.set_accessed();
+    meta_hdr.inc_accessed();
 
     int64_t remaining_offset = offset;
     ObjectPtr optr = *this;
@@ -152,7 +152,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
       goto done;
     if (meta_hdr.is_continue() || !meta_hdr.is_present())
       goto done;
-    meta_hdr.set_accessed();
+    meta_hdr.inc_accessed();
 
     int64_t remaining_offset = offset;
     ObjectPtr optr = *this;
