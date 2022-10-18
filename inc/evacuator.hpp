@@ -18,7 +18,7 @@ public:
   static Evacuator *global_evacuator();
 
 private:
-  constexpr static int kNumGCThds = 8;
+  constexpr static int kNumGCThds = 40;
 
   void init();
 
@@ -26,6 +26,8 @@ private:
   void evac_region(LogRegion *region);
   void scan_region(LogRegion *region);
   void parallelizer(work_fn fn);
+
+  int32_t under_pressure_;
 
   int nr_gc_thds_;
   std::mutex mtx_;

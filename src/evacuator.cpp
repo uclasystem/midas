@@ -13,6 +13,12 @@
 namespace cachebank {
 
 int64_t Evacuator::gc(int64_t nr_to_reclaim) {
+  if (__sync_fetch_and_add(&under_pressure_, 1) > 0) {
+    std::unique_lock<std::mutex> ul(mtx_);
+    __sync_fetch_and_add(&under_pressure_, -1);
+    return 1;
+  }
+
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto stt = std::chrono::steady_clock::now();
@@ -99,14 +105,17 @@ int64_t Evacuator::gc(int64_t nr_to_reclaim) {
 
   auto end = std::chrono::steady_clock::now();
 
-  LOG(kDebug) << "Evacuation: " << prev_nr_regions << " --> " << curr_nr_regions
+  LOG(kDebug) << "GC: " << prev_nr_regions << " --> " << curr_nr_regions
               << " regions ("
               << std::chrono::duration<double>(end - stt).count() << "s).";
 
+  __sync_fetch_and_add(&under_pressure_, -1);
   return prev_nr_regions - curr_nr_regions;
 }
 
 void Evacuator::evacuate(int nr_thds) {
+  if (under_pressure_ > 0)
+    return;
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto allocator = LogAllocator::global_allocator();
@@ -128,6 +137,8 @@ void Evacuator::evacuate(int nr_thds) {
   for (tid = 0; tid < nr_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : tasks[tid]) {
+        if (under_pressure_ > 0)
+          break;
         evac_region(region);
       }
     }));
@@ -147,6 +158,8 @@ void Evacuator::evacuate(int nr_thds) {
 }
 
 void Evacuator::scan(int nr_thds) {
+  if (under_pressure_ > 0)
+    return;
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto allocator = LogAllocator::global_allocator();
@@ -168,6 +181,8 @@ void Evacuator::scan(int nr_thds) {
   for (tid = 0; tid < nr_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : tasks[tid]) {
+        if (under_pressure_ > 0)
+          break;
         scan_region(region);
       }
     }));

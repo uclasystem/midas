@@ -4,7 +4,7 @@
 #include <mutex>
 namespace cachebank {
 
-inline Evacuator::Evacuator() : nr_gc_thds_(kNumGCThds) {
+inline Evacuator::Evacuator() : nr_gc_thds_(kNumGCThds), under_pressure_(0) {
   init();
 }
 
