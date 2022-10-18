@@ -11,7 +11,8 @@ class Evacuator {
 public:
   Evacuator();
   // ~Evacuator();
-  int64_t gc(int64_t nr_to_reclaim);
+  int64_t stw_gc(int64_t nr_to_reclaim);
+  int64_t conc_gc(int nr_thds = kNumGCThds);
   void evacuate(int nr_thds = kNumGCThds);
   void scan(int nr_thds = kNumGCThds);
 
@@ -28,8 +29,7 @@ private:
   void parallelizer(work_fn fn);
 
   int32_t under_pressure_;
-
-  int nr_gc_thds_;
+  int32_t nr_gc_thds_;
   std::mutex mtx_;
 };
 

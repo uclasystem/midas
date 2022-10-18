@@ -130,7 +130,7 @@ void ResourceManager::do_reclaim(CtrlMsg &msg) {
 
   int64_t nr_to_reclaim = msg.mmsg.size;
   LOG(kError) << nr_to_reclaim;
-  int64_t nr_reclaimed = Evacuator::global_evacuator()->gc(nr_to_reclaim);
+  int64_t nr_reclaimed = Evacuator::global_evacuator()->stw_gc(nr_to_reclaim);
   LOG(kError) << nr_reclaimed;
 
   MemMsg mm;
@@ -162,7 +162,7 @@ retry:
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
     // LOG(kError);
     lk.unlock();
-    if (Evacuator::global_evacuator()->gc(
+    if (Evacuator::global_evacuator()->stw_gc(
             std::min<int64_t>(std::max<int64_t>(region_map_.size() / 100, 24),
                               region_map_.size())) > 0) {
       // lk.lock();
