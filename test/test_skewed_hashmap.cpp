@@ -22,7 +22,7 @@ constexpr static double kZipfSkew = 0.5;
 
 constexpr static int kNBuckets = (1 << 28);
 constexpr static int kNumMutatorThds = 40;
-constexpr static int kNumGCThds = 1;
+constexpr static int kNumGCThds = 8;
 constexpr static int kNumTotalKVPairs = 64 * 1024 * 1024;
 constexpr static int kNumOps = 8 * 1024 * 1024;
 constexpr static int kKLen = 18;
@@ -179,14 +179,14 @@ private:
     evac_thd = std::make_shared<std::thread>([&]() {
       auto evacuator = cachebank::Evacuator::global_evacuator();
       while (!stop) {
-        auto stt = cachebank::timer::timer();
-        evacuator->scan(kNumGCThds);
-        auto end = cachebank::timer::timer();
-        std::cout << "scan duration: " << cachebank::timer::duration(stt, end)
-                  << "s" << std::endl;
+        // auto stt = cachebank::timer::timer();
+        // evacuator->scan(kNumGCThds);
+        // auto end = cachebank::timer::timer();
+        // std::cout << "scan duration: " << cachebank::timer::duration(stt, end)
+        //           << "s" << std::endl;
         // evacuator->evacuate(kNumGCThds);
-        // evacuator->gc(1);
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        evacuator->conc_gc(kNumGCThds);
+        std::this_thread::sleep_for(std::chrono::seconds(5));
       }
     });
   }
