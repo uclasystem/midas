@@ -15,10 +15,9 @@ template <size_t NBuckets, typename Key, typename Tp, typename Hash,
 template <typename K1>
 std::unique_ptr<Tp>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
-  std::unique_ptr<Tp> stored_v =
-      std::unique_ptr<Tp>(reinterpret_cast<Tp *>(::operator new(sizeof(Tp))));
+  Tp *stored_v = reinterpret_cast<Tp *>(::operator new(sizeof(Tp)));
   if (get(std::forward<K1>(k), *stored_v))
-    return stored_v;
+    return std::unique_ptr<Tp>(stored_v);
   return nullptr;
 }
 
@@ -198,7 +197,6 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::iterate_list(
   }
   std::byte k_buf[sizeof(Key)];
   auto tmp_k = std::launder(reinterpret_cast<Key *>(&k_buf));
-  // Key tmp_k;
   if (node->pair.null() || !node->pair.copy_to(tmp_k, sizeof(Key))) {
     // prev remains the same when current node is deleted.
     node = delete_node(prev_next, node);
