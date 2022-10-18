@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <iostream>
 #include <random>
@@ -23,7 +24,7 @@ constexpr static int kNBuckets = (1 << 28);
 constexpr static int kNumMutatorThds = 40;
 constexpr static int kNumGCThds = 1;
 constexpr static int kNumTotalKVPairs = 64 * 1024 * 1024;
-constexpr static int kNumOps = 4 * 1024 * 1024;
+constexpr static int kNumOps = 8 * 1024 * 1024;
 constexpr static int kKLen = 18;
 constexpr static int kVLen = 61;
 
@@ -160,10 +161,11 @@ private:
     std::vector<std::thread> thds;
     for (int tid = 0; tid < kNumMutatorThds; tid++) {
       thds.push_back(std::thread([&, tid = tid]() {
-        cachebank::zipf_table_distribution<> zipf(kNumKVPairs, kZipfSkew);
+        cachebank::zipf_table_distribution<> dist(kNumKVPairs, kZipfSkew);
+        // std::uniform_int_distribution<> dist(0, kNumKVPairs);
         zipf_idxes[tid].clear();
         for (int o = 0; o < kNumOps; o++) {
-          auto idx = zipf(*mts[tid]);
+          auto idx = dist(*mts[tid]);
           zipf_idxes[tid].push_back(idx);
         }
       }));
@@ -261,7 +263,14 @@ public:
   }
 };
 
+void signalHandler(int signum) {
+  // Let the process exit normally so that daemon_ can be naturally destroyed.
+  exit(signum);
+}
+
 int main(int argc, char *argv[]) {
+  signal(SIGINT, signalHandler);
+
   CachebankTest test;
   test.init();
   for (int i = 0; i < 100; i++)
