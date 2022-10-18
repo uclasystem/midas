@@ -109,8 +109,10 @@ void ResourceManager::pressure_handler() {
 
   while (!stop_) {
     CtrlMsg msg;
-    if (rxqp_.timed_recv(&msg, sizeof(msg), 1) == -1)
+    if (rxqp_.try_recv(&msg, sizeof(msg)) == -1) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
       continue;
+    }
 
     LOG(kInfo) << "PressureHandler recved msg " << msg.op;
     switch (msg.op) {

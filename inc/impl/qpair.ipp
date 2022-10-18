@@ -49,6 +49,25 @@ inline int QSingle::recv(void *buffer, size_t buffer_size) {
   return 0;
 }
 
+
+inline int QSingle::try_recv(void *buffer, size_t buffer_size) {
+  try {
+    unsigned priority;
+    size_t recvd_size;
+    if (!_q->try_receive(buffer, buffer_size, recvd_size, priority))
+      return -1;
+    if (recvd_size != buffer_size) {
+      LOG(kError) << "Q " << _name << " recv error: " << recvd_size
+                  << "!=" << buffer_size;
+      return -1;
+    }
+  } catch (boost::interprocess::interprocess_exception &e) {
+    LOG(kError) << e.what();
+    return -1;
+  }
+  return 0;
+}
+
 inline int QSingle::timed_recv(void *buffer, size_t buffer_size, int timeout) {
   try {
     using namespace boost::posix_time;
@@ -111,6 +130,10 @@ inline int QPair::send(const void *buffer, size_t buffer_size) {
 
 inline int QPair::recv(void *buffer, size_t buffer_size) {
   return _rq->recv(buffer, buffer_size);
+}
+
+inline int QPair::try_recv(void *buffer, size_t buffer_size) {
+  return _rq->try_recv(buffer, buffer_size);
 }
 
 inline int QPair::timed_recv(void *buffer, size_t buffer_size, int timeout) {
