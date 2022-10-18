@@ -19,7 +19,7 @@ public:
   static Evacuator *global_evacuator();
 
 private:
-  constexpr static int kNumGCThds = 40;
+  constexpr static int kNumGCThds = 48;
 
   void init();
 
