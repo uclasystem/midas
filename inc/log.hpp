@@ -106,7 +106,7 @@ private:
 
   friend class Evacuator;
   friend class LogChunk;
-  void cleanup_regions();
+  int cleanup_regions();
 
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers

@@ -70,13 +70,17 @@ inline bool LogAllocator::free(ObjectPtr &ptr) {
   return ptr.free() == RetCode::Succ;
 }
 
-inline void LogAllocator::cleanup_regions() {
+inline int LogAllocator::cleanup_regions() {
+  int reclaimed = 0;
   for (auto rit = vRegions_.begin(); rit != vRegions_.end();) {
-    if ((*rit)->destroyed())
+    if ((*rit)->destroyed()) {
       rit = vRegions_.erase(rit);
+      reclaimed++;
+    }
     else
       rit++;
   }
+  return reclaimed;
 }
 
 inline void LogAllocator::seal_pcab() {
