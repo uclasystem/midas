@@ -20,7 +20,7 @@ public:
   static inline ObjLocker *global_objlocker() noexcept;
 
 private:
-  constexpr static uint32_t kNumMaps = 65536;
+  constexpr static uint32_t kNumMaps = 1 << 16;
 
   std::optional<LockID> _try_lock(uint64_t obj_addr);
   LockID _lock(uint64_t obj_addr);
