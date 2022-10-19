@@ -5,6 +5,7 @@
 
 namespace cachebank {
 
+class LogChunk;
 class LogRegion;
 
 class Evacuator {
@@ -23,9 +24,14 @@ private:
 
   void init();
 
-  using work_fn = void (Evacuator::*)(LogRegion *);
   void evac_region(LogRegion *region);
   void scan_region(LogRegion *region);
+  void free_region(LogRegion *region);
+  bool evac_chunk(LogChunk *chunk);
+  bool scan_chunk(LogChunk *chunk);
+  bool free_chunk(LogChunk *chunk);
+
+  using work_fn = void (Evacuator::*)(LogRegion *);
   void parallelizer(work_fn fn);
 
   int32_t under_pressure_;

@@ -94,7 +94,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
     int nr_remain = nr_to_reclaim - (prev_nr_regions - curr_nr_regions);
     int i = 0;
     for (auto &region : regions) {
-      region->free();
+      free_region(region.get());
       i++;
       if (i >= nr_remain)
         break;
@@ -292,13 +292,283 @@ void Evacuator::scan(int nr_thds) {
 }
 
 inline void Evacuator::scan_region(LogRegion *region) {
-  // LOG(kError) << region->full();
-  region->scan();
+  if (!region->sealed_)
+    return;
+  region->alive_bytes_ = 0;
+  for (auto &chunk : region->vLogChunks_) {
+    scan_chunk(chunk.get());
+  }
 }
 
 inline void Evacuator::evac_region(LogRegion *region) {
-  // LOG(kError) << region->full();
-  region->evacuate();
+  if (!region->sealed_)
+    return;
+  bool ret = true;
+  for (auto &chunk : region->vLogChunks_) {
+    ret &= evac_chunk(chunk.get());
+  }
+  if (ret)
+    region->destroy();
+}
+
+inline void Evacuator::free_region(LogRegion *region) {
+  if (!region->sealed_)
+    return;
+  bool ret = true;
+  for (auto &chunk : region->vLogChunks_) {
+    ret &= free_chunk(chunk.get());
+  }
+  if (ret)
+    region->destroy();
+}
+
+inline bool Evacuator::scan_chunk(LogChunk *chunk) {
+  if (!chunk->sealed_)
+    return false;
+  chunk->alive_bytes_ = 0;
+
+  int nr_deactivated = 0;
+  int nr_non_present = 0;
+  int nr_freed = 0;
+  int nr_small_objs = 0;
+  int nr_failed = 0;
+
+  MetaObjectHdr hdr;
+
+  auto pos = chunk->start_addr_;
+  while (pos + sizeof(MetaObjectHdr) <= chunk->pos_) {
+    ObjectPtr obj_ptr;
+
+    auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
+    if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
+      break;
+    } else if (ret == RetCode::Fault) {
+      LOG(kError) << "chunk is unmapped under the hood";
+      break;
+    }
+    assert(ret == RetCode::Succ);
+
+    auto lock_id = obj_ptr.lock();
+    assert(lock_id != -1 && !obj_ptr.null());
+    if (obj_ptr.is_small_obj()) {
+      auto obj_size = obj_ptr.total_size();
+      nr_small_objs++;
+
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr(meta_hdr, obj_ptr))
+        goto faulted;
+      else {
+        if (meta_hdr.is_present()) {
+          if (meta_hdr.is_accessed()) {
+            meta_hdr.dec_accessed();
+            if (!store_hdr(meta_hdr, obj_ptr))
+              goto faulted;
+            nr_deactivated++;
+            chunk->upd_alive_bytes(obj_size);
+          } else {
+            if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+              goto faulted;
+            nr_freed++;
+          }
+        } else if (ret == RetCode::False)
+          nr_non_present++;
+      }
+
+      pos += obj_size;
+    } else { // TODO: large object
+      LOG(kError) << "Not implemented yet!";
+      exit(-1);
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr(meta_hdr, obj_ptr))
+        goto faulted;
+      else {
+        if (meta_hdr.is_continue()) {
+          // this is a inner chunk storing a large object.
+        } else {
+          // this is the head chunk of a large object.
+        }
+      }
+    }
+    obj_ptr.unlock(lock_id);
+    continue;
+  faulted:
+    nr_failed++;
+    LOG(kError) << "chunk is unmapped under the hood";
+    obj_ptr.unlock(lock_id);
+    break;
+  }
+  LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
+              << ", nr_non_present: " << nr_non_present
+              << ", nr_deactivated: " << nr_deactivated
+              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
+              << ", alive ratio: "
+              << static_cast<float>(chunk->alive_bytes_) / kLogChunkSize;
+
+  assert(nr_failed == 0);
+  return nr_failed == 0;
+}
+
+inline bool Evacuator::evac_chunk(LogChunk *chunk) {
+  if (!chunk->sealed_)
+    return false;
+
+  int nr_present = 0;
+  int nr_freed = 0;
+  int nr_moved = 0;
+  int nr_small_objs = 0;
+  int nr_failed = 0;
+
+  auto pos = chunk->start_addr_;
+  while (pos + sizeof(MetaObjectHdr) <= chunk->pos_) {
+    ObjectPtr obj_ptr;
+    auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
+    if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
+      break;
+    } else if (ret == RetCode::Fault) {
+      LOG(kError) << "chunk is unmapped under the hood";
+      break;
+    }
+    assert(ret == RetCode::Succ);
+
+    auto lock_id = obj_ptr.lock();
+    assert(lock_id != -1 && !obj_ptr.null());
+    if (obj_ptr.is_small_obj()) {
+      nr_small_objs++;
+      auto obj_size = obj_ptr.total_size();
+
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr(meta_hdr, obj_ptr))
+        goto faulted;
+      else {
+        if (meta_hdr.is_present()) {
+          nr_present++;
+          obj_ptr.unlock(lock_id);
+          auto allocator = LogAllocator::global_allocator();
+          auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+          lock_id = optptr->lock();
+          assert(lock_id != -1 && !obj_ptr.null());
+
+          if (optptr) {
+            auto new_ptr = *optptr;
+            ret = new_ptr.move_from(obj_ptr);
+            if (ret == RetCode::Succ) {
+              nr_moved++;
+            } else if (ret == RetCode::Fail) {
+              LOG(kError) << "Failed to move the object!";
+              nr_failed++;
+            } else
+              goto faulted;
+          } else {
+            nr_failed++;
+          }
+        } else {
+          nr_freed++;
+        }
+
+        pos += obj_size;
+      }
+    } else { // TODO: large object
+      LOG(kError) << "Not implemented yet!";
+      exit(-1);
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr(meta_hdr, obj_ptr))
+        goto faulted;
+      else {
+        if (meta_hdr.is_continue()) {
+          // this is a inner chunk storing a large object.
+        } else {
+          // this is the head chunk of a large object.
+          goto faulted;
+        }
+      }
+    }
+    obj_ptr.unlock(lock_id);
+    continue;
+  faulted:
+    nr_failed++;
+    LOG(kError) << "chunk is unmapped under the hood";
+    obj_ptr.unlock(lock_id);
+    break;
+  }
+  LOG(kDebug) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
+              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
+
+  assert(nr_failed == 0);
+  return nr_failed == 0;
+}
+
+inline bool Evacuator::free_chunk(LogChunk *chunk) {
+  if (!chunk->sealed_)
+    return false;
+
+  int nr_non_present = 0;
+  int nr_freed = 0;
+  int nr_small_objs = 0;
+  int nr_failed = 0;
+
+  MetaObjectHdr hdr;
+
+  auto pos = chunk->start_addr_;
+  while (pos + sizeof(MetaObjectHdr) <= chunk->pos_) {
+    ObjectPtr obj_ptr;
+
+    auto ret = obj_ptr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
+    if (ret == RetCode::Fail) { // the sentinel pointer, done this chunk.
+      break;
+    } else if (ret == RetCode::Fault) {
+      LOG(kError) << "chunk is unmapped under the hood";
+      break;
+    }
+    assert(ret == RetCode::Succ);
+
+    auto lock_id = obj_ptr.lock();
+    assert(lock_id != -1 && !obj_ptr.null());
+    if (obj_ptr.is_small_obj()) {
+      auto obj_size = obj_ptr.total_size();
+      nr_small_objs++;
+
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr(meta_hdr, obj_ptr))
+        goto faulted;
+      else {
+        if (meta_hdr.is_present()) {
+          if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+            goto faulted;
+          nr_freed++;
+        } else
+          nr_non_present++;
+
+        pos += obj_size;
+      }
+    } else { // TODO: large object
+      LOG(kError) << "Not implemented yet!";
+      exit(-1);
+      MetaObjectHdr meta_hdr;
+      if (!load_hdr(meta_hdr, obj_ptr))
+        goto faulted;
+      else {
+        if (meta_hdr.is_continue()) {
+          // this is a inner chunk storing a large object.
+        } else {
+          // this is the head chunk of a large object.
+          goto faulted;
+        }
+      }
+    }
+    obj_ptr.unlock(lock_id);
+    continue;
+  faulted:
+    nr_failed++;
+    LOG(kError) << "chunk is unmapped under the hood";
+    obj_ptr.unlock(lock_id);
+    break;
+  }
+  LOG(kDebug) << "nr_freed: " << nr_freed
+              << ", nr_non_present: " << nr_non_present
+              << ", nr_failed: " << nr_failed;
+
+  assert(nr_failed == 0);
+  return nr_failed == 0;
 }
 
 } // namespace cachebank

@@ -26,10 +26,6 @@ public:
   void seal() noexcept;
   bool full() noexcept;
 
-  bool scan();
-  bool evacuate();
-  bool free();
-
 private:
   void init(uint64_t addr);
   void iterate(size_t pos);
@@ -63,9 +59,6 @@ public:
   void destroy();
 
   float get_alive_ratio() const noexcept;
-  void scan();
-  void evacuate();
-  void free();
 
 private:
   std::atomic_int32_t alive_bytes_;
