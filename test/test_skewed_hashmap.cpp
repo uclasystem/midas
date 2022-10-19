@@ -194,9 +194,9 @@ private:
 public:
   void init() {
     reset();
-    launch_evacuator();
     prepare();
     gen_load();
+    launch_evacuator();
   }
 
   void finalize() {
