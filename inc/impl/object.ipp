@@ -363,7 +363,7 @@ inline RetCode ObjectPtr::upd_rref() noexcept {
   auto *ref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (!ref)
     return RetCode::Fail;
-  *ref = *this;
+  ref->obj_ = this->obj_;
   return RetCode::Succ;
 }
 
