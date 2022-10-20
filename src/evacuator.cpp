@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <iterator>
 #include <memory>
@@ -22,6 +23,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto stt = std::chrono::steady_clock::now();
+  std::atomic_int64_t nr_reclaimed = 0;
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
   auto nr_scan_thds = nr_gc_thds_;
@@ -46,7 +48,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   for (tid = 0; tid < nr_scan_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : scan_tasks[tid]) {
-        scan_region(region);
+        scan_region(region, false);
         auto alive_ratio = region->get_alive_ratio();
         if (alive_ratio > 0.9)
           continue;
@@ -76,8 +78,9 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   for (tid = 0; tid < nr_evac_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : evac_tasks[tid]) {
-        evac_region(region);
-        if (prev_nr_regions - regions.size() >= nr_to_reclaim)
+        if (evac_region(region))
+          nr_reclaimed++;
+        if (nr_reclaimed >= nr_to_reclaim)
           break;
       }
     }));
@@ -90,13 +93,11 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   allocator->cleanup_regions();
   auto curr_nr_regions = regions.size();
 
-  if (curr_nr_regions > prev_nr_regions - nr_to_reclaim) {
-    int nr_remain = nr_to_reclaim - (prev_nr_regions - curr_nr_regions);
-    int i = 0;
+  if (nr_reclaimed < nr_to_reclaim) {
     for (auto &region : regions) {
-      free_region(region.get());
-      i++;
-      if (i >= nr_remain)
+      if (free_region(region.get()))
+        nr_reclaimed++;
+      if (nr_reclaimed >= nr_to_reclaim)
         break;
     }
     allocator->cleanup_regions();
@@ -105,9 +106,8 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
 
   auto end = std::chrono::steady_clock::now();
 
-  LOG(kDebug) << "STW GC: " << prev_nr_regions << " --> " << curr_nr_regions
-              << " regions ("
-              << std::chrono::duration<double>(end - stt).count() << "s).";
+  LOG(kInfo) << "STW GC: reclaimed " << nr_reclaimed << " regions ("
+             << std::chrono::duration<double>(end - stt).count() << "s).";
 
   __sync_fetch_and_add(&under_pressure_, -1);
   return prev_nr_regions - curr_nr_regions;
@@ -118,12 +118,10 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   constexpr static float kAliveThresholdHigh = 0.9;
   static float kAliveThreshold = kAliveThresholdLow;
 
-  if (under_pressure_ > 0)
-    return 0;
-
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto stt = std::chrono::steady_clock::now();
+  std::atomic_int64_t nr_reclaimed = 0;
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
   auto nr_scan_thds = nr_thds;
@@ -150,7 +148,7 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   for (tid = 0; tid < nr_scan_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : scan_tasks[tid]) {
-        scan_region(region);
+        scan_region(region, true);
         auto alive_ratio = region->get_alive_ratio();
         if (alive_ratio <= kAliveThreshold) {
           std::unique_lock<std::mutex> ul(evac_mtx);
@@ -188,7 +186,8 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   for (tid = 0; tid < nr_evac_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : evac_tasks[tid]) {
-        evac_region(region);
+        if (evac_region(region))
+          nr_reclaimed++;
       }
     }));
   }
@@ -197,16 +196,15 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   gc_thds.clear();
   delete[] evac_tasks;
 
-  nr_reclaimed_regions = allocator->cleanup_regions();
+  allocator->cleanup_regions();
 
 done:
   auto end = std::chrono::steady_clock::now();
   curr_nr_regions = regions.size();
-  LOG(kDebug) << "Conc GC: reclaimed " << prev_nr_regions - curr_nr_regions
-              << " regions ("
-              << std::chrono::duration<double>(end - stt).count() << "s).";
+  LOG(kInfo) << "Conc GC: reclaimed " << nr_reclaimed << " regions ("
+             << std::chrono::duration<double>(end - stt).count() << "s).";
 
-  return prev_nr_regions - curr_nr_regions;
+  return nr_reclaimed_regions;
 }
 
 void Evacuator::evacuate(int nr_thds) {
@@ -279,7 +277,7 @@ void Evacuator::scan(int nr_thds) {
       for (auto region : tasks[tid]) {
         if (under_pressure_ > 0)
           break;
-        scan_region(region);
+        scan_region(region, true);
       }
     }));
   }
@@ -291,38 +289,40 @@ void Evacuator::scan(int nr_thds) {
   delete[] tasks;
 }
 
-inline void Evacuator::scan_region(LogRegion *region) {
+inline void Evacuator::scan_region(LogRegion *region, bool deactivate) {
   if (!region->sealed_)
     return;
   region->alive_bytes_ = 0;
   for (auto &chunk : region->vLogChunks_) {
-    scan_chunk(chunk.get());
+    scan_chunk(chunk.get(), deactivate);
   }
 }
 
-inline void Evacuator::evac_region(LogRegion *region) {
+inline bool Evacuator::evac_region(LogRegion *region) {
   if (!region->sealed_)
-    return;
+    return false;
   bool ret = true;
   for (auto &chunk : region->vLogChunks_) {
     ret &= evac_chunk(chunk.get());
   }
   if (ret)
     region->destroy();
+  return ret;
 }
 
-inline void Evacuator::free_region(LogRegion *region) {
+inline bool Evacuator::free_region(LogRegion *region) {
   if (!region->sealed_)
-    return;
+    return false;
   bool ret = true;
   for (auto &chunk : region->vLogChunks_) {
     ret &= free_chunk(chunk.get());
   }
   if (ret)
     region->destroy();
+  return ret;
 }
 
-inline bool Evacuator::scan_chunk(LogChunk *chunk) {
+inline bool Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
   if (!chunk->sealed_)
     return false;
   chunk->alive_bytes_ = 0;
@@ -359,7 +359,9 @@ inline bool Evacuator::scan_chunk(LogChunk *chunk) {
         goto faulted;
       else {
         if (meta_hdr.is_present()) {
-          if (meta_hdr.is_accessed()) {
+          if (!deactivate) {
+            chunk->upd_alive_bytes(obj_size);
+          } else if (meta_hdr.is_accessed()) {
             meta_hdr.dec_accessed();
             if (!store_hdr(meta_hdr, obj_ptr))
               goto faulted;

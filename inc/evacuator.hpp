@@ -24,11 +24,12 @@ private:
 
   void init();
 
-  void evac_region(LogRegion *region);
-  void scan_region(LogRegion *region);
-  void free_region(LogRegion *region);
+  void scan_region(LogRegion *region, bool deactivate);
+  bool evac_region(LogRegion *region);
+  bool free_region(LogRegion *region);
+
+  bool scan_chunk(LogChunk *chunk, bool deactivate);
   bool evac_chunk(LogChunk *chunk);
-  bool scan_chunk(LogChunk *chunk);
   bool free_chunk(LogChunk *chunk);
 
   using work_fn = void (Evacuator::*)(LogRegion *);
