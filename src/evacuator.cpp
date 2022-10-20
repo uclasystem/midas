@@ -20,7 +20,6 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
     __sync_fetch_and_add(&under_pressure_, -1);
     return 1;
   }
-
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto stt = std::chrono::steady_clock::now();
@@ -30,69 +29,36 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   auto nr_scan_thds = nr_gc_thds_;
   auto nr_evac_thds = 1;
 
-  std::vector<std::thread> gc_thds;
-  auto *scan_tasks = new std::vector<LogRegion *>[nr_scan_thds];
+  auto prev_nr_regions = regions.size();
+
+  using Pair = std::pair<float, LogRegion *>;
   std::mutex evac_mtx;
   std::vector<std::pair<float, LogRegion *>> agg_evac_tasks;
-  auto *evac_tasks = new std::vector<LogRegion *>[nr_evac_thds];
 
-  int tid = 0;
-  auto prev_nr_regions = regions.size();
-  for (auto region : regions) {
-    auto raw_ptr = region.get();
-    if (raw_ptr) {
-      scan_tasks[tid].push_back(raw_ptr);
-      tid = (tid + 1) % nr_scan_thds;
-    }
-  }
-
-  for (tid = 0; tid < nr_scan_thds; tid++) {
-    gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto region : scan_tasks[tid]) {
-        scan_region(region, false);
-        auto alive_ratio = region->get_alive_ratio();
+  parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
+      nr_scan_thds, regions, [&](std::shared_ptr<LogRegion> region) {
+        auto region_ = region.get();
+        scan_region(region_, false);
+        auto alive_ratio = region_->get_alive_ratio();
         if (alive_ratio > 0.9)
-          continue;
+          return true;
         std::unique_lock<std::mutex> ul(evac_mtx);
-        agg_evac_tasks.push_back(std::make_pair(alive_ratio, region));
-      }
-    }));
-  }
-  for (auto &thd : gc_thds)
-    thd.join();
-  gc_thds.clear();
-  delete[] scan_tasks;
-
-  std::sort(
-      agg_evac_tasks.begin(), agg_evac_tasks.end(),
-      [](std::pair<float, LogRegion *> v1, std::pair<float, LogRegion *> v2) {
-        return v1.first < v2.first;
+        agg_evac_tasks.push_back(std::make_pair(alive_ratio, region_));
+        return true;
       });
 
-  tid = 0;
-  for (auto [ar, region] : agg_evac_tasks) {
-    evac_tasks[tid % nr_evac_thds].push_back(region);
-    tid++;
+  if (!agg_evac_tasks.empty()) {
+    std::sort(agg_evac_tasks.begin(), agg_evac_tasks.end(),
+              [](Pair v1, Pair v2) { return v1.first < v2.first; });
+    parallelizer<decltype(agg_evac_tasks), Pair>(
+        nr_evac_thds, agg_evac_tasks, [&](Pair p) {
+          if (evac_region(p.second))
+            nr_reclaimed++;
+          return nr_reclaimed < nr_to_reclaim;
+        });
+    agg_evac_tasks.clear();
+    allocator->cleanup_regions();
   }
-  agg_evac_tasks.clear();
-
-  for (tid = 0; tid < nr_evac_thds; tid++) {
-    gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto region : evac_tasks[tid]) {
-        if (evac_region(region))
-          nr_reclaimed++;
-        if (nr_reclaimed >= nr_to_reclaim)
-          break;
-      }
-    }));
-  }
-  for (auto &thd : gc_thds)
-    thd.join();
-  gc_thds.clear();
-  delete[] evac_tasks;
-
-  allocator->cleanup_regions();
-  auto curr_nr_regions = regions.size();
 
   if (nr_reclaimed < nr_to_reclaim) {
     for (auto &region : regions) {
@@ -102,15 +68,14 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
         break;
     }
     allocator->cleanup_regions();
-    curr_nr_regions = regions.size();
   }
 
   auto end = std::chrono::steady_clock::now();
-
-  LOG(kInfo) << "STW GC: reclaimed " << nr_reclaimed << " regions ("
-             << std::chrono::duration<double>(end - stt).count() << "s).";
-
   __sync_fetch_and_add(&under_pressure_, -1);
+
+  LOG(kDebug) << "STW GC: reclaimed " << nr_reclaimed << " regions ("
+              << std::chrono::duration<double>(end - stt).count() << "s).";
+  auto curr_nr_regions = regions.size();
   return prev_nr_regions - curr_nr_regions;
 }
 
@@ -129,39 +94,27 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   auto nr_evac_thds = 1;
 
   std::vector<std::thread> gc_thds;
-  auto *scan_tasks = new std::vector<LogRegion *>[nr_scan_thds];
+  // auto *scan_tasks = new std::vector<LogRegion *>[nr_scan_thds];
+  using Pair = std::pair<float, LogRegion *>;
   std::mutex evac_mtx;
-  std::vector<std::pair<float, LogRegion *>> agg_evac_tasks;
+  std::vector<Pair> agg_evac_tasks;
   auto *evac_tasks = new std::vector<LogRegion *>[nr_evac_thds];
 
   int nr_reclaimed_regions = 0;
   int curr_nr_regions = 0;
   int prev_nr_regions = regions.size();
   int tid = 0;
-  for (auto region : regions) {
-    auto raw_ptr = region.get();
-    if (raw_ptr) {
-      scan_tasks[tid].push_back(raw_ptr);
-      tid = (tid + 1) % nr_scan_thds;
-    }
-  }
-
-  for (tid = 0; tid < nr_scan_thds; tid++) {
-    gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto region : scan_tasks[tid]) {
-        scan_region(region, true);
+  parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
+      nr_scan_thds, regions, [&](std::shared_ptr<LogRegion> region) {
+        auto region_ = region.get();
+        scan_region(region_, true);
         auto alive_ratio = region->get_alive_ratio();
         if (alive_ratio <= kAliveThreshold) {
           std::unique_lock<std::mutex> ul(evac_mtx);
-          agg_evac_tasks.push_back(std::make_pair(alive_ratio, region));
+          agg_evac_tasks.push_back(std::make_pair(alive_ratio, region_));
         }
-      }
-    }));
-  }
-  for (auto &thd : gc_thds)
-    thd.join();
-  gc_thds.clear();
-  delete[] scan_tasks;
+        return true;
+      });
 
   if (agg_evac_tasks.empty()) {
     kAliveThreshold =
@@ -170,40 +123,23 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   } else {
     kAliveThreshold = kAliveThresholdLow;
   }
+  std::sort(agg_evac_tasks.begin(), agg_evac_tasks.end(),
+            [](Pair v1, Pair v2) { return v1.first < v2.first; });
 
-  std::sort(
-      agg_evac_tasks.begin(), agg_evac_tasks.end(),
-      [](std::pair<float, LogRegion *> v1, std::pair<float, LogRegion *> v2) {
-        return v1.first < v2.first;
-      });
-
-  tid = 0;
-  for (auto [ar, region] : agg_evac_tasks) {
-    evac_tasks[tid % nr_evac_thds].push_back(region);
-    tid++;
-  }
+  parallelizer<decltype(agg_evac_tasks), Pair>(nr_evac_thds, agg_evac_tasks,
+                                               [&](Pair p) {
+                                                 if (evac_region(p.second))
+                                                   nr_reclaimed++;
+                                                 return true;
+                                               });
   agg_evac_tasks.clear();
-
-  for (tid = 0; tid < nr_evac_thds; tid++) {
-    gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto region : evac_tasks[tid]) {
-        if (evac_region(region))
-          nr_reclaimed++;
-      }
-    }));
-  }
-  for (auto &thd : gc_thds)
-    thd.join();
-  gc_thds.clear();
-  delete[] evac_tasks;
-
   allocator->cleanup_regions();
 
 done:
   auto end = std::chrono::steady_clock::now();
   curr_nr_regions = regions.size();
-  LOG(kInfo) << "Conc GC: reclaimed " << nr_reclaimed << " regions ("
-             << std::chrono::duration<double>(end - stt).count() << "s).";
+  LOG(kDebug) << "Conc GC: reclaimed " << nr_reclaimed << " regions ("
+              << std::chrono::duration<double>(end - stt).count() << "s).";
 
   return nr_reclaimed_regions;
 }
@@ -242,14 +178,13 @@ void Evacuator::evacuate(int nr_thds) {
   for (auto &thd : gc_thds)
     thd.join();
   gc_thds.clear();
+  delete[] tasks;
 
   allocator->cleanup_regions();
   auto curr_nr_regions = regions.size();
 
   LOG(kError) << "Before evacuation: " << prev_nr_regions << " regions";
   LOG(kError) << "After  evacuation: " << curr_nr_regions << " regions";
-
-  delete[] tasks;
 }
 
 void Evacuator::scan(int nr_thds) {
@@ -260,25 +195,31 @@ void Evacuator::scan(int nr_thds) {
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
 
-  std::vector<std::thread> gc_thds;
-  auto *tasks = new std::vector<LogRegion *>[nr_thds];
+  parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
+      nr_thds, regions, [&](std::shared_ptr<LogRegion> region) {
+        if (under_pressure_ > 0)
+          return false;
+        scan_region(region.get(), true);
+        return true;
+      });
+}
 
+template <class C, class T>
+void Evacuator::parallelizer(int nr_workers, C &work_container,
+                             std::function<bool(T)> fn) {
+  auto *tasks = new std::vector<T>[nr_workers];
   int tid = 0;
-  auto prev_nr_regions = regions.size();
-  for (auto region : regions) {
-    auto raw_ptr = region.get();
-    if (raw_ptr) {
-      tasks[tid].push_back(raw_ptr);
-      tid = (tid + 1) % nr_thds;
-    }
+  for (auto task : work_container) {
+    tasks[tid].push_back(task);
+    tid = (tid + 1) % nr_workers;
   }
 
-  for (tid = 0; tid < nr_thds; tid++) {
+  std::vector<std::thread> gc_thds;
+  for (tid = 0; tid < nr_workers; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
       for (auto region : tasks[tid]) {
-        if (under_pressure_ > 0)
+        if (!fn(region))
           break;
-        scan_region(region, true);
       }
     }));
   }
@@ -323,6 +264,7 @@ inline bool Evacuator::free_region(LogRegion *region) {
   return ret;
 }
 
+/** Evacuate a particular chunk */
 inline bool Evacuator::iterate_chunk(LogChunk *chunk, uint64_t &pos,
                                      ObjectPtr &optr) {
   if (pos + sizeof(MetaObjectHdr) > chunk->pos_)

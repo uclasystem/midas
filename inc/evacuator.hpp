@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <mutex>
 
 namespace cachebank {
@@ -34,8 +35,12 @@ private:
   bool evac_chunk(LogChunk *chunk);
   bool free_chunk(LogChunk *chunk);
 
-  using work_fn = void (Evacuator::*)(LogRegion *);
-  void parallelizer(work_fn fn);
+  template <class Iter, class T>
+  void parallelizer(int nr_workers, Iter work_stt, Iter work_end,
+                    std::function<bool(T)> fn);
+
+  template <class C, class T>
+  void parallelizer(int nr_workers, C &work, std::function<bool(T)> fn);
 
   int32_t under_pressure_;
   int32_t nr_gc_thds_;
