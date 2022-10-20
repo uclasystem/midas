@@ -7,6 +7,7 @@ namespace cachebank {
 
 class LogChunk;
 class LogRegion;
+class ObjectPtr;
 
 class Evacuator {
 public:
@@ -28,6 +29,7 @@ private:
   bool evac_region(LogRegion *region);
   bool free_region(LogRegion *region);
 
+  bool iterate_chunk(LogChunk *chunk, uint64_t &pos, ObjectPtr &optr);
   bool scan_chunk(LogChunk *chunk, bool deactivate);
   bool evac_chunk(LogChunk *chunk);
   bool free_chunk(LogChunk *chunk);
