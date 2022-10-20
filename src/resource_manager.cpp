@@ -19,20 +19,20 @@
 namespace cachebank {
 
 Region::Region(uint64_t pid, uint64_t region_id) noexcept
-    : _pid(pid), _region_id(region_id), _alloc_bytes(0) {
+    : pid_(pid), region_id_(region_id) {
   const auto rwmode = boost::interprocess::read_write;
-  const std::string _shm_name = utils::get_region_name(_pid, _region_id);
-  _shm_obj = std::make_shared<SharedMemObj>(boost::interprocess::open_only,
-                                            _shm_name.c_str(), rwmode);
-  _shm_obj->get_size(_size);
+  const std::string shm_name_ = utils::get_region_name(pid_, region_id_);
+  SharedMemObj shm_obj(boost::interprocess::open_only, shm_name_.c_str(),
+                       rwmode);
+  shm_obj.get_size(size_);
   void *addr =
-      reinterpret_cast<void *>(kVolatileSttAddr + _region_id * kRegionSize);
-  _shm_region =
-      std::make_shared<MappedRegion>(*_shm_obj, rwmode, 0, _size, addr);
+      reinterpret_cast<void *>(kVolatileSttAddr + region_id_ * kRegionSize);
+  shm_region_ =
+      std::make_shared<MappedRegion>(shm_obj, rwmode, 0, size_, addr);
 }
 
 Region::~Region() noexcept {
-  SharedMemObj::remove(utils::get_region_name(_pid, _region_id).c_str());
+  SharedMemObj::remove(utils::get_region_name(pid_, region_id_).c_str());
 }
 
 ResourceManager::ResourceManager(const std::string &daemon_name) noexcept

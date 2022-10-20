@@ -25,21 +25,19 @@ public:
   ~Region() noexcept;
 
   inline friend bool operator<(const Region &lhs, const Region &rhs) noexcept {
-    return lhs._region_id < rhs._region_id;
+    return lhs.region_id_ < rhs.region_id_;
   }
 
-  inline void *Addr() const noexcept { return _shm_region->get_address(); }
-  inline uint64_t ID() const noexcept { return _region_id; }
-  inline int64_t Size() const noexcept { return _size; }
-  inline int64_t GetAllocBytes() const noexcept { return _alloc_bytes; }
+  inline void *Addr() const noexcept { return shm_region_->get_address(); }
+  inline uint64_t ID() const noexcept { return region_id_; }
+  inline int64_t Size() const noexcept { return size_; }
 
 private:
-  uint64_t _pid;
-  uint64_t _region_id;
-  std::shared_ptr<SharedMemObj> _shm_obj;
-  std::shared_ptr<MappedRegion> _shm_region;
-  int64_t _size; // int64_t to adapt to boost::interprocess::offset_t
-  int64_t _alloc_bytes;
+  // generating unique name for the region shared memory file
+  uint64_t pid_;
+  uint64_t region_id_;
+  std::shared_ptr<MappedRegion> shm_region_;
+  int64_t size_; // int64_t to adapt to boost::interprocess::offset_t
 };
 
 class ResourceManager {
