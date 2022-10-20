@@ -27,8 +27,7 @@ Region::Region(uint64_t pid, uint64_t region_id) noexcept
   shm_obj.get_size(size_);
   void *addr =
       reinterpret_cast<void *>(kVolatileSttAddr + region_id_ * kRegionSize);
-  shm_region_ =
-      std::make_shared<MappedRegion>(shm_obj, rwmode, 0, size_, addr);
+  shm_region_ = std::make_shared<MappedRegion>(shm_obj, rwmode, 0, size_, addr);
 }
 
 Region::~Region() noexcept {
@@ -116,8 +115,8 @@ void ResourceManager::pressure_handler() {
 
     LOG(kInfo) << "PressureHandler recved msg " << msg.op;
     switch (msg.op) {
-    case RECLAIM:
-      do_reclaim(msg);
+    case UPDLIMIT:
+      do_update_limit(msg);
       break;
     default:
       LOG(kError) << "Recved unknown message: " << msg.op;
@@ -125,10 +124,24 @@ void ResourceManager::pressure_handler() {
   }
 }
 
-void ResourceManager::do_reclaim(CtrlMsg &msg) {
+void ResourceManager::do_update_limit(CtrlMsg &msg) {
   assert(msg.mmsg.size != 0);
 
-  int64_t nr_to_reclaim = msg.mmsg.size;
+  auto new_region_limit = msg.mmsg.size;
+  LOG(kError) << region_limit_ << " " << new_region_limit;
+
+  if (new_region_limit >= region_limit_) {
+    region_limit_ = new_region_limit;
+    CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = CtrlRetCode::MEM_SUCC};
+    rxqp_.send(&ack, sizeof(ack));
+  } else {
+    int64_t nr_to_reclaim = new_region_limit - region_limit_;
+    region_limit_ = new_region_limit;
+    do_reclaim(nr_to_reclaim);
+  }
+}
+
+inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
   LOG(kError) << nr_to_reclaim;
   int64_t nr_reclaimed = Evacuator::global_evacuator()->stw_gc(nr_to_reclaim);
   LOG(kError) << nr_reclaimed;
@@ -140,7 +153,7 @@ void ResourceManager::do_reclaim(CtrlMsg &msg) {
     ret = CtrlRetCode::MEM_SUCC;
     mm.size = nr_reclaimed;
   }
-  CtrlMsg ack{.op = CtrlOpCode::RECLAIM, .ret = ret, .mmsg = mm};
+  CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
   rxqp_.send(&ack, sizeof(ack));
 }
 
@@ -189,6 +202,7 @@ void ResourceManager::FreeRegion(int64_t rid) noexcept {
   int64_t freed_bytes = free_region(rid);
   if (freed_bytes == -1) {
     LOG(kError) << "Failed to free region " << rid;
+    return;
   }
 }
 
@@ -221,7 +235,7 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
     return -1;
   }
 
-  int64_t size = region_iter->second->Size();
+  auto size = region_iter->second->Size();
   try {
     CtrlMsg msg{.id = id_,
                 .op = CtrlOpCode::FREE,

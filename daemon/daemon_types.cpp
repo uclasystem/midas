@@ -94,22 +94,22 @@ void Client::free_region(int64_t region_id) {
   cq.send(&ack, sizeof(ack));
 }
 
-void Client::reclaim_regions(uint64_t mem_limit) {
+void Client::update_limit(uint64_t mem_limit) {
   region_limit_ = mem_limit / kRegionSize;
-  if (region_cnt_ <= region_limit_)
+  if (region_cnt_ == region_limit_)
     return;
 
-  int64_t nr_regions = region_cnt_ - region_limit_;
-
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
-  MemMsg mm{.size = nr_regions};
+  MemMsg mm{.size = static_cast<int64_t>(region_limit_)};
 
-  CtrlMsg msg{.op = CtrlOpCode::RECLAIM, .ret = ret, .mmsg = mm};
+  CtrlMsg msg{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
   txqp.send(&msg, sizeof(msg));
 
   CtrlMsg ack;
   txqp.recv(&ack, sizeof(ack));
+
   // assert(ack.ret == CtrlRetCode::MEM_SUCC);
+  // TODO: parse ack and react correspondingly
 }
 
 void Client::destroy() {
@@ -148,8 +148,9 @@ int Daemon::do_connect(const CtrlMsg &msg) {
     auto client_iter = clients_.find(msg.id);
     assert(client_iter != clients_.cend());
     auto &client = client_iter->second;
-    LOG(kInfo) << "Client " << msg.id << " connected.";
     client.connect();
+    client.update_limit(mem_limit_); // init client-side mem_limit
+    LOG(kInfo) << "Client " << msg.id << " connected.";
   } catch (boost::interprocess::interprocess_exception &e) {
     LOG(kError) << e.what();
   }
@@ -238,7 +239,7 @@ void Daemon::monitor() {
     if (mem_limit_ != prev_mem_limit) {
       LOG(kError) << mem_limit_ << " != " << prev_mem_limit;
       for (auto &[id, client] : clients_) {
-        client.reclaim_regions(mem_limit_);
+        client.update_limit(mem_limit_);
       }
     }
 

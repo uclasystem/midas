@@ -50,6 +50,9 @@ public:
   void FreeRegions(size_t size = kRegionSize) noexcept;
   inline VRange GetRegion(int64_t region_id) noexcept;
 
+  uint64_t NumRegionInUse() const noexcept;
+  uint64_t NumRegionLimit() const noexcept;
+
   static inline ResourceManager *global_manager() noexcept;
 
 private:
@@ -58,7 +61,10 @@ private:
   size_t free_region(int64_t region_id) noexcept;
 
   void pressure_handler();
-  void do_reclaim(CtrlMsg &msg);
+  void do_update_limit(CtrlMsg &msg);
+  void do_reclaim(int64_t nr_to_reclaim);
+
+  uint64_t region_limit_;
 
   uint64_t id_;
   std::mutex mtx_;

@@ -35,7 +35,7 @@ public:
   void alloc_region(size_t size);
   void overcommit_region(size_t size);
   void free_region(int64_t region_id);
-  void reclaim_regions(uint64_t mem_limit);
+  void update_limit(uint64_t mem_limit);
 
 private:
   inline int64_t new_region_id_() noexcept;

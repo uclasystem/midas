@@ -20,6 +20,15 @@ inline VRange ResourceManager::GetRegion(int64_t region_id) noexcept {
   return VRange(region->Addr(), region->Size());
 }
 
+inline uint64_t ResourceManager::NumRegionInUse() const noexcept {
+  // std::unique_lock<std::mutex> lk(mtx_);
+  return region_map_.size();
+}
+
+inline uint64_t ResourceManager::NumRegionLimit() const noexcept {
+  return region_limit_;
+}
+
 /* A thread safe way to create a global manager and get its reference. */
 inline ResourceManager *ResourceManager::global_manager() noexcept {
   static std::mutex mtx_;
