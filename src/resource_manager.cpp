@@ -163,7 +163,7 @@ retry:
     // LOG(kError);
     lk.unlock();
     if (Evacuator::global_evacuator()->stw_gc(
-            std::min<int64_t>(std::max<int64_t>(region_map_.size() / 100, 24),
+            std::min<int64_t>(std::max<int64_t>(region_map_.size() / 100, 48),
                               region_map_.size())) > 0) {
       // lk.lock();
       goto retry;
