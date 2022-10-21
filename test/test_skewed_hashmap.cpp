@@ -138,8 +138,12 @@ private:
           const V &v = get_V(tid);
           ks[tid].emplace_back(k);
           vs[tid].emplace_back(v);
-          if (hashmap->set(k, v))
+          if (hashmap->set(k, v)) {
             perthd_stats[tid].nr_succ++;
+            auto _ = hashmap->get(k);
+            // hashmap->get(k);
+            // hashmap->get(k);
+          }
           else
             perthd_stats[tid].nr_err++;
         }
@@ -161,8 +165,8 @@ private:
     std::vector<std::thread> thds;
     for (int tid = 0; tid < kNumMutatorThds; tid++) {
       thds.push_back(std::thread([&, tid = tid]() {
-        cachebank::zipf_table_distribution<> dist(kNumKVPairs, kZipfSkew);
-        // std::uniform_int_distribution<> dist(0, kNumKVPairs);
+        // cachebank::zipf_table_distribution<> dist(kNumKVPairs, kZipfSkew);
+        std::uniform_int_distribution<> dist(0, kNumKVPairs);
         zipf_idxes[tid].clear();
         for (int o = 0; o < kNumOps; o++) {
           auto idx = dist(*mts[tid]);
@@ -194,9 +198,9 @@ private:
 public:
   void init() {
     reset();
+    launch_evacuator();
     prepare();
     gen_load();
-    launch_evacuator();
   }
 
   void finalize() {
