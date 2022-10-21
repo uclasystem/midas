@@ -35,7 +35,7 @@ Region::~Region() noexcept {
 }
 
 ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
-    : id_(get_unique_id()),
+    : region_limit_(0), id_(get_unique_id()),
       txqp_(std::make_shared<QSingle>(utils::get_sq_name(daemon_name, false),
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
