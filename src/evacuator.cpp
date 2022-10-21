@@ -11,6 +11,7 @@
 #include "log.hpp"
 #include "logging.hpp"
 #include "object.hpp"
+#include "resource_manager.hpp"
 
 namespace cachebank {
 
@@ -23,7 +24,8 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto stt = std::chrono::steady_clock::now();
-  std::atomic_int64_t nr_reclaimed = 0;
+  std::atomic_int64_t nr_evaced = 0;
+  auto rmanager = ResourceManager::global_manager();
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
   auto nr_scan_thds = nr_gc_thds_;
@@ -33,7 +35,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
 
   using Pair = std::pair<float, LogRegion *>;
   std::mutex evac_mtx;
-  std::vector<std::pair<float, LogRegion *>> agg_evac_tasks;
+  std::vector<Pair> agg_evac_tasks;
 
   parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
       nr_scan_thds, regions, [&](std::shared_ptr<LogRegion> region) {
@@ -53,18 +55,22 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
     parallelizer<decltype(agg_evac_tasks), Pair>(
         nr_evac_thds, agg_evac_tasks, [&](Pair p) {
           if (evac_region(p.second))
-            nr_reclaimed++;
-          return nr_reclaimed < nr_to_reclaim;
+            nr_evaced++;
+          return rmanager->NumRegionInUse() + nr_to_reclaim >=
+                 rmanager->NumRegionLimit();
         });
     agg_evac_tasks.clear();
     allocator->cleanup_regions();
   }
 
-  if (nr_reclaimed < nr_to_reclaim) {
+  if (rmanager->NumRegionInUse() + nr_to_reclaim >=
+      rmanager->NumRegionLimit()) {
     for (auto &region : regions) {
       if (free_region(region.get()))
-        nr_reclaimed++;
-      if (nr_reclaimed >= nr_to_reclaim)
+        nr_evaced++;
+      auto rmanager = ResourceManager::global_manager();
+      if (rmanager->NumRegionInUse() + nr_to_reclaim <
+          rmanager->NumRegionLimit())
         break;
     }
     allocator->cleanup_regions();
@@ -73,10 +79,11 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   auto end = std::chrono::steady_clock::now();
   __sync_fetch_and_add(&under_pressure_, -1);
 
-  LOG(kDebug) << "STW GC: reclaimed " << nr_reclaimed << " regions ("
-              << std::chrono::duration<double>(end - stt).count() << "s).";
-  auto curr_nr_regions = regions.size();
-  return prev_nr_regions - curr_nr_regions;
+  auto nr_reclaimed = rmanager->NumRegionLimit() - rmanager->NumRegionInUse();
+  LOG(kInfo) << "STW GC: " << nr_evaced << " evacuated, " << nr_reclaimed
+             << " reclaimed ("
+             << std::chrono::duration<double>(end - stt).count() << "s).";
+  return nr_reclaimed;
 }
 
 int64_t Evacuator::conc_gc(int nr_thds) {
@@ -87,7 +94,7 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto stt = std::chrono::steady_clock::now();
-  std::atomic_int64_t nr_reclaimed = 0;
+  std::atomic_int64_t nr_evaced = 0;
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
   auto nr_scan_thds = nr_thds;
@@ -100,9 +107,6 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   std::vector<Pair> agg_evac_tasks;
   auto *evac_tasks = new std::vector<LogRegion *>[nr_evac_thds];
 
-  int nr_reclaimed_regions = 0;
-  int curr_nr_regions = 0;
-  int prev_nr_regions = regions.size();
   int tid = 0;
   parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
       nr_scan_thds, regions, [&](std::shared_ptr<LogRegion> region) {
@@ -129,7 +133,7 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   parallelizer<decltype(agg_evac_tasks), Pair>(nr_evac_thds, agg_evac_tasks,
                                                [&](Pair p) {
                                                  if (evac_region(p.second))
-                                                   nr_reclaimed++;
+                                                   nr_evaced++;
                                                  return true;
                                                });
   agg_evac_tasks.clear();
@@ -137,11 +141,13 @@ int64_t Evacuator::conc_gc(int nr_thds) {
 
 done:
   auto end = std::chrono::steady_clock::now();
-  curr_nr_regions = regions.size();
-  LOG(kDebug) << "Conc GC: reclaimed " << nr_reclaimed << " regions ("
-              << std::chrono::duration<double>(end - stt).count() << "s).";
+  auto rmanager = ResourceManager::global_manager();
+  auto nr_reclaimed = rmanager->NumRegionLimit() - rmanager->NumRegionInUse();
+  LOG(kInfo) << "Conc GC: " << nr_evaced << " evacuated, " << nr_reclaimed
+             << " reclaimed ("
+             << std::chrono::duration<double>(end - stt).count() << "s).";
 
-  return nr_reclaimed_regions;
+  return nr_reclaimed;
 }
 
 void Evacuator::evacuate(int nr_thds) {
