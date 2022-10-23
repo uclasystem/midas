@@ -183,14 +183,10 @@ private:
     evac_thd = std::make_shared<std::thread>([&]() {
       auto evacuator = cachebank::Evacuator::global_evacuator();
       while (!stop) {
-        // auto stt = cachebank::timer::timer();
-        // evacuator->scan(kNumGCThds);
-        // auto end = cachebank::timer::timer();
-        // std::cout << "scan duration: " << cachebank::timer::duration(stt, end)
-        //           << "s" << std::endl;
+        evacuator->scan(kNumGCThds);
         // evacuator->evacuate(kNumGCThds);
-        evacuator->conc_gc(kNumGCThds);
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        // evacuator->conc_gc(kNumGCThds);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
       }
     });
   }
