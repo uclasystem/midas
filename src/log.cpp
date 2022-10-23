@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -232,5 +233,9 @@ failed:
 
 // Define PCAB
 thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;
+thread_local int32_t LogAllocator::access_cnt_ = 0;
+thread_local int32_t LogAllocator::alive_cnt_ = 0;
+std::atomic_int64_t LogAllocator::total_access_cnt_{0};
+std::atomic_int64_t LogAllocator::total_alive_cnt_{0};
 
 } // namespace cachebank

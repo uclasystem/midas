@@ -82,7 +82,14 @@ public:
   bool alloc_to(size_t size, ObjectPtr *dst);
   bool free(ObjectPtr &ptr);
 
-  static inline void seal_pcab();
+  // accessing internal counters
+  static inline int64_t total_access_cnt() noexcept;
+  static inline void reset_access_cnt() noexcept;
+  static inline int64_t total_alive_cnt() noexcept;
+  static inline void reset_alive_cnt() noexcept;
+  static inline void count_access();
+  static inline void count_alive(int val);
+  static inline void thd_exit();
 
   static inline LogAllocator *global_allocator() noexcept;
 
@@ -103,9 +110,15 @@ private:
   friend class LogChunk;
   int cleanup_regions();
 
+  static inline void seal_pcab();
+
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers
   static thread_local std::shared_ptr<LogChunk> pcab;
+  static thread_local int32_t access_cnt_;
+  static thread_local int32_t alive_cnt_;
+  static std::atomic_int64_t total_access_cnt_;
+  static std::atomic_int64_t total_alive_cnt_;
 };
 
 } // namespace cachebank

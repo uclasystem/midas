@@ -83,6 +83,50 @@ inline int LogAllocator::cleanup_regions() {
   return reclaimed;
 }
 
+/* static functions */
+inline int64_t LogAllocator::total_access_cnt() noexcept {
+  return total_access_cnt_;
+}
+
+inline void LogAllocator::reset_access_cnt() noexcept {
+  total_access_cnt_ = 0;
+}
+
+inline int64_t LogAllocator::total_alive_cnt() noexcept {
+  return total_alive_cnt_;
+}
+
+inline void LogAllocator::reset_alive_cnt() noexcept {
+  total_alive_cnt_ = 0;
+}
+
+inline void LogAllocator::count_access() {
+  constexpr static int32_t kAccPrecision = 1024;
+  access_cnt_++;
+  if (UNLIKELY(access_cnt_ >= kAccPrecision)) {
+    total_access_cnt_ += access_cnt_;
+    access_cnt_ = 0;
+  }
+}
+
+inline void LogAllocator::count_alive(int val) {
+  constexpr static int32_t kAccPrecision = 1024;
+  alive_cnt_ += val;
+  if (UNLIKELY(alive_cnt_ >= kAccPrecision || alive_cnt_ <= -kAccPrecision)) {
+    total_alive_cnt_ += alive_cnt_;
+    alive_cnt_ = 0;
+  }
+}
+
+inline void LogAllocator::thd_exit() {
+  seal_pcab();
+
+  if (access_cnt_) {
+    total_access_cnt_ += access_cnt_;
+    access_cnt_ = 0;
+  }
+}
+
 inline void LogAllocator::seal_pcab() {
   if (pcab.get())
     pcab->seal();
@@ -105,7 +149,7 @@ inline LogAllocator *LogAllocator::global_allocator() noexcept {
 }
 
 static thread_local struct ThreadExiter {
-  ~ThreadExiter() { LogAllocator::seal_pcab(); }
+  ~ThreadExiter() { LogAllocator::thd_exit(); }
 } exiter;
 
 } // namespace cachebank

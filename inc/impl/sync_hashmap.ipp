@@ -52,6 +52,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
     return false;
   }
   lock.unlock();
+  LogAllocator::count_access();
   return true;
 }
 
@@ -81,6 +82,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
   assert(node);
   delete_node(prev_next, node);
   lock.unlock();
+  LogAllocator::count_access();
   return true;
 }
 
@@ -106,6 +108,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
       if (!node->pair.null() &&
           node->pair.copy_from(&tmp_v, sizeof(Tp), sizeof(Key))) {
         lock.unlock();
+        LogAllocator::count_access();
         return true;
       } else {
         node = delete_node(prev_next, node);
@@ -121,6 +124,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
   }
   *prev_next = new_node;
   lock.unlock();
+  LogAllocator::count_access();
   return true;
 }
 
