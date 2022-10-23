@@ -15,6 +15,18 @@
 
 namespace cachebank {
 
+inline bool scannable() {
+  if (LogAllocator::total_access_cnt() < LogAllocator::total_alive_cnt())
+    return false;
+  LOG(kError) << "total acc cnt: "
+              << cachebank::LogAllocator::total_access_cnt()
+              << ", total alive cnt: "
+              << cachebank::LogAllocator::total_alive_cnt();
+  LogAllocator::reset_access_cnt();
+  LogAllocator::reset_alive_cnt();
+  return true;
+}
+
 int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   if (__sync_fetch_and_add(&under_pressure_, 1) > 0) {
     std::unique_lock<std::mutex> ul(mtx_);
@@ -92,6 +104,9 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   static float kAliveThreshold = kAliveThresholdLow;
 
   std::unique_lock<std::mutex> ul(mtx_);
+
+  if (!scannable())
+    return 0;
 
   auto stt = std::chrono::steady_clock::now();
   std::atomic_int64_t nr_evaced = 0;
@@ -201,6 +216,9 @@ void Evacuator::scan(int nr_thds) {
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
 
+  if (!scannable())
+    return;
+
   parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
       nr_thds, regions, [&](std::shared_ptr<LogRegion> region) {
         if (under_pressure_ > 0)
@@ -301,6 +319,7 @@ inline bool Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
   chunk->alive_bytes_ = 0;
 
   int nr_deactivated = 0;
+  int nr_present = 0;
   int nr_non_present = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
@@ -321,6 +340,7 @@ inline bool Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
         goto faulted;
       else {
         if (meta_hdr.is_present()) {
+          nr_present++;
           if (!deactivate) {
             chunk->upd_alive_bytes(obj_size);
           } else if (meta_hdr.is_accessed()) {
@@ -359,6 +379,8 @@ inline bool Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
     obj_ptr.unlock(lock_id);
     break;
   }
+  if (deactivate) // meaning this is a scanning thread
+    LogAllocator::count_alive(nr_present);
   LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
               << ", nr_non_present: " << nr_non_present
               << ", nr_deactivated: " << nr_deactivated
