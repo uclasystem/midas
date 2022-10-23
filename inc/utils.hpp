@@ -18,8 +18,8 @@ constexpr static uint64_t kLogChunkMask = ~(kLogChunkSize - 1ull);
 constexpr static uint32_t kRegionSize = kLogChunkSize;
 constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
 
-#define likely(x) __builtin_expect((x), 1)
-#define unlikely(x) __builtin_expect((x), 0)
+#define LIKELY(x) __builtin_expect((x), 1)
+#define UNLIKELY(x) __builtin_expect((x), 0)
 
 // align must be power of 2.
 #define round_up_to_align(val, align) (((val) + ((align)-1)) & ~((align)-1))

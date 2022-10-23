@@ -52,8 +52,8 @@ inline void SlabRegion::push(void *addr) {
 }
 
 inline void *SlabRegion::pop() {
-  if (unlikely(!slots || nr_alloced == capacity)) {
-    if (unlikely(!ret_slots))
+  if (UNLIKELY(!slots || nr_alloced == capacity)) {
+    if (UNLIKELY(!ret_slots))
       return nullptr;
     else { // slow path
       ret_mtx->lock();

@@ -24,11 +24,11 @@ inline SlabAllocator *SlabAllocator::global_allocator() {
   static std::mutex mtx_;
   static std::unique_ptr<SlabAllocator> _allocator(nullptr);
 
-  if (likely(_allocator.get() != nullptr))
+  if (LIKELY(_allocator.get() != nullptr))
     return _allocator.get();
 
   std::unique_lock<std::mutex> lk(mtx_);
-  if (unlikely(_allocator.get() != nullptr))
+  if (UNLIKELY(_allocator.get() != nullptr))
     return _allocator.get();
 
   _allocator = std::make_unique<SlabAllocator>();

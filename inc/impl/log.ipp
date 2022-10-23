@@ -93,11 +93,11 @@ inline LogAllocator *LogAllocator::global_allocator() noexcept {
   static std::mutex mtx_;
   static std::unique_ptr<LogAllocator> _allocator(nullptr);
 
-  if (likely(_allocator.get() != nullptr))
+  if (LIKELY(_allocator.get() != nullptr))
     return _allocator.get();
 
   std::unique_lock<std::mutex> lk(mtx_);
-  if (unlikely(_allocator.get() != nullptr))
+  if (UNLIKELY(_allocator.get() != nullptr))
     return _allocator.get();
 
   _allocator = std::make_unique<LogAllocator>();

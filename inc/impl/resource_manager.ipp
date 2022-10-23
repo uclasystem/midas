@@ -34,11 +34,11 @@ inline ResourceManager *ResourceManager::global_manager() noexcept {
   static std::mutex mtx_;
   static std::unique_ptr<ResourceManager> _rmanager(nullptr);
 
-  if (likely(_rmanager.get() != nullptr))
+  if (LIKELY(_rmanager.get() != nullptr))
     return _rmanager.get();
 
   std::unique_lock<std::mutex> lk(mtx_);
-  if (unlikely(_rmanager.get() != nullptr))
+  if (UNLIKELY(_rmanager.get() != nullptr))
     return _rmanager.get();
 
   _rmanager = std::make_unique<ResourceManager>();
