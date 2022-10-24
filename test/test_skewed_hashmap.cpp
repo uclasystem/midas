@@ -18,7 +18,7 @@
 #include "utils.hpp"
 #include "zipf.hpp"
 
-constexpr static double kZipfSkew = 0.5;
+constexpr static double kZipfSkew = 0.9;
 
 constexpr static int kNBuckets = (1 << 28);
 constexpr static int kNumMutatorThds = 40;
@@ -165,8 +165,8 @@ private:
     std::vector<std::thread> thds;
     for (int tid = 0; tid < kNumMutatorThds; tid++) {
       thds.push_back(std::thread([&, tid = tid]() {
-        // cachebank::zipf_table_distribution<> dist(kNumKVPairs, kZipfSkew);
-        std::uniform_int_distribution<> dist(0, kNumKVPairs);
+        cachebank::zipf_table_distribution<> dist(kNumKVPairs, kZipfSkew);
+        // std::uniform_int_distribution<> dist(0, kNumKVPairs);
         zipf_idxes[tid].clear();
         for (int o = 0; o < kNumOps; o++) {
           auto idx = dist(*mts[tid]);
