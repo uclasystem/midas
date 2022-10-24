@@ -68,20 +68,20 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
         nr_evac_thds, agg_evac_tasks, [&](Pair p) {
           if (evac_region(p.second))
             nr_evaced++;
-          return rmanager->NumRegionInUse() + nr_to_reclaim >=
+          return rmanager->NumRegionInUse() + nr_to_reclaim >
                  rmanager->NumRegionLimit();
         });
     agg_evac_tasks.clear();
     allocator->cleanup_regions();
   }
 
-  if (rmanager->NumRegionInUse() + nr_to_reclaim >=
+  if (rmanager->NumRegionInUse() + nr_to_reclaim >
       rmanager->NumRegionLimit()) {
     for (auto &region : regions) {
       if (free_region(region.get()))
         nr_evaced++;
       auto rmanager = ResourceManager::global_manager();
-      if (rmanager->NumRegionInUse() + nr_to_reclaim <
+      if (rmanager->NumRegionInUse() + nr_to_reclaim <=
           rmanager->NumRegionLimit())
         break;
     }
