@@ -99,8 +99,9 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
 }
 
 int64_t Evacuator::conc_gc(int nr_thds) {
+  constexpr static float kAliveIncStep = 0.1;
   constexpr static float kAliveThresholdLow = 0.6;
-  constexpr static float kAliveThresholdHigh = 0.9;
+  constexpr static float kAliveThresholdHigh = 0.8;
   static float kAliveThreshold = kAliveThresholdLow;
 
   std::unique_lock<std::mutex> ul(mtx_);
@@ -137,7 +138,7 @@ int64_t Evacuator::conc_gc(int nr_thds) {
 
   if (agg_evac_tasks.empty()) {
     kAliveThreshold =
-        std::min<float>(kAliveThreshold + 0.1, kAliveThresholdHigh);
+        std::min<float>(kAliveThreshold + kAliveIncStep, kAliveThresholdHigh);
     goto done;
   } else {
     kAliveThreshold = kAliveThresholdLow;
