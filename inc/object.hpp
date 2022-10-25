@@ -62,12 +62,13 @@ static_assert(sizeof(MetaObjectHdr) <= sizeof(uint64_t),
 
 struct SmallObjectHdr {
   // Format:
-  //  I) |P(1b)|A(1b)|E(1b)|S(1b)| Object Size(12b) | Reverse reference (48b) |
+  //  I) |P(1b)|S(1b)|E(1b)|M(1b)|A(2b)|  Obj Size(12b)  |  Reverse Ref (48b)  |
   //                   P: present bit.
+  //                   S: small obj bit -- the object is a small obj
+  //                      (size <= 8B * 2^10 == 8KB).
+  //                   E: evacuate bit -- the pointed data is being evacuated.
+  //                   M: mutate bit -- the pointed data is being mutated.
   //                   A: accessed bits.
-  //                   E: The pointed data is being evacuated.
-  //                   S: small obj bit, meaning the object is a small obj (size
-  //                     <= 8B * 2^10 == 8KB).
   //         Object Size: the size of the pointed object.
   //   Reverse reference: the only pointer referencing this object.
 public:
@@ -101,13 +102,14 @@ static_assert(sizeof(SmallObjectHdr) <= sizeof(uint64_t),
 
 struct LargeObjectHdr {
   // Format:
-  //  I) | P(1b) | A(1b) | E(1b) | S(1b) | C(1b) | 000(27b) | Object Size(32b) |
-  // II) |             0...0(16b)             |    Reverse reference (48b)     |
+  //  I) | P(1b) | S(1b) | E(1b) | M(1b) | A(2b) |C(1b)|00(27b)| Obj Size(32b) |
+  // II) |             0...0(16b)             |    Reverse Reference (48b)     |
   //                   P: present bit.
-  //                   A: accessed bits.
-  //                   E: evacuate bit, meaning the data is being evacuated.
-  //                   S: small obj bit, meaning the object is a small obj
-  //                     (size <= 8B * 2^10 == 32KB).
+  //                   S: small obj bit -- the object is a small obj
+  //                      (size <= 8B * 2^10 == 8KB).
+  //                   E: evacuate bit -- the pointed data is being evacuated.
+  //                   M: mutate bit -- the pointed data is being mutated.
+  //                   A: accessed bits..
   //                   C: continue bit, meaning the objct is a large obj and
   //                      the current chunk is a continued chunk.
   //         Object Size: the size of the pointed object.
