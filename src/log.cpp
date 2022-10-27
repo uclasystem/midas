@@ -69,8 +69,8 @@ inline bool LogChunk::free(ObjectPtr &ptr) {
   return ptr.free() == RetCode::Succ;
 }
 
-/** LogRegion */
-inline std::shared_ptr<LogChunk> LogRegion::allocChunk() {
+/** LogSegment */
+inline std::shared_ptr<LogChunk> LogSegment::allocChunk() {
   if (full()) {
     seal();
     return nullptr;
@@ -85,7 +85,7 @@ inline std::shared_ptr<LogChunk> LogRegion::allocChunk() {
   return chunk;
 }
 
-void LogRegion::destroy() {
+void LogSegment::destroy() {
   while (!vLogChunks_.empty()) {
     vLogChunks_.pop_back();
   }
@@ -107,7 +107,7 @@ inline std::shared_ptr<LogChunk> LogAllocator::getChunk() {
 }
 
 // try to get a non-empty region
-inline std::shared_ptr<LogRegion> LogAllocator::getRegion() {
+inline std::shared_ptr<LogSegment> LogAllocator::getRegion() {
   if (!vRegions_.empty()) {
     auto region = vRegions_.back();
     if (!region->full())
@@ -118,14 +118,14 @@ inline std::shared_ptr<LogRegion> LogAllocator::getRegion() {
 }
 
 // alloc a new region
-inline std::shared_ptr<LogRegion> LogAllocator::allocRegion(bool overcommit) {
+inline std::shared_ptr<LogSegment> LogAllocator::allocRegion(bool overcommit) {
   auto *rmanager = ResourceManager::global_manager();
   int rid = rmanager->AllocRegion(overcommit);
   if (rid == -1)
     return nullptr;
   VRange range = rmanager->GetRegion(rid);
 
-  auto region = std::make_shared<LogRegion>(
+  auto region = std::make_shared<LogSegment>(
       rid, reinterpret_cast<uint64_t>(range.stt_addr));
 
   return region;
@@ -173,7 +173,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
 
   ObjectPtr obj_ptr;
 
-  std::vector<std::shared_ptr<LogRegion>> regions;
+  std::vector<std::shared_ptr<LogSegment>> regions;
   std::vector<std::shared_ptr<LogChunk>> chunks;
   {
     int64_t remaining_size = size;

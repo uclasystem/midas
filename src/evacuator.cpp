@@ -45,12 +45,12 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
 
   auto prev_nr_regions = regions.size();
 
-  using Pair = std::pair<float, LogRegion *>;
+  using Pair = std::pair<float, LogSegment *>;
   std::mutex evac_mtx;
   std::vector<Pair> agg_evac_tasks;
 
-  parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
-      nr_scan_thds, regions, [&](std::shared_ptr<LogRegion> region) {
+  parallelizer<decltype(regions), std::shared_ptr<LogSegment>>(
+      nr_scan_thds, regions, [&](std::shared_ptr<LogSegment> region) {
         auto region_ = region.get();
         scan_region(region_, false);
         auto alive_ratio = region_->get_alive_ratio();
@@ -75,8 +75,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
     allocator->cleanup_regions();
   }
 
-  if (rmanager->NumRegionInUse() + nr_to_reclaim >
-      rmanager->NumRegionLimit()) {
+  if (rmanager->NumRegionInUse() + nr_to_reclaim > rmanager->NumRegionLimit()) {
     for (auto &region : regions) {
       if (free_region(region.get()))
         nr_evaced++;
@@ -117,15 +116,15 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   auto nr_evac_thds = 1;
 
   std::vector<std::thread> gc_thds;
-  // auto *scan_tasks = new std::vector<LogRegion *>[nr_scan_thds];
-  using Pair = std::pair<float, LogRegion *>;
+  // auto *scan_tasks = new std::vector<LogSegment *>[nr_scan_thds];
+  using Pair = std::pair<float, LogSegment *>;
   std::mutex evac_mtx;
   std::vector<Pair> agg_evac_tasks;
-  auto *evac_tasks = new std::vector<LogRegion *>[nr_evac_thds];
+  auto *evac_tasks = new std::vector<LogSegment *>[nr_evac_thds];
 
   int tid = 0;
-  parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
-      nr_scan_thds, regions, [&](std::shared_ptr<LogRegion> region) {
+  parallelizer<decltype(regions), std::shared_ptr<LogSegment>>(
+      nr_scan_thds, regions, [&](std::shared_ptr<LogSegment> region) {
         auto region_ = region.get();
         scan_region(region_, true);
         auto alive_ratio = region->get_alive_ratio();
@@ -175,7 +174,7 @@ void Evacuator::evacuate(int nr_thds) {
   auto &regions = allocator->vRegions_;
 
   std::vector<std::thread> gc_thds;
-  auto *tasks = new std::vector<LogRegion *>[nr_thds];
+  auto *tasks = new std::vector<LogSegment *>[nr_thds];
 
   int tid = 0;
   auto prev_nr_regions = regions.size();
@@ -220,8 +219,8 @@ void Evacuator::scan(int nr_thds) {
   if (!scannable())
     return;
 
-  parallelizer<decltype(regions), std::shared_ptr<LogRegion>>(
-      nr_thds, regions, [&](std::shared_ptr<LogRegion> region) {
+  parallelizer<decltype(regions), std::shared_ptr<LogSegment>>(
+      nr_thds, regions, [&](std::shared_ptr<LogSegment> region) {
         if (under_pressure_ > 0)
           return false;
         scan_region(region.get(), true);
@@ -256,7 +255,7 @@ void Evacuator::parallelizer(int nr_workers, C &work_container,
   delete[] tasks;
 }
 
-inline void Evacuator::scan_region(LogRegion *region, bool deactivate) {
+inline void Evacuator::scan_region(LogSegment *region, bool deactivate) {
   if (!region->sealed_)
     return;
   region->alive_bytes_ = 0;
@@ -265,7 +264,7 @@ inline void Evacuator::scan_region(LogRegion *region, bool deactivate) {
   }
 }
 
-inline bool Evacuator::evac_region(LogRegion *region) {
+inline bool Evacuator::evac_region(LogSegment *region) {
   if (!region->sealed_)
     return false;
   bool ret = true;
@@ -277,7 +276,7 @@ inline bool Evacuator::evac_region(LogRegion *region) {
   return ret;
 }
 
-inline bool Evacuator::free_region(LogRegion *region) {
+inline bool Evacuator::free_region(LogSegment *region) {
   if (!region->sealed_)
     return false;
   bool ret = true;

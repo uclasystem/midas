@@ -3,7 +3,7 @@
 namespace cachebank {
 
 /** LogChunk */
-inline LogChunk::LogChunk(LogRegion *region, uint64_t addr)
+inline LogChunk::LogChunk(LogSegment *region, uint64_t addr)
     : alive_bytes_(0), region_(region), start_addr_(addr), pos_(addr),
       sealed_(false) {}
 
@@ -30,22 +30,22 @@ inline void LogChunk::upd_alive_bytes(int32_t obj_size) noexcept {
   region_->alive_bytes_ += obj_size;
 }
 
-/** LogRegion */
-inline LogRegion::LogRegion(int64_t rid, uint64_t addr)
+/** LogSegment */
+inline LogSegment::LogSegment(int64_t rid, uint64_t addr)
     : alive_bytes_(0), region_id_(rid), start_addr_(addr), pos_(addr),
       sealed_(false), destroyed_(false) {}
 
-inline void LogRegion::seal() noexcept { sealed_ = true; }
+inline void LogSegment::seal() noexcept { sealed_ = true; }
 
-inline bool LogRegion::destroyed() const noexcept { return destroyed_; }
+inline bool LogSegment::destroyed() const noexcept { return destroyed_; }
 
-inline bool LogRegion::full() const noexcept {
+inline bool LogSegment::full() const noexcept {
   return pos_ >= start_addr_ + kRegionSize;
 }
 
-inline uint32_t LogRegion::size() const noexcept { return pos_ / kRegionSize; }
+inline uint32_t LogSegment::size() const noexcept { return pos_ / kRegionSize; }
 
-inline float LogRegion::get_alive_ratio() const noexcept {
+inline float LogSegment::get_alive_ratio() const noexcept {
   return static_cast<float>(alive_bytes_) / kRegionSize;
 }
 
@@ -76,8 +76,7 @@ inline int LogAllocator::cleanup_regions() {
     if ((*rit)->destroyed()) {
       rit = vRegions_.erase(rit);
       reclaimed++;
-    }
-    else
+    } else
       rit++;
   }
   return reclaimed;
@@ -88,17 +87,13 @@ inline int64_t LogAllocator::total_access_cnt() noexcept {
   return total_access_cnt_;
 }
 
-inline void LogAllocator::reset_access_cnt() noexcept {
-  total_access_cnt_ = 0;
-}
+inline void LogAllocator::reset_access_cnt() noexcept { total_access_cnt_ = 0; }
 
 inline int64_t LogAllocator::total_alive_cnt() noexcept {
   return total_alive_cnt_;
 }
 
-inline void LogAllocator::reset_alive_cnt() noexcept {
-  total_alive_cnt_ = 0;
-}
+inline void LogAllocator::reset_alive_cnt() noexcept { total_alive_cnt_ = 0; }
 
 inline void LogAllocator::count_access() {
   constexpr static int32_t kAccPrecision = 1024;

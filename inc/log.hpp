@@ -3,10 +3,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <list>
 
 #include "object.hpp"
 #include "transient_ptr.hpp"
@@ -14,11 +14,11 @@
 
 namespace cachebank {
 
-class LogRegion;
+class LogSegment;
 
 class LogChunk {
 public:
-  LogChunk(LogRegion *region, uint64_t addr);
+  LogChunk(LogSegment *region, uint64_t addr);
   std::optional<ObjectPtr> alloc_small(size_t size);
   std::optional<std::pair<TransientPtr, size_t>>
   alloc_large(size_t size, TransientPtr head_addr, TransientPtr prev_addr);
@@ -37,7 +37,7 @@ private:
 
   // std::mutex lock_;
   std::atomic_int32_t alive_bytes_;
-  LogRegion *region_;
+  LogSegment *region_;
 
   bool sealed_;
   uint64_t start_addr_;
@@ -47,9 +47,9 @@ private:
   friend class LogAllocator;
 };
 
-class LogRegion {
+class LogSegment {
 public:
-  LogRegion(int64_t rid, uint64_t addr);
+  LogSegment(int64_t rid, uint64_t addr);
   std::shared_ptr<LogChunk> allocChunk();
 
   bool destroyed() const noexcept;
@@ -97,12 +97,12 @@ private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::optional<ObjectPtr> alloc_large(size_t size);
   std::shared_ptr<LogChunk> getChunk();
-  std::shared_ptr<LogRegion> getRegion();
-  std::shared_ptr<LogRegion> allocRegion(bool overcommit = false);
+  std::shared_ptr<LogSegment> getRegion();
+  std::shared_ptr<LogSegment> allocRegion(bool overcommit = false);
   std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);
 
   std::mutex lock_;
-  std::list<std::shared_ptr<LogRegion>> vRegions_;
+  std::list<std::shared_ptr<LogSegment>> vRegions_;
   std::atomic_int32_t curr_region_;
   std::atomic_int32_t curr_chunk_;
 
