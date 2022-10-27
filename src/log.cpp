@@ -100,47 +100,47 @@ void LogSegment::destroy() {
 // try to get a non-empty chunk
 inline std::shared_ptr<LogChunk> LogAllocator::getChunk() {
   std::unique_lock<std::mutex> ul(lock_);
-  auto region = getRegion();
-  if (!region)
+  auto segment = getSegment();
+  if (!segment)
     return nullptr;
-  return region->allocChunk();
+  return segment->allocChunk();
 }
 
-// try to get a non-empty region
-inline std::shared_ptr<LogSegment> LogAllocator::getRegion() {
-  if (!vRegions_.empty()) {
-    auto region = vRegions_.back();
-    if (!region->full())
-      return region;
-    region->seal();
+// try to get a non-empty segment
+inline std::shared_ptr<LogSegment> LogAllocator::getSegment() {
+  if (!vSegments_.empty()) {
+    auto segment = vSegments_.back();
+    if (!segment->full())
+      return segment;
+    segment->seal();
   }
   return nullptr;
 }
 
-// alloc a new region
-inline std::shared_ptr<LogSegment> LogAllocator::allocRegion(bool overcommit) {
+// alloc a new segment
+inline std::shared_ptr<LogSegment> LogAllocator::allocSegment(bool overcommit) {
   auto *rmanager = ResourceManager::global_manager();
   int rid = rmanager->AllocRegion(overcommit);
   if (rid == -1)
     return nullptr;
   VRange range = rmanager->GetRegion(rid);
 
-  auto region = std::make_shared<LogSegment>(
+  auto segment = std::make_shared<LogSegment>(
       rid, reinterpret_cast<uint64_t>(range.stt_addr));
 
-  return region;
+  return segment;
 }
 
 inline std::shared_ptr<LogChunk> LogAllocator::allocChunk(bool overcommit) {
   std::shared_ptr<LogChunk> chunk = getChunk();
 
-  auto region = allocRegion(overcommit);
-  if (!region)
+  auto segment = allocSegment(overcommit);
+  if (!segment)
     return nullptr;
 
   std::unique_lock<std::mutex> ul(lock_);
-  vRegions_.push_back(region);
-  return region->allocChunk();
+  vSegments_.push_back(segment);
+  return segment->allocChunk();
 }
 
 std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
@@ -173,16 +173,16 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
 
   ObjectPtr obj_ptr;
 
-  std::vector<std::shared_ptr<LogSegment>> regions;
+  std::vector<std::shared_ptr<LogSegment>> segments;
   std::vector<std::shared_ptr<LogChunk>> chunks;
   {
     int64_t remaining_size = size;
 
-    auto region = allocRegion();
-    if (!region)
+    auto segment = allocSegment();
+    if (!segment)
       goto failed;
-    regions.push_back(region);
-    auto head_chunk = region->allocChunk();
+    segments.push_back(segment);
+    auto head_chunk = segment->allocChunk();
     assert(head_chunk.get());
     chunks.push_back(head_chunk);
 
@@ -198,12 +198,12 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
     auto prev_tptr = head_tptr;
     remaining_size -= alloced_size;
     while (remaining_size > 0) {
-      auto chunk = region->allocChunk();
+      auto chunk = segment->allocChunk();
       if (!chunk) {
-        region = allocRegion();
-        if (!region)
+        segment = allocSegment();
+        if (!segment)
           goto failed;
-        chunk = region->allocChunk();
+        chunk = segment->allocChunk();
         if (!chunk)
           goto failed;
       }
@@ -219,14 +219,14 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
   }
 
   lock_.lock();
-  for (auto region : regions)
-    vRegions_.push_back(region);
+  for (auto segment : segments)
+    vSegments_.push_back(segment);
   lock_.unlock();
   return obj_ptr;
 
 failed:
-  for (auto region : regions)
-    region->destroy();
+  for (auto segment : segments)
+    segment->destroy();
 
   return std::nullopt;
 }

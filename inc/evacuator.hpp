@@ -26,9 +26,9 @@ private:
 
   void init();
 
-  void scan_region(LogSegment *region, bool deactivate);
-  bool evac_region(LogSegment *region);
-  bool free_region(LogSegment *region);
+  void scan_segment(LogSegment *segment, bool deactivate);
+  bool evac_segment(LogSegment *segment);
+  bool free_segment(LogSegment *segment);
 
   bool iterate_chunk(LogChunk *chunk, uint64_t &pos, ObjectPtr &optr);
   bool scan_chunk(LogChunk *chunk, bool deactivate);

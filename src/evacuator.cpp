@@ -39,52 +39,52 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   std::atomic_int64_t nr_evaced = 0;
   auto rmanager = ResourceManager::global_manager();
   auto allocator = LogAllocator::global_allocator();
-  auto &regions = allocator->vRegions_;
+  auto &segments = allocator->vSegments_;
   auto nr_scan_thds = nr_gc_thds_;
   auto nr_evac_thds = 1;
 
-  auto prev_nr_regions = regions.size();
+  auto prev_nr_segments = segments.size();
 
   using Pair = std::pair<float, LogSegment *>;
   std::mutex evac_mtx;
   std::vector<Pair> agg_evac_tasks;
 
-  parallelizer(
-      nr_scan_thds, regions, std::function([&](std::shared_ptr<LogSegment> region) {
-        auto region_ = region.get();
-        scan_region(region_, false);
-        auto alive_ratio = region_->get_alive_ratio();
-        if (alive_ratio > kAliveThresholdHigh)
-          return true;
-        std::unique_lock<std::mutex> ul(evac_mtx);
-        agg_evac_tasks.push_back(std::make_pair(alive_ratio, region_));
-        return true;
-      }));
+  parallelizer(nr_scan_thds, segments,
+               std::function([&](std::shared_ptr<LogSegment> segment) {
+                 auto segment_ = segment.get();
+                 scan_segment(segment_, false);
+                 auto alive_ratio = segment_->get_alive_ratio();
+                 if (alive_ratio > kAliveThresholdHigh)
+                   return true;
+                 std::unique_lock<std::mutex> ul(evac_mtx);
+                 agg_evac_tasks.push_back(
+                     std::make_pair(alive_ratio, segment_));
+                 return true;
+               }));
 
   if (!agg_evac_tasks.empty()) {
     std::sort(agg_evac_tasks.begin(), agg_evac_tasks.end(),
               [](Pair v1, Pair v2) { return v1.first < v2.first; });
-    parallelizer(
-        nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
-          if (evac_region(p.second))
-            nr_evaced++;
-          return rmanager->NumRegionInUse() + nr_to_reclaim >
-                 rmanager->NumRegionLimit();
-        }));
+    parallelizer(nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
+                   if (evac_segment(p.second))
+                     nr_evaced++;
+                   return rmanager->NumRegionInUse() + nr_to_reclaim >
+                          rmanager->NumRegionLimit();
+                 }));
     agg_evac_tasks.clear();
-    allocator->cleanup_regions();
+    allocator->cleanup_segments();
   }
 
   if (rmanager->NumRegionInUse() + nr_to_reclaim > rmanager->NumRegionLimit()) {
-    for (auto &region : regions) {
-      if (free_region(region.get()))
+    for (auto &segment : segments) {
+      if (free_segment(segment.get()))
         nr_evaced++;
       auto rmanager = ResourceManager::global_manager();
       if (rmanager->NumRegionInUse() + nr_to_reclaim <=
           rmanager->NumRegionLimit())
         break;
     }
-    allocator->cleanup_regions();
+    allocator->cleanup_segments();
   }
 
   auto end = timer::timer();
@@ -107,7 +107,7 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   auto stt = timer::timer();
   std::atomic_int64_t nr_evaced = 0;
   auto allocator = LogAllocator::global_allocator();
-  auto &regions = allocator->vRegions_;
+  auto &segments = allocator->vSegments_;
   auto nr_scan_thds = nr_thds;
   auto nr_evac_thds = 1;
 
@@ -119,15 +119,15 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   auto *evac_tasks = new std::vector<LogSegment *>[nr_evac_thds];
 
   int tid = 0;
-  parallelizer(nr_scan_thds, regions,
-               std::function([&](std::shared_ptr<LogSegment> region) {
-                 auto region_ = region.get();
-                 scan_region(region_, true);
-                 auto alive_ratio = region->get_alive_ratio();
+  parallelizer(nr_scan_thds, segments,
+               std::function([&](std::shared_ptr<LogSegment> segment) {
+                 auto segment_ = segment.get();
+                 scan_segment(segment_, true);
+                 auto alive_ratio = segment->get_alive_ratio();
                  if (alive_ratio <= kAliveThreshold) {
                    std::unique_lock<std::mutex> ul(evac_mtx);
                    agg_evac_tasks.push_back(
-                       std::make_pair(alive_ratio, region_));
+                       std::make_pair(alive_ratio, segment_));
                  }
                  return true;
                }));
@@ -143,12 +143,12 @@ int64_t Evacuator::conc_gc(int nr_thds) {
             [](Pair v1, Pair v2) { return v1.first < v2.first; });
 
   parallelizer(nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
-                 if (evac_region(p.second))
+                 if (evac_segment(p.second))
                    nr_evaced++;
                  return true;
                }));
   agg_evac_tasks.clear();
-  allocator->cleanup_regions();
+  allocator->cleanup_segments();
 
 done:
   auto end = timer::timer();
@@ -166,15 +166,15 @@ void Evacuator::evacuate(int nr_thds) {
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto allocator = LogAllocator::global_allocator();
-  auto &regions = allocator->vRegions_;
+  auto &segments = allocator->vSegments_;
 
   std::vector<std::thread> gc_thds;
   auto *tasks = new std::vector<LogSegment *>[nr_thds];
 
   int tid = 0;
-  auto prev_nr_regions = regions.size();
-  for (auto region : regions) {
-    auto raw_ptr = region.get();
+  auto prev_nr_segments = segments.size();
+  for (auto segment : segments) {
+    auto raw_ptr = segment.get();
     if (raw_ptr) {
       tasks[tid].push_back(raw_ptr);
       tid = (tid + 1) % nr_thds;
@@ -183,10 +183,10 @@ void Evacuator::evacuate(int nr_thds) {
 
   for (tid = 0; tid < nr_thds; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto region : tasks[tid]) {
+      for (auto segment : tasks[tid]) {
         if (under_pressure_ > 0)
           break;
-        evac_region(region);
+        evac_segment(segment);
       }
     }));
   }
@@ -196,11 +196,11 @@ void Evacuator::evacuate(int nr_thds) {
   gc_thds.clear();
   delete[] tasks;
 
-  allocator->cleanup_regions();
-  auto curr_nr_regions = regions.size();
+  allocator->cleanup_segments();
+  auto curr_nr_segments = segments.size();
 
-  LOG(kError) << "Before evacuation: " << prev_nr_regions << " regions";
-  LOG(kError) << "After  evacuation: " << curr_nr_regions << " regions";
+  LOG(kError) << "Before evacuation: " << prev_nr_segments << " segments";
+  LOG(kError) << "After  evacuation: " << curr_nr_segments << " segments";
 }
 
 void Evacuator::scan(int nr_thds) {
@@ -209,16 +209,16 @@ void Evacuator::scan(int nr_thds) {
   std::unique_lock<std::mutex> ul(mtx_);
 
   auto allocator = LogAllocator::global_allocator();
-  auto &regions = allocator->vRegions_;
+  auto &segments = allocator->vSegments_;
 
   if (!scannable())
     return;
 
-  parallelizer(nr_thds, regions,
-               std::function([&](std::shared_ptr<LogSegment> region) {
+  parallelizer(nr_thds, segments,
+               std::function([&](std::shared_ptr<LogSegment> segment) {
                  if (under_pressure_ > 0)
                    return false;
-                 scan_region(region.get(), true);
+                 scan_segment(segment.get(), true);
                  return true;
                }));
 }
@@ -236,8 +236,8 @@ void Evacuator::parallelizer(int nr_workers, C &work_container,
   std::vector<std::thread> gc_thds;
   for (tid = 0; tid < nr_workers; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto region : tasks[tid]) {
-        if (!fn(region))
+      for (auto segment : tasks[tid]) {
+        if (!fn(segment))
           break;
       }
     }));
@@ -250,36 +250,36 @@ void Evacuator::parallelizer(int nr_workers, C &work_container,
   delete[] tasks;
 }
 
-inline void Evacuator::scan_region(LogSegment *region, bool deactivate) {
-  if (!region->sealed_)
+inline void Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
+  if (!segment->sealed_)
     return;
-  region->alive_bytes_ = 0;
-  for (auto &chunk : region->vLogChunks_) {
+  segment->alive_bytes_ = 0;
+  for (auto &chunk : segment->vLogChunks_) {
     scan_chunk(chunk.get(), deactivate);
   }
 }
 
-inline bool Evacuator::evac_region(LogSegment *region) {
-  if (!region->sealed_)
+inline bool Evacuator::evac_segment(LogSegment *segment) {
+  if (!segment->sealed_)
     return false;
   bool ret = true;
-  for (auto &chunk : region->vLogChunks_) {
+  for (auto &chunk : segment->vLogChunks_) {
     ret &= evac_chunk(chunk.get());
   }
   if (ret)
-    region->destroy();
+    segment->destroy();
   return ret;
 }
 
-inline bool Evacuator::free_region(LogSegment *region) {
-  if (!region->sealed_)
+inline bool Evacuator::free_segment(LogSegment *segment) {
+  if (!segment->sealed_)
     return false;
   bool ret = true;
-  for (auto &chunk : region->vLogChunks_) {
+  for (auto &chunk : segment->vLogChunks_) {
     ret &= free_chunk(chunk.get());
   }
   if (ret)
-    region->destroy();
+    segment->destroy();
   return ret;
 }
 

@@ -18,7 +18,7 @@ class LogSegment;
 
 class LogChunk {
 public:
-  LogChunk(LogSegment *region, uint64_t addr);
+  LogChunk(LogSegment *segment, uint64_t addr);
   std::optional<ObjectPtr> alloc_small(size_t size);
   std::optional<std::pair<TransientPtr, size_t>>
   alloc_large(size_t size, TransientPtr head_addr, TransientPtr prev_addr);
@@ -37,7 +37,7 @@ private:
 
   // std::mutex lock_;
   std::atomic_int32_t alive_bytes_;
-  LogSegment *region_;
+  LogSegment *segment_;
 
   bool sealed_;
   uint64_t start_addr_;
@@ -97,18 +97,18 @@ private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::optional<ObjectPtr> alloc_large(size_t size);
   std::shared_ptr<LogChunk> getChunk();
-  std::shared_ptr<LogSegment> getRegion();
-  std::shared_ptr<LogSegment> allocRegion(bool overcommit = false);
+  std::shared_ptr<LogSegment> getSegment();
+  std::shared_ptr<LogSegment> allocSegment(bool overcommit = false);
   std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);
 
   std::mutex lock_;
-  std::list<std::shared_ptr<LogSegment>> vRegions_;
-  std::atomic_int32_t curr_region_;
+  std::list<std::shared_ptr<LogSegment>> vSegments_;
+  std::atomic_int32_t curr_segment_;
   std::atomic_int32_t curr_chunk_;
 
   friend class Evacuator;
   friend class LogChunk;
-  int cleanup_regions();
+  int cleanup_segments();
 
   static inline void seal_pcab();
 

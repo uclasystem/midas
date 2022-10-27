@@ -3,8 +3,8 @@
 namespace cachebank {
 
 /** LogChunk */
-inline LogChunk::LogChunk(LogSegment *region, uint64_t addr)
-    : alive_bytes_(0), region_(region), start_addr_(addr), pos_(addr),
+inline LogChunk::LogChunk(LogSegment *segment, uint64_t addr)
+    : alive_bytes_(0), segment_(segment), start_addr_(addr), pos_(addr),
       sealed_(false) {}
 
 inline void LogChunk::seal() noexcept {
@@ -27,7 +27,7 @@ inline bool LogChunk::full() noexcept {
 
 inline void LogChunk::upd_alive_bytes(int32_t obj_size) noexcept {
   alive_bytes_ += obj_size;
-  region_->alive_bytes_ += obj_size;
+  segment_->alive_bytes_ += obj_size;
 }
 
 /** LogSegment */
@@ -50,7 +50,7 @@ inline float LogSegment::get_alive_ratio() const noexcept {
 }
 
 /** LogAllocator */
-inline LogAllocator::LogAllocator() : curr_region_(0), curr_chunk_(0) {}
+inline LogAllocator::LogAllocator() : curr_segment_(0), curr_chunk_(0) {}
 
 inline std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
   return alloc_(size, false);
@@ -70,11 +70,11 @@ inline bool LogAllocator::free(ObjectPtr &ptr) {
   return ptr.free() == RetCode::Succ;
 }
 
-inline int LogAllocator::cleanup_regions() {
+inline int LogAllocator::cleanup_segments() {
   int reclaimed = 0;
-  for (auto rit = vRegions_.begin(); rit != vRegions_.end();) {
+  for (auto rit = vSegments_.begin(); rit != vSegments_.end();) {
     if ((*rit)->destroyed()) {
-      rit = vRegions_.erase(rit);
+      rit = vSegments_.erase(rit);
       reclaimed++;
     } else
       rit++;
