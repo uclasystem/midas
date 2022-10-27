@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <atomic>
-#include <chrono>
 #include <iterator>
 #include <memory>
 #include <mutex>
@@ -12,6 +11,7 @@
 #include "logging.hpp"
 #include "object.hpp"
 #include "resource_manager.hpp"
+#include "timer.hpp"
 
 namespace cachebank {
 
@@ -35,7 +35,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   }
   std::unique_lock<std::mutex> ul(mtx_);
 
-  auto stt = std::chrono::steady_clock::now();
+  auto stt = timer::timer();
   std::atomic_int64_t nr_evaced = 0;
   auto rmanager = ResourceManager::global_manager();
   auto allocator = LogAllocator::global_allocator();
@@ -87,13 +87,12 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
     allocator->cleanup_regions();
   }
 
-  auto end = std::chrono::steady_clock::now();
+  auto end = timer::timer();
   __sync_fetch_and_add(&under_pressure_, -1);
 
   auto nr_reclaimed = rmanager->NumRegionLimit() - rmanager->NumRegionInUse();
   LOG(kInfo) << "STW GC: " << nr_evaced << " evacuated, " << nr_reclaimed
-             << " reclaimed ("
-             << std::chrono::duration<double>(end - stt).count() << "s).";
+             << " reclaimed (" << timer::duration(stt, end) << "s).";
   return nr_reclaimed;
 }
 
@@ -108,7 +107,7 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   if (!scannable())
     return 0;
 
-  auto stt = std::chrono::steady_clock::now();
+  auto stt = timer::timer();
   std::atomic_int64_t nr_evaced = 0;
   auto allocator = LogAllocator::global_allocator();
   auto &regions = allocator->vRegions_;
@@ -155,12 +154,11 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   allocator->cleanup_regions();
 
 done:
-  auto end = std::chrono::steady_clock::now();
+  auto end = timer::timer();
   auto rmanager = ResourceManager::global_manager();
   auto nr_reclaimed = rmanager->NumRegionLimit() - rmanager->NumRegionInUse();
   LOG(kInfo) << "Conc GC: " << nr_evaced << " evacuated, " << nr_reclaimed
-             << " reclaimed ("
-             << std::chrono::duration<double>(end - stt).count() << "s).";
+             << " reclaimed (" << timer::duration(stt, end) << "s).";
 
   return nr_reclaimed;
 }
