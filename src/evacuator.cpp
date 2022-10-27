@@ -54,7 +54,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
         auto region_ = region.get();
         scan_region(region_, false);
         auto alive_ratio = region_->get_alive_ratio();
-        if (alive_ratio > 0.9)
+        if (alive_ratio > kAliveThresholdHigh)
           return true;
         std::unique_lock<std::mutex> ul(evac_mtx);
         agg_evac_tasks.push_back(std::make_pair(alive_ratio, region_));
@@ -97,9 +97,6 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
 }
 
 int64_t Evacuator::conc_gc(int nr_thds) {
-  constexpr static float kAliveIncStep = 0.1;
-  constexpr static float kAliveThresholdLow = 0.6;
-  constexpr static float kAliveThresholdHigh = 0.8;
   static float kAliveThreshold = kAliveThresholdLow;
 
   std::unique_lock<std::mutex> ul(mtx_);
