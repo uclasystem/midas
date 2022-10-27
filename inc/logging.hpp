@@ -1,9 +1,11 @@
 #pragma once
 
 #include <chrono>
+#include <cstdarg>
+#include <cstdio>
 #include <ctime>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 
 namespace cachebank {
@@ -22,8 +24,8 @@ constexpr bool kLogFlagLoc = true;
 
 class Logger {
 public:
-  Logger(const std::string &file, const std::string &func, int line, LogVerbosity verbose,
-         const std::string &verbose_str) noexcept
+  Logger(const std::string &file, const std::string &func, int line,
+         LogVerbosity verbose, const std::string &verbose_str) noexcept
       : _verbose(verbose) {
     if (_verbose > kGlobalVerbose)
       return;
@@ -34,7 +36,8 @@ public:
     }
     std::cerr << "[" << verbose_str << "]";
     if (kLogFlagLoc) {
-      std::cerr << "(" << file << ":" << std::dec << line << ", in " << func << "()):";
+      std::cerr << "(" << file << ":" << std::dec << line << ", in " << func
+                << "()):";
     }
     std::cerr << " ";
   }
@@ -57,5 +60,15 @@ private:
 };
 
 #define LOG(verbose) Logger(__FILE__, __func__, __LINE__, (verbose), #verbose)
+
+#define LOG_PRINTF(verbose, ...)                                               \
+  do {                                                                         \
+    if ((verbose) <= kGlobalVerbose) {                                         \
+      fprintf(stderr, "[%s](%s:%d, in %s()): ", #verbose, __FILE__, __LINE__,  \
+              __func__);                                                       \
+      fprintf(stderr, ##__VA_ARGS__);                                          \
+      fprintf(stderr, "\n");                                                   \
+    }                                                                          \
+  } while (0)
 
 } // namespace cachebank
