@@ -1,19 +1,28 @@
 #include <algorithm>
 #include <iostream>
 #include <random>
+#include <string>
 
 #include "../inc/zipf.hpp"
 
 using namespace std;
 
 constexpr int64_t kNumEles = 64ll * 1024;
-constexpr float kSkewness = 0.9;
+float kSkewness = 0.9;
 constexpr int64_t kTolls = 320ll * 1024;
 
 constexpr float kHitPenalty = 0.03;
 constexpr float kMissPenalty = 15.0;
 
-int main() {
+int main(int argc, char *argv[]) {
+  if (argc <= 1) {
+    std::cout << "Usage: ./missrate.bin <skewness>" << std::endl;
+    exit(-1);
+  } else {
+    kSkewness = std::stof(argv[1]);
+    std::cout << "skewness: " << kSkewness << std::endl;
+  }
+
   std::random_device rd;
   std::mt19937 gen(rd());
   cachebank::zipf_table_distribution<> dist_zipf(kNumEles, kSkewness);
