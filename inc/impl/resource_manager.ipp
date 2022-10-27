@@ -29,6 +29,10 @@ inline uint64_t ResourceManager::NumRegionLimit() const noexcept {
   return region_limit_;
 }
 
+inline int64_t ResourceManager::NumRegionAvail() const noexcept {
+  return static_cast<int64_t>(region_limit_) - region_map_.size();
+}
+
 /* A thread safe way to create a global manager and get its reference. */
 inline ResourceManager *ResourceManager::global_manager() noexcept {
   static std::mutex mtx_;

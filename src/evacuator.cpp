@@ -68,20 +68,18 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
     parallelizer(nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
                    if (evac_segment(p.second))
                      nr_evaced++;
-                   return rmanager->NumRegionInUse() + nr_to_reclaim >
-                          rmanager->NumRegionLimit();
+                   return rmanager->NumRegionAvail() < nr_to_reclaim;
                  }));
     agg_evac_tasks.clear();
     allocator->cleanup_segments();
   }
 
-  if (rmanager->NumRegionInUse() + nr_to_reclaim > rmanager->NumRegionLimit()) {
+  if (rmanager->NumRegionAvail() < nr_to_reclaim) {
     for (auto &segment : segments) {
       if (free_segment(segment.get()))
         nr_evaced++;
       auto rmanager = ResourceManager::global_manager();
-      if (rmanager->NumRegionInUse() + nr_to_reclaim <=
-          rmanager->NumRegionLimit())
+      if (rmanager->NumRegionAvail() >= nr_to_reclaim)
         break;
     }
     allocator->cleanup_segments();
@@ -90,7 +88,7 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   auto end = timer::timer();
   __sync_fetch_and_add(&under_pressure_, -1);
 
-  auto nr_reclaimed = rmanager->NumRegionLimit() - rmanager->NumRegionInUse();
+  auto nr_reclaimed = rmanager->NumRegionAvail();
   LOG(kInfo) << "STW GC: " << nr_evaced << " evacuated, " << nr_reclaimed
              << " reclaimed (" << timer::duration(stt, end) << "s).";
   return nr_reclaimed;
@@ -153,7 +151,7 @@ int64_t Evacuator::conc_gc(int nr_thds) {
 done:
   auto end = timer::timer();
   auto rmanager = ResourceManager::global_manager();
-  auto nr_reclaimed = rmanager->NumRegionLimit() - rmanager->NumRegionInUse();
+  auto nr_reclaimed = rmanager->NumRegionAvail();
   LOG(kInfo) << "Conc GC: " << nr_evaced << " evacuated, " << nr_reclaimed
              << " reclaimed (" << timer::duration(stt, end) << "s).";
 
@@ -199,8 +197,8 @@ void Evacuator::evacuate(int nr_thds) {
   allocator->cleanup_segments();
   auto curr_nr_segments = segments.size();
 
-  LOG(kError) << "Before evacuation: " << prev_nr_segments << " segments";
-  LOG(kError) << "After  evacuation: " << curr_nr_segments << " segments";
+  LOG(kError) << "Before evacuation: " << prev_nr_segments << " regions";
+  LOG(kError) << "After  evacuation: " << curr_nr_segments << " regions";
 }
 
 void Evacuator::scan(int nr_thds) {

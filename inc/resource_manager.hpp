@@ -52,6 +52,7 @@ public:
 
   uint64_t NumRegionInUse() const noexcept;
   uint64_t NumRegionLimit() const noexcept;
+  int64_t NumRegionAvail() const noexcept;
 
   static inline ResourceManager *global_manager() noexcept;
 
