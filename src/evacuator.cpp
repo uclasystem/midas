@@ -49,8 +49,8 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
   std::mutex evac_mtx;
   std::vector<Pair> agg_evac_tasks;
 
-  parallelizer<decltype(regions), std::shared_ptr<LogSegment>>(
-      nr_scan_thds, regions, [&](std::shared_ptr<LogSegment> region) {
+  parallelizer(
+      nr_scan_thds, regions, std::function([&](std::shared_ptr<LogSegment> region) {
         auto region_ = region.get();
         scan_region(region_, false);
         auto alive_ratio = region_->get_alive_ratio();
@@ -59,18 +59,18 @@ int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
         std::unique_lock<std::mutex> ul(evac_mtx);
         agg_evac_tasks.push_back(std::make_pair(alive_ratio, region_));
         return true;
-      });
+      }));
 
   if (!agg_evac_tasks.empty()) {
     std::sort(agg_evac_tasks.begin(), agg_evac_tasks.end(),
               [](Pair v1, Pair v2) { return v1.first < v2.first; });
-    parallelizer<decltype(agg_evac_tasks), Pair>(
-        nr_evac_thds, agg_evac_tasks, [&](Pair p) {
+    parallelizer(
+        nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
           if (evac_region(p.second))
             nr_evaced++;
           return rmanager->NumRegionInUse() + nr_to_reclaim >
                  rmanager->NumRegionLimit();
-        });
+        }));
     agg_evac_tasks.clear();
     allocator->cleanup_regions();
   }
@@ -119,17 +119,18 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   auto *evac_tasks = new std::vector<LogSegment *>[nr_evac_thds];
 
   int tid = 0;
-  parallelizer<decltype(regions), std::shared_ptr<LogSegment>>(
-      nr_scan_thds, regions, [&](std::shared_ptr<LogSegment> region) {
-        auto region_ = region.get();
-        scan_region(region_, true);
-        auto alive_ratio = region->get_alive_ratio();
-        if (alive_ratio <= kAliveThreshold) {
-          std::unique_lock<std::mutex> ul(evac_mtx);
-          agg_evac_tasks.push_back(std::make_pair(alive_ratio, region_));
-        }
-        return true;
-      });
+  parallelizer(nr_scan_thds, regions,
+               std::function([&](std::shared_ptr<LogSegment> region) {
+                 auto region_ = region.get();
+                 scan_region(region_, true);
+                 auto alive_ratio = region->get_alive_ratio();
+                 if (alive_ratio <= kAliveThreshold) {
+                   std::unique_lock<std::mutex> ul(evac_mtx);
+                   agg_evac_tasks.push_back(
+                       std::make_pair(alive_ratio, region_));
+                 }
+                 return true;
+               }));
 
   if (agg_evac_tasks.empty()) {
     kAliveThreshold =
@@ -141,12 +142,11 @@ int64_t Evacuator::conc_gc(int nr_thds) {
   std::sort(agg_evac_tasks.begin(), agg_evac_tasks.end(),
             [](Pair v1, Pair v2) { return v1.first < v2.first; });
 
-  parallelizer<decltype(agg_evac_tasks), Pair>(nr_evac_thds, agg_evac_tasks,
-                                               [&](Pair p) {
-                                                 if (evac_region(p.second))
-                                                   nr_evaced++;
-                                                 return true;
-                                               });
+  parallelizer(nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
+                 if (evac_region(p.second))
+                   nr_evaced++;
+                 return true;
+               }));
   agg_evac_tasks.clear();
   allocator->cleanup_regions();
 
@@ -214,13 +214,13 @@ void Evacuator::scan(int nr_thds) {
   if (!scannable())
     return;
 
-  parallelizer<decltype(regions), std::shared_ptr<LogSegment>>(
-      nr_thds, regions, [&](std::shared_ptr<LogSegment> region) {
-        if (under_pressure_ > 0)
-          return false;
-        scan_region(region.get(), true);
-        return true;
-      });
+  parallelizer(nr_thds, regions,
+               std::function([&](std::shared_ptr<LogSegment> region) {
+                 if (under_pressure_ > 0)
+                   return false;
+                 scan_region(region.get(), true);
+                 return true;
+               }));
 }
 
 template <class C, class T>
