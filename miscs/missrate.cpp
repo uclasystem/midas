@@ -49,7 +49,8 @@ int main(int argc, char *argv[]) {
   }
 
   for (int i = 0; i < 10; i++)
-    std::cout << miss_rates[i] << "\t" << tputs[i] << std::endl;
+    std::cout << i * 10 << "\t" << miss_rates[i] << "\t" << tputs[i]
+              << std::endl;
 
   return 0;
 }
