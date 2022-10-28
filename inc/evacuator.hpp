@@ -35,10 +35,6 @@ private:
   bool evac_chunk(LogChunk *chunk);
   bool free_chunk(LogChunk *chunk);
 
-  template <class Iter, class T>
-  void parallelizer(int nr_workers, Iter work_stt, Iter work_end,
-                    std::function<bool(T)> fn);
-
   template <class C, class T>
   void parallelizer(int nr_workers, C &work, std::function<bool(T)> fn);
 
