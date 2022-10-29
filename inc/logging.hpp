@@ -71,4 +71,13 @@ private:
     }                                                                          \
   } while (0)
 
+#define ABORT(...)                                                             \
+  do {                                                                         \
+    fprintf(stderr, "[Abort](%s:%d, in %s()): ", __FILE__, __LINE__,           \
+            __func__);                                                         \
+    fprintf(stderr, ##__VA_ARGS__);                                            \
+    fprintf(stderr, "\n");                                                     \
+    exit(-1);                                                                  \
+  } while (0)
+
 } // namespace cachebank
