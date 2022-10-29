@@ -196,7 +196,7 @@ public:
     reset();
     launch_evacuator();
     prepare();
-    gen_load();
+    // gen_load();
   }
 
   void finalize() {
@@ -208,6 +208,7 @@ public:
 
   int run() {
     stats.reset();
+    gen_load();
 
     auto stt = std::chrono::steady_clock::now();
 
