@@ -84,11 +84,9 @@ struct Op {
 class CachebankTest {
 private:
   cachebank::SyncHashMap<kNBuckets, K, V> *hashmap;
-  std::unordered_map<K, V> std_maps[kNumMutatorThds];
 
   std::vector<K> ks[kNumMutatorThds];
   std::vector<V> vs[kNumMutatorThds];
-  std::vector<Op> ops[kNumMutatorThds];
   std::vector<int> zipf_idxes[kNumMutatorThds];
 
   struct alignas(64) Stats {
