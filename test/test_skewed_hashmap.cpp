@@ -11,8 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include "evacuator.hpp"
-#include "log.hpp"
 #include "sync_hashmap.hpp"
 #include "timer.hpp"
 #include "utils.hpp"
@@ -143,8 +141,7 @@ private:
             auto _ = hashmap->get(k);
             // hashmap->get(k);
             // hashmap->get(k);
-          }
-          else
+          } else
             perthd_stats[tid].nr_err++;
         }
       }));
@@ -179,31 +176,10 @@ private:
     std::cout << "Finish load generation." << std::endl;
   }
 
-  void launch_evacuator() {
-    evac_thd = std::make_shared<std::thread>([&]() {
-      auto evacuator = cachebank::Evacuator::global_evacuator();
-      while (!stop) {
-        evacuator->scan(kNumGCThds);
-        // evacuator->evacuate(kNumGCThds);
-        // evacuator->conc_gc(kNumGCThds);
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-      }
-    });
-  }
-
 public:
   void init() {
     reset();
-    launch_evacuator();
     prepare();
-    // gen_load();
-  }
-
-  void finalize() {
-    stop = true;
-    if (evac_thd)
-      evac_thd->join();
-    evac_thd.reset();
   }
 
   int run() {
@@ -276,6 +252,5 @@ int main(int argc, char *argv[]) {
   test.init();
   for (int i = 0; i < 100; i++)
     test.run();
-  test.finalize();
   return 0;
 }

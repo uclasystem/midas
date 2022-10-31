@@ -30,7 +30,7 @@ private:
   void init(uint64_t addr);
   void iterate(size_t pos);
 
-  void upd_alive_bytes(int32_t obj_size) noexcept;
+  void set_alive_bytes(int32_t alive_bytes) noexcept;
 
   static_assert(kRegionSize % kLogChunkSize == 0,
                 "Region size must be multiple chunk size");
@@ -112,6 +112,8 @@ private:
   /** Counters */
   static std::atomic_int64_t total_access_cnt_;
   static std::atomic_int64_t total_alive_cnt_;
+  static void signal_scanner();
+
   friend class Evacuator;
   friend class LogChunk;
   int cleanup_segments();

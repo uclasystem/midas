@@ -25,9 +25,8 @@ inline bool LogChunk::full() noexcept {
   return sealed_ || pos_ + sizeof(MetaObjectHdr) > start_addr_ + kLogChunkSize;
 }
 
-inline void LogChunk::upd_alive_bytes(int32_t obj_size) noexcept {
-  alive_bytes_ += obj_size;
-  segment_->alive_bytes_ += obj_size;
+inline void LogChunk::set_alive_bytes(int32_t alive_bytes) noexcept {
+  alive_bytes_ = alive_bytes;
 }
 
 /** LogSegment */
@@ -101,6 +100,8 @@ inline void LogAllocator::count_access() {
   if (UNLIKELY(access_cnt_ >= kAccPrecision)) {
     total_access_cnt_ += access_cnt_;
     access_cnt_ = 0;
+    if (total_access_cnt_ > total_alive_cnt_)
+      signal_scanner();
   }
 }
 

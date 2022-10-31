@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 
+#include "evacuator.hpp"
 #include "log.hpp"
 #include "logging.hpp"
 #include "object.hpp"
@@ -230,6 +231,11 @@ failed:
     segment->destroy();
 
   return std::nullopt;
+}
+
+// Evacuation
+void LogAllocator::signal_scanner() {
+  Evacuator::global_evacuator()->signal_scan();
 }
 
 // Define PCAB

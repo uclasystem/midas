@@ -33,6 +33,15 @@ inline int64_t ResourceManager::NumRegionAvail() const noexcept {
   return static_cast<int64_t>(region_limit_) - region_map_.size();
 }
 
+inline bool ResourceManager::reclaim_trigger() const noexcept {
+  float avail_ratio =
+      static_cast<float>(NumRegionAvail() + 1) / (NumRegionLimit() + 1);
+  if (avail_ratio < 0.1) {
+    return true;
+  }
+  return false;
+}
+
 /* A thread safe way to create a global manager and get its reference. */
 inline ResourceManager *ResourceManager::global_manager() noexcept {
   static std::mutex mtx_;

@@ -54,6 +54,8 @@ public:
   uint64_t NumRegionLimit() const noexcept;
   int64_t NumRegionAvail() const noexcept;
 
+  bool reclaim_trigger() const noexcept;
+
   static inline ResourceManager *global_manager() noexcept;
 
 private:
