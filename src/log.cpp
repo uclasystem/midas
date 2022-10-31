@@ -92,6 +92,7 @@ void LogSegment::destroy() {
 
   auto *rmanager = ResourceManager::global_manager();
   rmanager->FreeRegion(region_id_);
+  alive_bytes_ = kMaxAliveBytes;
   destroyed_ = true;
 }
 

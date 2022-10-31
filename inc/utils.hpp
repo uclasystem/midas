@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 namespace cachebank {
 
@@ -17,6 +18,8 @@ constexpr static uint32_t kLogChunkSize = kPageChunkSize;
 constexpr static uint64_t kLogChunkMask = ~(kLogChunkSize - 1ull);
 constexpr static uint32_t kRegionSize = kLogChunkSize;
 constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
+
+constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 
 #define LIKELY(x) __builtin_expect((x), 1)
 #define UNLIKELY(x) __builtin_expect((x), 0)

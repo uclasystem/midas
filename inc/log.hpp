@@ -35,11 +35,11 @@ private:
   static_assert(kRegionSize % kLogChunkSize == 0,
                 "Region size must be multiple chunk size");
 
-  // std::mutex lock_;
-  std::atomic_int32_t alive_bytes_;
+  /** Belonging segment */
   LogSegment *segment_;
 
   bool sealed_;
+  int32_t alive_bytes_;
   uint64_t start_addr_;
   uint64_t pos_;
 
@@ -61,7 +61,8 @@ public:
   float get_alive_ratio() const noexcept;
 
 private:
-  std::atomic_int32_t alive_bytes_;
+  std::mutex mtx_;
+  int32_t alive_bytes_;
 
   int64_t region_id_;
   uint64_t start_addr_;
@@ -89,6 +90,7 @@ public:
   static inline void reset_alive_cnt() noexcept;
   static inline void count_access();
   static inline void count_alive(int val);
+
   static inline void thd_exit();
 
   static inline LogAllocator *global_allocator() noexcept;
@@ -101,24 +103,27 @@ private:
   std::shared_ptr<LogSegment> allocSegment(bool overcommit = false);
   std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);
 
+  /** Allocation */
   std::mutex lock_;
   std::list<std::shared_ptr<LogSegment>> vSegments_;
   std::atomic_int32_t curr_segment_;
   std::atomic_int32_t curr_chunk_;
 
+  /** Counters */
+  static std::atomic_int64_t total_access_cnt_;
+  static std::atomic_int64_t total_alive_cnt_;
   friend class Evacuator;
   friend class LogChunk;
   int cleanup_segments();
 
   static inline void seal_pcab();
 
+  /** Thread-local variables */
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers
   static thread_local std::shared_ptr<LogChunk> pcab;
   static thread_local int32_t access_cnt_;
   static thread_local int32_t alive_cnt_;
-  static std::atomic_int64_t total_access_cnt_;
-  static std::atomic_int64_t total_alive_cnt_;
 };
 
 } // namespace cachebank
