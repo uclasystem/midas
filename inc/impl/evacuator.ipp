@@ -18,6 +18,8 @@ inline void Evacuator::signal_gc() { evacuator_cv_.notify_all(); }
 
 inline Evacuator::~Evacuator() {
   terminated_ = true;
+  signal_scan();
+  signal_gc();
   if (scanner_thd_) {
     scanner_thd_->join();
     scanner_thd_.reset();
