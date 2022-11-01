@@ -142,27 +142,26 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
 }
 
 inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
-  int64_t nr_reclaimed = Evacuator::global_evacuator()->stw_gc(nr_to_reclaim);
-  LOG_PRINTF(kError, "Memory shrinkage: %ld/%ld reclaimed.", nr_reclaimed,
-             nr_to_reclaim);
+  if (nr_to_reclaim > 0)
+    Evacuator::global_evacuator()->signal_gc();
+  LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.", nr_to_reclaim);
+  while (NumRegionAvail() < 0)
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  auto nr_reclaimed = nr_to_reclaim;
 
   MemMsg mm;
-  CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
-  if (nr_reclaimed >= nr_to_reclaim) {
-    // if (true) {
-    ret = CtrlRetCode::MEM_SUCC;
-    mm.size = nr_reclaimed;
-  }
+  CtrlRetCode ret = CtrlRetCode::MEM_SUCC;
+  mm.size = nr_reclaimed;
   CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
   rxqp_.send(&ack, sizeof(ack));
 }
 
 int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
+retry:
   if (reclaim_trigger()) {
     Evacuator::global_evacuator()->signal_gc();
   }
 
-retry:
   std::unique_lock<std::mutex> lk(mtx_);
   CtrlMsg msg{.id = id_,
               .op = overcommit ? CtrlOpCode::OVERCOMMIT : CtrlOpCode::ALLOC,
@@ -178,10 +177,8 @@ retry:
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
     lk.unlock();
-    Evacuator::global_evacuator()->signal_gc();
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     goto retry;
-    return -1;
   }
 
   int64_t region_id = ret_msg.mmsg.region_id;
