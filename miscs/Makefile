@@ -1,6 +1,6 @@
-CXXFLAGS += -std=c++1z -O2
+CXXFLAGS += -std=c++1z -O2 -g
 # CXXFLAGS += -Wall -Wextra
-# CXXFLAGS += -g -O0
+# CXXFLAGS += -O0
 CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
 LDXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
 
