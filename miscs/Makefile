@@ -13,7 +13,7 @@ dep = $(obj:.o=.d)
 
 .PHONY: all clean
 
-all: missrate.bin
+all: missrate.bin fault_handle
 
 %.bin: %.o
 	$(LDXX) -o $@ $^ $(LDFLAGS)
@@ -21,9 +21,12 @@ all: missrate.bin
 %.o: %.cpp Makefile
 	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
 
+fault_handle: fault_handler.cpp
+	$(CXX) $(CXXFLAGS) $(INC) $^ -o $@ -ldl
+
 ifneq ($(MAKECMDGOALS),clean)
 -include $(dep)
 endif
 
 clean:
-	$(RM) $(dep) $(obj) *.bin
+	$(RM) $(dep) $(obj) *.bin fault_handle
