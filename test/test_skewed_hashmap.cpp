@@ -136,9 +136,7 @@ private:
           vs[tid].emplace_back(v);
           if (hashmap->set(k, v)) {
             perthd_stats[tid].nr_succ++;
-            auto _ = hashmap->get(k);
-            // hashmap->get(k);
-            // hashmap->get(k);
+            // auto _ = hashmap->get(k);
           } else
             perthd_stats[tid].nr_err++;
         }
