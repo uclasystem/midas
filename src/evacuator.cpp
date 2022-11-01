@@ -110,7 +110,7 @@ retry:
   auto allocator = LogAllocator::global_allocator();
   auto &segments = allocator->vSegments_;
 
-  auto nr_evac_thds = kNumGCThds;
+  auto nr_evac_thds = nr_to_reclaim;
   std::vector<LogSegment *> agg_evac_tasks;
 
   int tid = 0;
