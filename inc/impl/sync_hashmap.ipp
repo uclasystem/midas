@@ -82,7 +82,8 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
   assert(node);
   delete_node(prev_next, node);
   lock.unlock();
-  LogAllocator::count_access();
+  /* should not count access for remove() */
+  // LogAllocator::count_access();
   return true;
 }
 

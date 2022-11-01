@@ -18,12 +18,12 @@
 namespace cachebank {
 
 inline bool scannable() {
-  if (LogAllocator::total_access_cnt() < LogAllocator::total_alive_cnt())
+  const auto total_accessed = LogAllocator::total_access_cnt();
+  const auto total_alive = LogAllocator::total_alive_cnt();
+  if (total_alive == 0 || total_accessed < total_alive * 0.99)
     return false;
-  LOG(kError) << "total acc cnt: "
-              << cachebank::LogAllocator::total_access_cnt()
-              << ", total alive cnt: "
-              << cachebank::LogAllocator::total_alive_cnt();
+  LOG(kError) << "total acc cnt: " << total_accessed
+              << ", total alive cnt: " << total_alive;
   LogAllocator::reset_access_cnt();
   LogAllocator::reset_alive_cnt();
   return true;
@@ -48,7 +48,7 @@ void Evacuator::init() {
     while (!terminated_) {
       {
         std::unique_lock lk(scanner_mtx_);
-        scanner_cv_.wait_for(lk, std::chrono::milliseconds(1000),
+        scanner_cv_.wait_for(lk, std::chrono::milliseconds(60 * 1000),
                              [this] { return terminated_ || scannable(); });
       }
       scan(kNumScanThds);
