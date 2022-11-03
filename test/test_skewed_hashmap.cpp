@@ -19,7 +19,7 @@
 constexpr static double kZipfSkew = 0.9;
 
 constexpr static int kNBuckets = (1 << 28);
-constexpr static int kNumMutatorThds = 40;
+constexpr static int kNumMutatorThds = 20;
 constexpr static int kNumGCThds = 8;
 constexpr static int kNumTotalKVPairs = 64 * 1024 * 1024;
 constexpr static int kNumOps = 8 * 1024 * 1024;
@@ -187,7 +187,7 @@ public:
     Stats perthd_stats[kNumMutatorThds];
     std::vector<std::thread> thds;
     for (int tid = 0; tid < kNumMutatorThds; tid++) {
-      thds.push_back(std::thread([&, tid = tid]() {
+      thds.push_back(std::thread([&, tid = tid] {
         for (auto idx : zipf_idxes[tid]) {
           bool ret = false;
 
