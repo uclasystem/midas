@@ -22,8 +22,20 @@ using __cxxabiv1::__cxa_demangle;
 
 #include "../inc/utils.hpp"
 
-void *memcpy_stt_addr = nullptr;
-void *memcpy_end_addr = nullptr;
+// YIFAN: very naive copy
+bool __attribute__((noinline)) rmemcpy(void *dst, void *src, size_t len) {
+  for (int i = 0; i < len; i++) {
+    reinterpret_cast<char *>(dst)[i] = reinterpret_cast<char *>(src)[i];
+  }
+  return true;
+}
+
+void rmemcpy_end() {
+  asm volatile (".byte 0xcc, 0xcc, 0xcc");
+}
+
+void *rmemcpy_stt_addr = reinterpret_cast<void *>(&rmemcpy);
+void *rmemcpy_end_addr = reinterpret_cast<void *>(&rmemcpy_end);
 
 bool in_volatile_range(uint64_t addr) {
   return addr >= cachebank::kVolatileSttAddr &&
@@ -46,9 +58,11 @@ static bool softfault_handler(siginfo_t *info, ucontext_t *ctx) {
     ctx->uc_mcontext.gregs[REG_RSP] = ctx->uc_mcontext.gregs[REG_RSP] + 8;
     ctx->uc_mcontext.gregs[REG_RAX] = eax;
   } else {
-    ctx->uc_mcontext.gregs[REG_RIP] = (int64_t)memcpy_end_addr + 5;
-    // ctx->uc_mcontext.gregs[REG_RBP] = (int64_t)bp[0];
-    // ctx->uc_mcontext.gregs[REG_RSP] = (int64_t)bp;
+    printf("bp[0,1] = %p %p\n", bp[0], bp[1]);
+    // ctx->uc_mcontext.gregs[REG_RIP] = (int64_t)rmemcpy_end_addr - 2;
+    ctx->uc_mcontext.gregs[REG_RIP] = (int64_t)bp[1];
+    ctx->uc_mcontext.gregs[REG_RBP] = (int64_t)bp[0];
+    ctx->uc_mcontext.gregs[REG_RSP] = (int64_t)bp;
     ctx->uc_mcontext.gregs[REG_RAX] = 0; // return value
     printf("return to ip = %p, rbp = %p, rsp = %p\n",
            (void *)ctx->uc_mcontext.gregs[REG_RIP],
@@ -107,7 +121,6 @@ static void print_callstack(siginfo_t *info, ucontext_t *ctx) {
 }
 
 static void signal_segv(int signum, siginfo_t *info, void *ptr) {
-
   ucontext_t *ctx = (ucontext_t *)ptr;
 
   printf("Segmentation Fault!\n");
@@ -125,22 +138,6 @@ static void setup_sigsegv() {
   action.sa_flags = SA_SIGINFO;
   if (sigaction(SIGSEGV, &action, NULL) < 0)
     perror("sigaction");
-}
-
-// YIFAN: very naive copy
-bool __attribute((noinline)) memcpy(void *dst, void *src, size_t len) {
-start:
-  // YIFAN: a dirty hack to get function range for now
-  if (UNLIKELY(!memcpy_stt_addr)) {
-    memcpy_stt_addr = &&start;
-    memcpy_end_addr = &&end;
-  }
-
-  for (int i = 0; i < len; i++) {
-    reinterpret_cast<char *>(dst)[i] = reinterpret_cast<char *>(src)[i];
-  }
-end:
-  return true;
 }
 
 class SoftPtr {
@@ -189,12 +186,12 @@ void do_work() {
   std::cout << "copy_to   returns " << ret << std::endl;
   if (!ret)
     sptr.reset();
-  std::cout << "memcpy() function range: " << memcpy_stt_addr << " "
-            << memcpy_end_addr << std::endl;
 }
 
 int main() {
   setup_sigsegv();
+  std::cout << "memcpy() function range: " << rmemcpy_stt_addr << " "
+            << rmemcpy_end_addr << std::endl;
   do_work();
   std::cout << "Test passed!" << std::endl;
 
