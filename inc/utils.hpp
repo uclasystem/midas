@@ -30,4 +30,12 @@ constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 #define round_up_to_align(val, align) (((val) + ((align)-1)) & ~((align)-1))
 #define ptr_offset(ptr, offset) (reinterpret_cast<char *>(ptr) + (offset))
 
+#ifdef DEBUG
+#define FORCE_INLINE inline
+#else
+#define FORCE_INLINE inline __attribute__((always_inline))
+#endif
+
+#define SOFT_RESILIENT __attribute__((section("soft-resilient")))
+
 } // namespace cachebank
