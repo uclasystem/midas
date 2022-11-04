@@ -52,7 +52,7 @@ bool SigHandler::softfault_handler(siginfo_t *info, ucontext_t *ctx) {
   if (func->omitted_frame_pointer) { // jump to ret directly
     ctx->uc_mcontext.gregs[REG_RIP] = func->fail_entry;
     ctx->uc_mcontext.gregs[REG_RAX] = 0; // return value
-  } else { // return to the upper level stack
+  } else {                               // return to the upper level stack
     ctx->uc_mcontext.gregs[REG_RIP] = bp[1];
     ctx->uc_mcontext.gregs[REG_RBP] = bp[0];
     ctx->uc_mcontext.gregs[REG_RSP] = reinterpret_cast<uint64_t>(bp);
@@ -89,15 +89,5 @@ void setup_sigsegv() {
 }
 
 SigHandler::SigHandler() { setup_sigsegv(); }
-
-// utils
-// YIFAN: a very naive copy implementation
-bool __attribute__((noinline)) rmemcpy(void *dst, const void *src, size_t len) {
-  for (int i = 0; i < len; i++) {
-    reinterpret_cast<char *>(dst)[i] = reinterpret_cast<const char *>(src)[i];
-  }
-  return true;
-}
-void rmemcpy_end() { asm volatile(".byte 0xcc, 0xcc, 0xcc, 0xcc"); }
 
 } // namespace cachebank
