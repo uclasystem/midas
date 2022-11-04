@@ -36,6 +36,7 @@ constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 #define FORCE_INLINE inline __attribute__((always_inline))
 #endif
 
+#define FLATTEN __attribute__((flatten))
 #define SOFT_RESILIENT __attribute__((section("soft-resilient")))
 
 } // namespace cachebank
