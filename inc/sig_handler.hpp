@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 #include <sys/ucontext.h>
 #include <vector>
