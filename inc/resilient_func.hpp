@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 
 #include "utils.hpp"
 
@@ -19,9 +19,8 @@ private:
   uint64_t stt_ip;
   uint64_t end_ip;
 };
-bool FLATTEN rmemcpy(void *dst, const void *src,
-                          size_t len) SOFT_RESILIENT;
-void FLATTEN rmemcpy_end() SOFT_RESILIENT;
+
+DECL_RESILIENT_FUNC(bool, rmemcpy, void *dst, const void *src, size_t len);
 } // namespace cachebank
 
 #include "impl/resilient_func.ipp"

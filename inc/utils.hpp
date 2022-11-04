@@ -39,4 +39,11 @@ constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 #define FLATTEN __attribute__((flatten))
 #define SOFT_RESILIENT __attribute__((section("soft-resilient")))
 
+#define DECL_RESILIENT_FUNC(ret_type, func, ...)                               \
+  ret_type FLATTEN func(__VA_ARGS__) SOFT_RESILIENT;                           \
+  void func##_end() SOFT_RESILIENT;
+
+#define DELIM_FUNC_IMPL(func)                                                  \
+  void func##_end() { asm volatile(".byte 0xcc, 0xcc, 0xcc, 0xcc"); }
+
 } // namespace cachebank

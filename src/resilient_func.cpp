@@ -12,6 +12,6 @@ bool rmemcpy(void *dst, const void *src, size_t len) {
   }
   return true;
 }
-void rmemcpy_end() { asm volatile(".byte 0xcc, 0xcc, 0xcc, 0xcc"); }
+DELIM_FUNC_IMPL(rmemcpy)
 
 }
