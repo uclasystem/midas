@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <random>
 
@@ -7,9 +8,10 @@
 #include "timer.hpp"
 
 constexpr static int kBufLens[] = {
-    1, 2, 3, 4, 6, 8, 16, 32, 53, 64, 71, 128, 199, 256, 512, 1024, 2048, 4096};
+    1,  2,  3,  4,  5,  6,  7,   8,   9,   10,  11,   12,   13,  14,
+    15, 16, 24, 32, 48, 64, 80, 128, 199, 256, 512, 1024, 2048, 4096};
 
-constexpr static int kPerfBufLen = 64;
+constexpr static int kPerfBufLen = 8;
 constexpr static int kNumRepeat = 5000000;
 
 void random_fill(char buf[], size_t len) {
@@ -57,35 +59,41 @@ void correctness() {
               << std::endl;
 }
 
-void performance() {
-  char *src = new char[kPerfBufLen];
+void performance(int buf_len) {
+  std::cout << "Perf test -- buf length = " << buf_len << std::endl;
+  char *src = new char[buf_len];
   char **dsts = new char *[kNumRepeat];
 
-  random_fill(src, kPerfBufLen);
+  random_fill(src, buf_len);
   for (int i = 0; i < kNumRepeat; i++) {
-    dsts[i] = new char[kPerfBufLen];
-    memset(dsts[i], 0, kPerfBufLen);
+    dsts[i] = new char[buf_len];
+    memset(dsts[i], 0, buf_len);
+  }
+
+  double t_memcpy, t_rmemcpy;
+  {
+    auto stt = cachebank::timer::timer();
+    for (int i = 0; i < kNumRepeat; i++) {
+      memcpy(dsts[i], src, buf_len);
+    }
+    auto end = cachebank::timer::timer();
+    t_memcpy = cachebank::timer::duration(stt, end);
+    std::cout << "memcpy takes " << std::setprecision(5) << t_memcpy << " s"
+              << std::endl;
   }
 
   {
     auto stt = cachebank::timer::timer();
     for (int i = 0; i < kNumRepeat; i++) {
-      memcpy(dsts[i], src, kPerfBufLen);
+      cachebank::rmemcpy(dsts[i], src, buf_len);
     }
     auto end = cachebank::timer::timer();
-    std::cout << "memcpy takes " << cachebank::timer::duration(stt, end)
-              << " s" << std::endl;
+    t_rmemcpy = cachebank::timer::duration(stt, end);
+    std::cout << "rmemcpy takes " << std::setprecision(5) << t_memcpy << " s"
+              << std::endl;
   }
-
-  {
-    auto stt = cachebank::timer::timer();
-    for (int i = 0; i < kNumRepeat; i++) {
-      cachebank::rmemcpy(dsts[i], src, kPerfBufLen);
-    }
-    auto end = cachebank::timer::timer();
-    std::cout << "rmemcpy takes " << cachebank::timer::duration(stt, end)
-              << " s" << std::endl;
-  }
+  std::cout << "Speedup of rmemcpy: " << std::setprecision(5)
+            << t_memcpy / t_rmemcpy << std::endl;
 
   delete[] src;
   for (int i = 0; i < kNumRepeat; i++) {
@@ -94,9 +102,15 @@ void performance() {
   delete[] dsts;
 }
 
+void perf_loop() {
+  for (auto len : kBufLens) {
+    performance(len);
+  }
+}
+
 int main() {
   correctness();
-  performance();
+  perf_loop();
 
   return 0;
 }
