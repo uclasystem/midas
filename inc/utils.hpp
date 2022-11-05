@@ -28,6 +28,7 @@ constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 
 // align must be power of 2.
 #define round_up_to_align(val, align) (((val) + ((align)-1)) & ~((align)-1))
+#define round_to_align(val, align) ((val) & ~((align)-1))
 #define ptr_offset(ptr, offset) (reinterpret_cast<char *>(ptr) + (offset))
 
 #ifdef DEBUG
@@ -36,11 +37,12 @@ constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 #define FORCE_INLINE inline __attribute__((always_inline))
 #endif
 
+#define NOINLINE __attribute__((noinline))
 #define FLATTEN __attribute__((flatten))
-#define SOFT_RESILIENT __attribute__((section("soft-resilient")))
+#define SOFT_RESILIENT __attribute__((section("resilient-func")))
 
 #define DECL_RESILIENT_FUNC(ret_type, func, ...)                               \
-  ret_type FLATTEN func(__VA_ARGS__) SOFT_RESILIENT;                           \
+  ret_type FLATTEN NOINLINE func(__VA_ARGS__) SOFT_RESILIENT;                  \
   void func##_end() SOFT_RESILIENT;
 
 #define DELIM_FUNC_IMPL(func)                                                  \
