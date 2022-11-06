@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "resilient_func.hpp"
+
 namespace cachebank {
 
 inline TransientPtr::TransientPtr() : ptr_(0) {}
@@ -62,7 +64,7 @@ inline bool TransientPtr::copy_from(const void *src, size_t len,
   if (offset + len > size_)
     return false;
 #endif // BOUND_CHECK
-  std::memcpy(reinterpret_cast<void *>(ptr_ + offset), src, len);
+  rmemcpy(reinterpret_cast<void *>(ptr_ + offset), src, len);
   return true;
 }
 
@@ -74,7 +76,7 @@ inline bool TransientPtr::copy_to(void *dst, size_t len, int64_t offset) {
   if (offset + len > size_)
     return false;
 #endif // BOUND_CHECK
-  std::memcpy(dst, reinterpret_cast<void *>(ptr_ + offset), len);
+  rmemcpy(dst, reinterpret_cast<void *>(ptr_ + offset), len);
   return true;
 }
 
@@ -87,7 +89,7 @@ inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
   if (from_offset + len > src.size_ || to_offset + len > this->size_)
     return false;
 #endif // BOUND_CHECK
-  std::memcpy(reinterpret_cast<void *>(this->ptr_ + to_offset),
+  rmemcpy(reinterpret_cast<void *>(this->ptr_ + to_offset),
               reinterpret_cast<void *>(src.ptr_ + from_offset), len);
   return true;
 }
@@ -101,7 +103,7 @@ inline bool TransientPtr::copy_to(TransientPtr &dst, size_t len,
   if (from_offset + len > dst.size_ || to_offset + len > this->size_)
     return false;
 #endif // BOUND_CHECK
-  std::memcpy(reinterpret_cast<void *>(dst.ptr_ + to_offset),
+  rmemcpy(reinterpret_cast<void *>(dst.ptr_ + to_offset),
               reinterpret_cast<void *>(this->ptr_ + from_offset), len);
   return true;
 }
