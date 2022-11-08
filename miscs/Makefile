@@ -13,7 +13,7 @@ dep = $(obj:.o=.d)
 
 .PHONY: all clean
 
-all: missrate.bin fault_handle
+all: missrate.bin lru.bin fault_handle
 
 %.bin: %.o
 	$(LDXX) -o $@ $^ $(LDFLAGS)
