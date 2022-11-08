@@ -42,7 +42,7 @@ bool SigHandler::softfault_handler(siginfo_t *info, ucontext_t *ctx) {
 
   void *ip = (void *)ctx->uc_mcontext.gregs[REG_RIP];
   uint64_t *bp = (uint64_t *)ctx->uc_mcontext.gregs[REG_RBP];
-  LOG_PRINTF(kError, "ip = %p, bp = %p\n", ip, bp);
+  LOG_PRINTF(kDebug, "ip = %p, bp = %p\n", ip, bp);
 
   auto func = dispatcher(ctx->uc_mcontext.gregs[REG_RIP]);
   if (!func)
@@ -59,7 +59,7 @@ bool SigHandler::softfault_handler(siginfo_t *info, ucontext_t *ctx) {
     ctx->uc_mcontext.gregs[REG_RAX] = 0; // return value
   }
 
-  LOG_PRINTF(kError, "return to ip = %p, rbp = %p, rsp = %p\n",
+  LOG_PRINTF(kDebug, "return to ip = %p, rbp = %p, rsp = %p\n",
              (void *)ctx->uc_mcontext.gregs[REG_RIP],
              (void *)ctx->uc_mcontext.gregs[REG_RBP],
              (void *)ctx->uc_mcontext.gregs[REG_RSP]);
@@ -72,7 +72,7 @@ static inline bool softfault_handler(siginfo_t *info, ucontext_t *ptr) {
 
 static void signal_segv(int signum, siginfo_t *info, void *ptr) {
   ucontext_t *ctx = reinterpret_cast<ucontext_t *>(ptr);
-  printf("Segmentation Fault!\n");
+  LOG(kDebug) << "Segmentation Fault!";
   // print_callstack(info, ctx);
   if (softfault_handler(info, ctx))
     return;
