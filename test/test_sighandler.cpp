@@ -1,11 +1,14 @@
 #include <iostream>
+#include <vector>
+#include <thread>
 
 #include "sig_handler.hpp"
 #include "timer.hpp"
 #include "transient_ptr.hpp"
 #include "utils.hpp"
 
-constexpr static int kNumRepeat = 2'000'000;
+constexpr static int kNumThds = 20;
+constexpr static int kNumRepeat = 1000'000;
 constexpr static int kSize = 4096;
 
 void do_work() {
@@ -32,7 +35,16 @@ int main() {
   auto sig_handler = cachebank::SigHandler::global_sighandler();
   sig_handler->init();
 
-  do_work();
+  std::vector<std::thread> thds;
+  for (int i = 0; i < kNumThds; i++) {
+    thds.emplace_back([] {
+      do_work();
+    });
+  }
+
+  for (auto &thd : thds) {
+    thd.join();
+  }
 
   return 0;
 }
