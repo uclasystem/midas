@@ -20,7 +20,7 @@ namespace cachebank {
 inline bool scannable() {
   const auto total_accessed = LogAllocator::total_access_cnt();
   const auto total_alive = LogAllocator::total_alive_cnt();
-  if (total_alive == 0 || total_accessed < total_alive * 0.99)
+  if (total_alive == 0 || total_accessed < total_alive * 1.0)
     return false;
   LOG(kError) << "total acc cnt: " << total_accessed
               << ", total alive cnt: " << total_alive;
@@ -33,12 +33,12 @@ inline int64_t get_nr_to_reclaim() {
   auto manager = ResourceManager::global_manager();
   float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
                       (manager->NumRegionLimit() + 1);
-  if (avail_ratio < 0.1)
-    return 48;
-  else if (avail_ratio < 0.2)
+  if (avail_ratio < 0.05)
     return 24;
-  else if (avail_ratio < 0.3)
-    return 8;
+  else if (avail_ratio < 0.1)
+    return 12;
+  else if (avail_ratio < 0.2)
+    return 4;
   else
     return 0;
 }
@@ -120,7 +120,7 @@ retry:
       agg_evac_tasks.push_back(segment.get());
   }
   if (agg_evac_tasks.empty()) {
-    if (nr_to_reclaim < 48)
+    if (nr_to_reclaim < 24)
       return 0;
     else {
       ul.unlock();
