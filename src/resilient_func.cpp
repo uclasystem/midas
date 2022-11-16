@@ -8,7 +8,7 @@
 namespace cachebank {
 
 // Must have len < 16 bytes. Manually unroll instructions for data < 16 bytes.
-static inline void rmemcpy_tiny(uint8_t *dst, const uint8_t *src, size_t len) {
+FORCE_INLINE void rmemcpy_tiny(uint8_t *dst, const uint8_t *src, size_t len) {
   // assert(len < 16); // should not assert in soft resilient functions
   if (len & 8) {
     *(reinterpret_cast<uint64_t *>(dst)) =
@@ -33,7 +33,7 @@ static inline void rmemcpy_tiny(uint8_t *dst, const uint8_t *src, size_t len) {
 }
 
 // NOTE: used when len <= 32 bytes (256 bits)
-static inline void rmemcpy_small(void *dst, const void *src, size_t len) {
+FORCE_INLINE void rmemcpy_small(void *dst, const void *src, size_t len) {
   auto *dst_ = reinterpret_cast<uint64_t *>(dst);
   const auto *src_ = reinterpret_cast<const uint64_t *>(src);
   auto qwords = len >> 3;
@@ -47,11 +47,11 @@ static inline void rmemcpy_small(void *dst, const void *src, size_t len) {
 }
 
 /** YIFAN: not perform well with small size (< 16 bytes) */
-static inline void rmemcpy_ermsb(void *dst, const void *src, size_t len) {
+FORCE_INLINE void rmemcpy_ermsb(void *dst, const void *src, size_t len) {
   asm volatile("rep movsb" : "+D"(dst), "+S"(src), "+c"(len)::"memory");
 }
 
-static inline void rmemcpy_avx128(void *dst, const void *src, size_t len) {
+FORCE_INLINE void rmemcpy_avx128(void *dst, const void *src, size_t len) {
   /* dst, src -> 16 bytes addresses
    * len -> divided into multiple of 16 */
   auto *dst_vec = reinterpret_cast<__m128i *>(dst);
@@ -73,7 +73,7 @@ static inline void rmemcpy_avx128(void *dst, const void *src, size_t len) {
 }
 
 /** YIFAN: In my experience it is not faster than avx128 for most cases. */
-static inline void rmemcpy_avx256(void *dst, const void *src, size_t len) {
+FORCE_INLINE void rmemcpy_avx256(void *dst, const void *src, size_t len) {
   /* dst, src -> 32 bytes addresses
    * len -> divided into multiple of 32 */
   auto *dst_vec = reinterpret_cast<__m256i *>(dst);
@@ -89,7 +89,7 @@ static inline void rmemcpy_avx256(void *dst, const void *src, size_t len) {
 }
 
 /** YIFAN: In my experience it is not faster than avx128 for most cases. */
-static inline void rmemcpy_avx_unroll(void *dst, const void *src, size_t len) {
+FORCE_INLINE void rmemcpy_avx_unroll(void *dst, const void *src, size_t len) {
   /* dst, src -> 256 byte aligned
    * len -> multiple of 256 */
   auto *dst_vec = reinterpret_cast<__m512i *>(dst);
