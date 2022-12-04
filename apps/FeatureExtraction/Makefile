@@ -4,7 +4,7 @@ INC = -Iinc
 LIBS = -lredis++ -lhiredis -lcrypto -pthread
 
 
-SRC_FILES=src/feat_ext.cpp
+SRC_FILES=src/feat_extractor.cpp src/client.cpp
 TOOL_FILES=tools/gen_feats.cpp
 
 all: img2vec gen_feats

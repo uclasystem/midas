@@ -7,7 +7,6 @@
 #include <vector>
 
 namespace FeatExt {
-
 class FakeBackend {
 public:
   FakeBackend() : _arrival_req_id(-1), _processed_req_id(-1), _alive(true) {
@@ -59,6 +58,5 @@ private:
 
   bool _alive;
   std::vector<std::thread> processor_thds;
-} fakeGPUBackend;
-
+};
 } // namespace FeatExt
