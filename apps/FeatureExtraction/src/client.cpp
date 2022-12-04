@@ -2,10 +2,7 @@
 #include <signal.h>
 
 #include "constants.hpp"
-#include "fake_backend.hpp"
 #include "feat_extractor.hpp"
-#include "redis_utils.hpp"
-#include "utils.hpp"
 
 float cache_ratio = 1.0;
 constexpr size_t cache_size = 420 * 1024 * 1024;

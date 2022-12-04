@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstring>
 #include <sw/redis++/cxx_utils.h>
 #include <sw/redis++/redis++.h>
 
