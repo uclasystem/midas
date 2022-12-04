@@ -2,8 +2,9 @@
 #include <iostream>
 #include <string>
 
-#include "../inc/configs.h"
+#include "../inc/constants.hpp"
 
+namespace FeatExt {
 int gen_fake_feats(int nr_imgs) {
   std::ofstream feat_file("fake_feat_vec.data", std::ofstream::binary);
   float *feats = new float[nr_imgs * kFeatDim];
@@ -19,6 +20,7 @@ int gen_fake_feats(int nr_imgs) {
 
   return 0;
 }
+} // namespace FeatExt
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -26,6 +28,6 @@ int main(int argc, char *argv[]) {
   }
 
   int nr_imgs = std::stoi(argv[1]);
-  gen_fake_feats(nr_imgs);
+  FeatExt::gen_fake_feats(nr_imgs);
   return 0;
 }
