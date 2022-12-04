@@ -16,7 +16,6 @@
 #include <thread>
 
 #include "feat_extractor.hpp"
-#include "perf.hpp"
 #include "redis_utils.hpp"
 #include "utils.hpp"
 #include "zipf.hpp"
@@ -28,7 +27,7 @@ struct FeatReq {
   std::string filename;
 };
 
-class FeatExtractionPerf : PerfAdapter {
+class FeatExtractionPerf {
 public:
   FeatExtractionPerf(Redis &_redis, const std::string &img_file_name,
                      const std::string &feat_file_name);
