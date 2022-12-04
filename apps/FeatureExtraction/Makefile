@@ -4,7 +4,7 @@ INC = -Iinc
 LIBS = -lredis++ -lhiredis -lcrypto -pthread
 
 
-SRC_FILES=src/main.cpp
+SRC_FILES=src/feat_ext.cpp
 TOOL_FILES=tools/gen_feats.cpp
 
 all: img2vec gen_feats
@@ -16,4 +16,4 @@ gen_feats: $(TOOL_FILES)
 	g++ $^ -o $@
 
 clean:
-	rm -rf img2vec
+	rm -rf img2vec gen_feats

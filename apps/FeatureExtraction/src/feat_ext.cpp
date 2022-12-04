@@ -16,7 +16,6 @@
 
 #include "configs.h"
 #include "fake_backend.hpp"
-#include "md5_utils.hpp"
 #include "perf.hpp"
 #include "redis_utils.hpp"
 #include "socket.hpp"

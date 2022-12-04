@@ -1,3 +1,5 @@
+/** Borrowed from Nu. */
+
 #pragma once
 
 #include <limits>
