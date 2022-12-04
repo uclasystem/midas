@@ -12,15 +12,7 @@
 namespace FeatExt {
 using namespace sw::redis;
 
-// std::vector<Socket> sockets;
 Socket sockets[kNrThd];
-
-void sendReq(const std::string data) {
-  static std::mutex mtx;
-  std::unique_lock<std::mutex> lk(mtx);
-
-  send_recv_socket(data.c_str(), data.length());
-}
 
 const std::string getFeatVector(Redis &redis, struct FeatReq req) {
   auto &md5 = md5_from_file(req.filename);
@@ -36,14 +28,12 @@ const std::string getFeatVector(Redis &redis, struct FeatReq req) {
     return "";
   }
 
-  // std::string cmd = std::string("python3 extractFeat.py ") + req.filename;
-  // auto feat = ExecuteShellCommand(cmd);
   sockets[req.tid].send_recv(req.filename);
-  // sendReq(req.filename);
   std::string feat = "";
   return feat;
 }
 
+/** initialization & utils */
 FeatExtractionPerf::FeatExtractionPerf(Redis &_redis,
                                        const std::string &img_file_name,
                                        const std::string &feat_file_name)
@@ -51,28 +41,15 @@ FeatExtractionPerf::FeatExtractionPerf(Redis &_redis,
   load_imgs(img_file_name);
   load_feats(feat_file_name);
 }
+
 FeatExtractionPerf::~FeatExtractionPerf() {
   if (raw_feats)
     delete[] raw_feats;
 }
 
-FeatReq FeatExtractionPerf::gen_uniform_req(int tid) {
-  auto id = dist_0_maxnrimgs(gen);
-  FeatReq req;
-  req.feat = &feats.at(id);
-  req.filename = imgs.at(id);
-  req.tid = tid;
-
-  return req;
-}
-
-FeatReq FeatExtractionPerf::gen_skewed_req(int tid) {
-  auto id = dist_zipf(gen) - 1;
-  FeatReq req;
-  req.feat = &feats.at(id);
-  req.filename = imgs.at(id);
-  req.tid = tid;
-
+FeatReq FeatExtractionPerf::gen_req(int tid) {
+  auto id = kSkewedDist ? dist_zipf(gen) - 1 : dist_uniform(gen);
+  FeatReq req{.tid = tid, .feat = &feats.at(id), .filename = imgs.at(id)};
   return req;
 }
 
@@ -100,7 +77,7 @@ int FeatExtractionPerf::load_imgs(const std::string &img_file_name) {
   std::cout << nr_imgs << " " << imgs[0] << " " << md5_from_file(imgs[0])
             << std::endl;
 
-  dist_0_maxnrimgs = std::uniform_int_distribution<>(0, nr_imgs - 1);
+  dist_uniform = std::uniform_int_distribution<>(0, nr_imgs - 1);
   dist_zipf = zipf_table_distribution<>(nr_imgs, kSkewness);
 
   return nr_imgs;
@@ -145,8 +122,7 @@ void FeatExtractionPerf::perf() {
   for (int tid = 0; tid < kNrThd; tid++) {
     worker_thds.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < KPerThdLoad; i++) {
-        // const auto &req = gen_uniform_req(tid);
-        const auto &req = gen_skewed_req(tid);
+        auto req = gen_req(tid);
         serve_req(req);
       }
     }));

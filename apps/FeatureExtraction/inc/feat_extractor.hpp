@@ -26,9 +26,7 @@ private:
   int load_imgs(const std::string &img_file_name);
   int load_feats(const std::string &feat_file_name);
 
-  FeatReq gen_uniform_req(int tid);
-  FeatReq gen_skewed_req(int tid);
-
+  FeatReq gen_req(int tid);
   bool serve_req(FeatReq img_req);
 
   Redis &redis;
@@ -38,7 +36,7 @@ private:
 
   std::random_device rd;
   std::mt19937 gen;
-  std::uniform_int_distribution<> dist_0_maxnrimgs;
+  std::uniform_int_distribution<> dist_uniform;
   zipf_table_distribution<> dist_zipf;
 };
 } // namespace FeatExt
