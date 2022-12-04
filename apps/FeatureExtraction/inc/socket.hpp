@@ -1,9 +1,10 @@
 #pragma once
 
-#include "configs.h"
 #include <iostream>
-#include <string>
 #include <mutex>
+#include <string>
+
+#include "constants.hpp"
 
 extern "C" {
 #include <errno.h>
@@ -126,6 +127,7 @@ inline int send_recv_socket(const char *data, size_t len) {
 }
 }
 
+namespace FeatExt {
 class Socket {
 public:
   Socket(const std::string &host = "localhost",
@@ -177,3 +179,4 @@ private:
   const std::string _host;
   const std::string _port;
 };
+} // namespace FeatExt

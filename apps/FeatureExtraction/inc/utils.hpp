@@ -6,6 +6,9 @@
 #include <openssl/md5.h>
 #include <string>
 
+#include "constants.hpp"
+
+namespace FeatExt {
 inline std::string ExecuteShellCommand(const std::string cmd) {
   const int BUF_SIZE = 1024;
   char buffer[BUF_SIZE];
@@ -40,3 +43,4 @@ inline const std::string md5_from_file(const std::string &filename) {
     md5str_stream << std::setw(2) << (int)byte;
   return md5str_stream.str();
 }
+} // namespace FeatExt

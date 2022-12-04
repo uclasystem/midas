@@ -14,7 +14,7 @@
 #include <string>
 #include <thread>
 
-#include "configs.h"
+#include "constants.hpp"
 #include "fake_backend.hpp"
 #include "perf.hpp"
 #include "redis_utils.hpp"
@@ -23,11 +23,11 @@
 #include "zipf.hpp"
 
 void sigintHandler(int sig) { exit(EXIT_SUCCESS); }
-
-using namespace sw::redis;
-
 float cache_ratio = 1.0;
 constexpr size_t cache_size = 420 * 1024 * 1024;
+
+namespace FeatExt {
+using namespace sw::redis;
 
 // std::vector<Socket> sockets;
 Socket sockets[kNrThd];
@@ -203,6 +203,8 @@ void FeatExtractionPerf::perf() {
   std::cout << "Perf done. Duration: " << duration
             << " ms, Throughput: " << tput << " Kops" << std::endl;
 }
+} // namespace FeatExt
+
 
 int main(int argc, char *argv[]) {
   signal(SIGINT, sigintHandler);
@@ -214,8 +216,7 @@ int main(int argc, char *argv[]) {
   redis.command("config", "set", "maxmemory",
                 static_cast<int>(cache_size * cache_ratio));
 
-  FeatExtractionPerf perf(redis, "../val_img_names.txt",
-                          "../enb5_feat_vec.data");
+  FeatExt::FeatExtractionPerf perf(redis, "val_img_names.txt", "enb5_feat_vec.data");
   // gen_fake_feats(41620);
 
   auto val = redis.get("F5E98381292CDB1233BC9CF072197C83");

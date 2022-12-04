@@ -2,9 +2,11 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <vector>
-#include <thread>
 #include <mutex>
+#include <thread>
+#include <vector>
+
+namespace FeatExt {
 
 class FakeBackend {
 public:
@@ -58,3 +60,5 @@ private:
   bool _alive;
   std::vector<std::thread> processor_thds;
 } fakeGPUBackend;
+
+} // namespace FeatExt

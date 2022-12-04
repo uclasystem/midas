@@ -6,6 +6,7 @@
 #include <random>
 #include <vector>
 
+namespace FeatExt {
 /**
  * Example usage:
  *
@@ -52,16 +53,16 @@ private:
 };
 
 template <class IntType, class RealType>
-zipf_table_distribution<IntType, RealType>::
-zipf_table_distribution(const IntType n, const RealType q)
-  : n_(init(n, q)), q_(q), dist_(pdf_.begin(), pdf_.end()) {}
+zipf_table_distribution<IntType, RealType>::zipf_table_distribution(
+    const IntType n, const RealType q)
+    : n_(init(n, q)), q_(q), dist_(pdf_.begin(), pdf_.end()) {}
 
 template <class IntType, class RealType>
 void zipf_table_distribution<IntType, RealType>::reset() {}
 
 template <class IntType, class RealType>
-IntType zipf_table_distribution<IntType, RealType>::
-operator()(std::mt19937 &rng) {
+IntType
+zipf_table_distribution<IntType, RealType>::operator()(std::mt19937 &rng) {
   return dist_(rng);
 }
 
@@ -83,8 +84,8 @@ zipf_table_distribution<IntType, RealType>::max() const {
 }
 
 template <class IntType, class RealType>
-IntType zipf_table_distribution<IntType, RealType>::
-init(const IntType n, const RealType q) {
+IntType zipf_table_distribution<IntType, RealType>::init(const IntType n,
+                                                         const RealType q) {
   pdf_.reserve(n + 1);
   pdf_.emplace_back(0.0);
   for (IntType i = 1; i <= n; i++) {
@@ -92,3 +93,4 @@ init(const IntType n, const RealType q) {
   }
   return n;
 }
+} // namespace FeatExt
