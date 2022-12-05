@@ -1,5 +1,5 @@
 CXXFLAGS += -std=c++1z -O2
-CXXFLAGS += -march=native # required for avx rmemcpy
+CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
 # CXXFLAGS += -Wall -Wextra
 # CXXFLAGS += -g -O0
 CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
@@ -60,7 +60,8 @@ test_memcpy_obj = $(test_memcpy_src:.cpp=.o)
 
 .PHONY: all clean
 
-all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
+all: libmidas.a \
+	bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_log bin/test_large_alloc \
 	bin/test_sync_hashmap bin/test_hashmap_clear \
 	bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
@@ -113,6 +114,9 @@ bin/test_sighandler: $(test_sighandler_obj) $(lib_obj)
 
 bin/test_memcpy: $(test_memcpy_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+libmidas.a: $(lib_obj)
+	$(AR) rcs $@ $^
 
 %.o: %.cpp Makefile
 	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
