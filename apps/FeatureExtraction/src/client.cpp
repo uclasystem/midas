@@ -14,8 +14,8 @@ int main(int argc, char *argv[]) {
   redis.command("config", "set", "maxmemory",
                 static_cast<int>(cache_size * cache_ratio));
 
-  FeatExt::FeatExtractor client(redis, data_dir + "val_img_names.txt",
-                                data_dir + "enb5_feat_vec.data");
+  FeatExt::FeatExtractor client(redis, FeatExt::data_dir + "val_img_names.txt",
+                                FeatExt::data_dir + "enb5_feat_vec.data");
   // gen_fake_feats(41620);
 
   auto val = redis.get("F5E98381292CDB1233BC9CF072197C83");
