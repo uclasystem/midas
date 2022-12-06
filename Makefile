@@ -58,6 +58,9 @@ test_sighandler_obj = $(test_sighandler_src:.cpp=.o)
 test_memcpy_src = test/test_memcpy.cpp
 test_memcpy_obj = $(test_memcpy_src:.cpp=.o)
 
+test_feat_extractor_src = test/test_feat_extractor.cpp
+test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
+
 .PHONY: all clean
 
 all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
@@ -66,7 +69,8 @@ all: bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel
 	bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
 	bin/test_skewed_hashmap \
 	bin/test_sighandler \
-	bin/test_memcpy
+	bin/test_memcpy \
+	bin/test_feat_extractor
 
 
 bin/daemon_main: $(daemon_main_obj)
@@ -114,6 +118,11 @@ bin/test_sighandler: $(test_sighandler_obj) $(lib_obj)
 bin/test_memcpy: $(test_memcpy_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
+libmidas.a: $(lib_obj)
+	$(AR) rcs $@ $^
+
+bin/test_feat_extractor: $(test_feat_extractor_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ -lcrypto $(LDFLAGS)
 %.o: %.cpp Makefile
 	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
 
