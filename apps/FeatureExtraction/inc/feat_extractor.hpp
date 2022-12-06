@@ -19,7 +19,7 @@ public:
   FeatExtractor(Redis &_redis, const std::string &img_file_name,
                 const std::string &feat_file_name);
   ~FeatExtractor();
-  int warmup_redis();
+  int warmup_redis(float cache_ratio = 1.0);
   void perf();
 
 private:

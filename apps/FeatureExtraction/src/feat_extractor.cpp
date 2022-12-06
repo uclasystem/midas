@@ -12,7 +12,8 @@
 namespace FeatExt {
 using namespace sw::redis;
 
-Socket sockets[kNrThd];
+// Socket sockets[kNrThd];
+FakeBackend fakeGPUBackend;
 
 const std::string getFeatVector(Redis &redis, struct FeatReq req) {
   auto &md5 = md5_from_file(req.filename);
@@ -23,12 +24,11 @@ const std::string getFeatVector(Redis &redis, struct FeatReq req) {
   // Cache miss
   redis.set(md5, *req.feat);
   if (kSimulate) {
-    FakeBackend fakeGPUBackend;
     fakeGPUBackend.serve_req();
     return "";
   }
 
-  sockets[req.tid].send_recv(req.filename);
+  // sockets[req.tid].send_recv(req.filename);
   std::string feat = "";
   return feat;
 }
@@ -101,12 +101,16 @@ int FeatExtractor::load_feats(const std::string &feat_file_name) {
   return feats.size();
 }
 
-int FeatExtractor::warmup_redis() {
+int FeatExtractor::warmup_redis(float cache_ratio) {
+  std::ifstream md5_file(data_dir + "md5.txt");
+
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
   auto pipe = redis.pipeline(false);
-  for (int i = 0; i < nr_imgs; i++) {
-    auto &md5 = md5_from_file(imgs.at(i));
+  for (int i = 0; i < nr_imgs * cache_ratio; i++) {
+    // auto &md5 = md5_from_file(imgs.at(i));
+    std::string md5;
+    md5_file >> md5;
     // std::cout << imgs.at(i) << " " << md5 << std::endl;
     pipe.set(md5, feats.at(i));
   }
