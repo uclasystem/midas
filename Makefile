@@ -1,5 +1,6 @@
 CXXFLAGS += -std=c++1z -O2
-CXXFLAGS += -march=native # required for avx rmemcpy
+CXXFLAGS += -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -mno-red-zone
+CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
 # CXXFLAGS += -Wall -Wextra
 # CXXFLAGS += -g -O0
 CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
