@@ -21,8 +21,12 @@ inline void LogChunk::seal() noexcept {
   sealed_ = true;
 }
 
-inline bool LogChunk::full() noexcept {
+inline bool LogChunk::full() const noexcept {
   return sealed_ || pos_ + sizeof(MetaObjectHdr) > start_addr_ + kLogChunkSize;
+}
+
+inline int32_t LogChunk::remaining_bytes() const noexcept {
+  return start_addr_ + kLogChunkSize - pos_;
 }
 
 inline void LogChunk::set_alive_bytes(int32_t alive_bytes) noexcept {

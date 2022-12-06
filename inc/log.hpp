@@ -24,7 +24,8 @@ public:
   alloc_large(size_t size, TransientPtr head_addr, TransientPtr prev_addr);
   bool free(ObjectPtr &ptr);
   void seal() noexcept;
-  bool full() noexcept;
+  bool full() const noexcept;
+  int32_t remaining_bytes() const noexcept;
 
 private:
   void init(uint64_t addr);
