@@ -18,7 +18,7 @@ constexpr static int kFeatDim = 2048;
 constexpr static int kMD5Len = 32;
 
 constexpr static int kMissPenalty = 12; // ms
-constexpr static int kNrThd = 4;
+constexpr static int kNrThd = 24;
 constexpr static int KPerThdLoad = 10000;
 constexpr static int kNumBuckets = 1 << 20;
 
@@ -161,6 +161,8 @@ private:
   // FeatReq gen_req(int tid);
   bool serve_req(const FeatReq &img_req);
 
+  FakeBackend fakeGPUBackend;
+
   std::vector<std::string> imgs;
   char *raw_feats;
   std::vector<std::shared_ptr<Feature>> feats;
@@ -238,7 +240,6 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   // Cache miss
   // feat_map->set(md5, *req.feat);
   if (kSimulate) {
-    FakeBackend fakeGPUBackend;
     fakeGPUBackend.serve_req();
     return true;
   }
@@ -290,11 +291,17 @@ int FeatExtractor::load_feats(const std::string &feat_file_name) {
 }
 
 int FeatExtractor::warmup_cache() {
+  std::ifstream md5_file(data_dir + "md5.txt");
+
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
   for (int i = 0; i < nr_imgs * cache_ratio; i++) {
     MD5Key md5;
-    md5_from_file(md5, imgs.at(i));
+    std::string md5_str;
+    md5_file >> md5_str;
+    md5_str.copy(md5.data, kMD5Len);
+
+    // md5_from_file(md5, imgs.at(i));
     // std::cout << imgs.at(i) << " " << md5 << std::endl;
     feat_map->set(md5, *feats[i]);
   }
