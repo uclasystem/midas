@@ -289,8 +289,12 @@ void FeatExtractor::perf() {
 }
 
 
-int main() {
-  std::string data_dir = "/home/yifan/code/cachebank/apps/FeatureExtraction/";
+int main(int argc, char *argv[]) {
+  if (argc < 1) {
+    std::cout << "Usage: ./" << argv[0] << " <cache ratio>" << std::endl;
+    exit(-1);
+  }
+  cache_ratio = std::stof(argv[1]);
   FeatExtractor client(data_dir + "val_img_names.txt",
                        data_dir + "enb5_feat_vec.data");
   client.warmup_cache();
