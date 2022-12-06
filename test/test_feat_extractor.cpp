@@ -15,18 +15,20 @@
 #include "zipf.hpp"
 
 constexpr static int kFeatDim = 2048;
-// constexpr static int MD5_DIGEST_LENGTH = 16;
-constexpr static int kMD5Len = MD5_DIGEST_LENGTH;
+constexpr static int kMD5Len = 32;
 
 constexpr static int kMissPenalty = 12; // ms
 constexpr static int kNrThd = 4;
 constexpr static int KPerThdLoad = 10000;
 constexpr static int kNumBuckets = 1 << 20;
 
-constexpr static bool kSkewedDist = false; // false for uniform distribution
-constexpr static double kSkewness = 0.5;  // zipf
+constexpr static bool kSkewedDist = true; // false for uniform distribution
+constexpr static double kSkewness = 0.9;  // zipf
 
 constexpr static bool kSimulate = true;
+
+const static std::string data_dir =
+    "/home/yifan/code/cachebank/apps/FeatureExtraction/";
 
 float cache_ratio = 1.0;
 int cache_size = 420 * 1024 * 1024;
@@ -36,12 +38,10 @@ struct MD5Key {
   char data[kMD5Len];
 
   const std::string to_string() {
-    std::stringstream md5str_stream;
-    md5str_stream << std::hex << std::uppercase << std::setfill('0');
-    for (const auto &byte : data)
-      md5str_stream << std::setw(2) << (int)byte;
-    md5str_stream << "\0";
-    return md5str_stream.str();
+    char str[kMD5Len + 1];
+    std::memcpy(str, data, kMD5Len);
+    str[kMD5Len] = '\0';
+    return str;
   }
 };
 
@@ -60,7 +60,15 @@ inline void md5_from_file(MD5Key &md5_result, const std::string &filename) {
     file.read(buf, sizeof(buf));
     MD5_Update(&md5Context, buf, file.gcount());
   }
-  MD5_Final(reinterpret_cast<unsigned char *>(md5_result.data), &md5Context);
+  unsigned char result[MD5_DIGEST_LENGTH];
+  MD5_Final(result, &md5Context);
+
+  std::stringstream md5str_stream;
+  md5str_stream << std::hex << std::uppercase << std::setfill('0');
+  for (const auto &byte : result)
+    md5str_stream << std::setw(2) << (int)byte;
+  md5str_stream << "\0";
+  std::memcpy(md5_result.data, md5str_stream.str().c_str(), kMD5Len);
 }
 
 namespace std {
@@ -149,30 +157,42 @@ private:
   int load_imgs(const std::string &img_file_name);
   int load_feats(const std::string &feat_file_name);
 
-  FeatReq gen_req(int tid);
-  bool serve_req(FeatReq img_req);
+  void gen_load();
+  // FeatReq gen_req(int tid);
+  bool serve_req(const FeatReq &img_req);
 
   std::vector<std::string> imgs;
   char *raw_feats;
   std::vector<std::shared_ptr<Feature>> feats;
 
-  std::random_device rd;
-  std::mt19937 gen;
-  std::uniform_int_distribution<> dist_uniform;
-  cachebank::zipf_table_distribution<> dist_zipf;
+  std::vector<FeatReq> reqs[kNrThd];
+  std::shared_ptr<std::mt19937> gens[kNrThd];
+  // std::shared_ptr<std::uniform_int_distribution<>> dist_uniform[kNrThd];
+  // std::shared_ptr<cachebank::zipf_table_distribution<>> dist_zipf[kNrThd];
 
-  std::unique_ptr<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>
+  std::shared_ptr<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>
       feat_map;
 };
 
 /** initialization & utils */
 FeatExtractor::FeatExtractor(const std::string &img_file_name,
                              const std::string &feat_file_name)
-    : rd(), gen(rd()), raw_feats(nullptr), dist_zipf(0, 1) {
+    : raw_feats(nullptr) {
   feat_map =
       std::make_unique<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>();
   load_imgs(img_file_name);
   load_feats(feat_file_name);
+
+  auto nr_imgs = imgs.size();
+  for (int i = 0; i < kNrThd; i++) {
+    std::random_device rd;
+    gens[i] = std::make_shared<std::mt19937>(rd());
+    // dist_uniform[i] =
+    //     std::make_shared<std::uniform_int_distribution<>>(0, nr_imgs - 1);
+    // dist_zipf[i] = std::make_shared<cachebank::zipf_table_distribution<>>(
+    //     nr_imgs, kSkewness);
+  }
+  gen_load();
 }
 
 FeatExtractor::~FeatExtractor() {
@@ -180,13 +200,35 @@ FeatExtractor::~FeatExtractor() {
     delete[] raw_feats;
 }
 
-FeatReq FeatExtractor::gen_req(int tid) {
-  auto id = kSkewedDist ? dist_zipf(gen) - 1 : dist_uniform(gen);
-  FeatReq req{.tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
-  return req;
+void FeatExtractor::gen_load() {
+  std::vector<std::thread> thds;
+  for (int tid = 0; tid < kNrThd; tid++) {
+    // thds.push_back(std::thread([&, tid = tid]() {
+      const auto nr_imgs = imgs.size();
+      cachebank::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
+      std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
+      reqs[tid].clear();
+      for (int o = 0; o < KPerThdLoad; o++) {
+        auto id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
+        FeatReq req{
+            .tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
+        reqs[tid].push_back(req);
+      }
+    // }));
+  }
+  // for (auto &thd : thds)
+  //   thd.join();
+  std::cout << "Finish load generation." << std::endl;
 }
 
-bool FeatExtractor::serve_req(FeatReq req) {
+// FeatReq FeatExtractor::gen_req(int tid) {
+//   auto id = kSkewedDist ? (*dist_zipf[tid])(*gens[tid]) - 1
+//                         : (*dist_uniform[tid])(*gens[tid]);
+//   FeatReq req{.tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
+//   return req;
+// }
+
+bool FeatExtractor::serve_req(const FeatReq &req) {
   MD5Key md5;
   md5_from_file(md5, req.filename);
   auto feat_opt = feat_map->get(md5);
@@ -222,9 +264,6 @@ int FeatExtractor::load_imgs(const std::string &img_file_name) {
   MD5Key md5;
   md5_from_file(md5, imgs[0]);
   std::cout << nr_imgs << " " << imgs[0] << " " << md5.to_string() << std::endl;
-
-  dist_uniform = std::uniform_int_distribution<>(0, nr_imgs - 1);
-  dist_zipf = cachebank::zipf_table_distribution<>(nr_imgs, kSkewness);
 
   return nr_imgs;
 }
@@ -269,8 +308,8 @@ void FeatExtractor::perf() {
   for (int tid = 0; tid < kNrThd; tid++) {
     worker_thds.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < KPerThdLoad; i++) {
-        auto req = gen_req(tid);
-        serve_req(req);
+        // auto req = gen_req(tid);
+        serve_req(reqs[tid][i]);
       }
     }));
   }
@@ -289,11 +328,12 @@ void FeatExtractor::perf() {
 
 
 int main(int argc, char *argv[]) {
-  if (argc < 1) {
+  if (argc <= 1) {
     std::cout << "Usage: ./" << argv[0] << " <cache ratio>" << std::endl;
     exit(-1);
   }
   cache_ratio = std::stof(argv[1]);
+
   FeatExtractor client(data_dir + "val_img_names.txt",
                        data_dir + "enb5_feat_vec.data");
   client.warmup_cache();
