@@ -34,31 +34,30 @@ const std::string getFeatVector(Redis &redis, struct FeatReq req) {
 }
 
 /** initialization & utils */
-FeatExtractionPerf::FeatExtractionPerf(Redis &_redis,
-                                       const std::string &img_file_name,
-                                       const std::string &feat_file_name)
+FeatExtractor::FeatExtractor(Redis &_redis, const std::string &img_file_name,
+                             const std::string &feat_file_name)
     : redis(_redis), rd(), gen(rd()), raw_feats(nullptr), dist_zipf(0, 1) {
   load_imgs(img_file_name);
   load_feats(feat_file_name);
 }
 
-FeatExtractionPerf::~FeatExtractionPerf() {
+FeatExtractor::~FeatExtractor() {
   if (raw_feats)
     delete[] raw_feats;
 }
 
-FeatReq FeatExtractionPerf::gen_req(int tid) {
+FeatReq FeatExtractor::gen_req(int tid) {
   auto id = kSkewedDist ? dist_zipf(gen) - 1 : dist_uniform(gen);
   FeatReq req{.tid = tid, .feat = &feats.at(id), .filename = imgs.at(id)};
   return req;
 }
 
-bool FeatExtractionPerf::serve_req(FeatReq img_req) {
-  auto &feat = getFeatVector(redis, img_req);
+bool FeatExtractor::serve_req(FeatReq req) {
+  auto &feat = getFeatVector(redis, req);
   return true;
 }
 
-int FeatExtractionPerf::load_imgs(const std::string &img_file_name) {
+int FeatExtractor::load_imgs(const std::string &img_file_name) {
   std::ifstream img_file(img_file_name, std::ifstream::in);
   if (!img_file.good()) {
     std::cerr << "cannot open img_file " << img_file_name << std::endl;
@@ -83,7 +82,7 @@ int FeatExtractionPerf::load_imgs(const std::string &img_file_name) {
   return nr_imgs;
 }
 
-int FeatExtractionPerf::load_feats(const std::string &feat_file_name) {
+int FeatExtractor::load_feats(const std::string &feat_file_name) {
   size_t nr_imgs = imgs.size();
   raw_feats = new char[nr_imgs * kFeatDim * sizeof(float)];
   size_t nr_feat_vecs = 0;
@@ -102,7 +101,7 @@ int FeatExtractionPerf::load_feats(const std::string &feat_file_name) {
   return feats.size();
 }
 
-int FeatExtractionPerf::warmup_redis() {
+int FeatExtractor::warmup_redis() {
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
   auto pipe = redis.pipeline(false);
@@ -116,7 +115,7 @@ int FeatExtractionPerf::warmup_redis() {
   return 0;
 }
 
-void FeatExtractionPerf::perf() {
+void FeatExtractor::perf() {
   auto stt = std::chrono::high_resolution_clock::now();
   std::vector<std::thread> worker_thds;
   for (int tid = 0; tid < kNrThd; tid++) {

@@ -14,11 +14,11 @@ struct FeatReq {
   std::string filename;
 };
 
-class FeatExtractionPerf {
+class FeatExtractor {
 public:
-  FeatExtractionPerf(Redis &_redis, const std::string &img_file_name,
-                     const std::string &feat_file_name);
-  ~FeatExtractionPerf();
+  FeatExtractor(Redis &_redis, const std::string &img_file_name,
+                const std::string &feat_file_name);
+  ~FeatExtractor();
   int warmup_redis();
   void perf();
 
