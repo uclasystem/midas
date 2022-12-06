@@ -194,7 +194,7 @@ bool FeatExtractor::serve_req(FeatReq req) {
     return true;
 
   // Cache miss
-  feat_map->set(md5, *req.feat);
+  // feat_map->set(md5, *req.feat);
   if (kSimulate) {
     FakeBackend fakeGPUBackend;
     fakeGPUBackend.serve_req();
@@ -253,12 +253,11 @@ int FeatExtractor::load_feats(const std::string &feat_file_name) {
 int FeatExtractor::warmup_cache() {
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
-  for (int i = 0; i < nr_imgs; i++) {
+  for (int i = 0; i < nr_imgs * cache_ratio; i++) {
     MD5Key md5;
     md5_from_file(md5, imgs.at(i));
     // std::cout << imgs.at(i) << " " << md5 << std::endl;
     feat_map->set(md5, *feats[i]);
-    // feat_map.set(i, i);
   }
   std::cout << "Done warm up cache" << std::endl;
   return 0;
