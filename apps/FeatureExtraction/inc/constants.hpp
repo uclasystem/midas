@@ -3,6 +3,7 @@
 #include <string>
 
 namespace FeatExt {
+constexpr static int kMD5Len = 32;
 constexpr static int kFeatDim = 2048;
 
 constexpr static int kMissPenalty = 12;  // ms

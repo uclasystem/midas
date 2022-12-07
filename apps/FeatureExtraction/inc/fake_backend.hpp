@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -59,4 +60,16 @@ private:
   bool _alive;
   std::vector<std::thread> processor_thds;
 };
+
+static inline FakeBackend *global_fake_backend() {
+  static std::mutex mtx_;
+  static std::unique_ptr<FakeBackend> fake_be;
+  if (fake_be)
+    return fake_be.get();
+  std::unique_lock<std::mutex> ul(mtx_);
+  if (fake_be)
+    return fake_be.get();
+  fake_be = std::make_unique<FakeBackend>();
+  return fake_be.get();
+}
 } // namespace FeatExt

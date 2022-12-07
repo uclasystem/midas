@@ -18,7 +18,7 @@ class FeatExtractor {
 public:
   FeatExtractor();
   ~FeatExtractor();
-  int warmup_redis(float cache_ratio = 1.0);
+  int warmup_cache(float cache_ratio = 1.0);
   void perf();
 
 private:

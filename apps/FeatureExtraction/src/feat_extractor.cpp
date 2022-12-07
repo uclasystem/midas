@@ -10,14 +10,11 @@
 #include "utils.hpp"
 
 namespace FeatExt {
-using namespace sw::redis;
-
-// Socket sockets[kNrThd];
-FakeBackend fakeGPUBackend;
+Socket sockets[kNrThd];
 
 const std::string getFeatVector(struct FeatReq req) {
-  auto redis = global_redis();
   auto &md5 = md5_from_file(req.filename);
+  auto redis = global_redis();
   auto feat_opt = redis->get(md5);
   if (feat_opt)
     return *feat_opt;
@@ -25,18 +22,17 @@ const std::string getFeatVector(struct FeatReq req) {
   // Cache miss
   redis->set(md5, *req.feat);
   if (kSimulate) {
-    fakeGPUBackend.serve_req();
+    global_fake_backend()->serve_req();
     return "";
   }
 
-  // sockets[req.tid].send_recv(req.filename);
-  std::string feat = "";
-  return feat;
+  sockets[req.tid].send_recv(req.filename);
+  return "";
 }
 
 /** initialization & utils */
 FeatExtractor::FeatExtractor()
-    : rd(), gen(rd()), raw_feats(nullptr), dist_zipf(0, 1) {
+    : gen(rd()), raw_feats(nullptr), dist_zipf(0, 1) {
   std::string img_file_name = data_dir + "val_img_names.txt";
   std::string feat_file_name = data_dir + "enb5_feat_vec.data";
   load_imgs(img_file_name);
@@ -103,21 +99,25 @@ int FeatExtractor::load_feats(const std::string &feat_file_name) {
   return feats.size();
 }
 
-int FeatExtractor::warmup_redis(float cache_ratio) {
-  std::ifstream md5_file(data_dir + "md5.txt");
+int FeatExtractor::warmup_cache(float cache_ratio) {
+  const auto filename = data_dir + "md5.txt";
+  std::ifstream md5_file(filename);
+  if (!md5_file.is_open()) {
+    std::cerr << "cannot open file " << filename << std::endl;
+    return -1;
+  }
 
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
   auto pipe = global_redis()->pipeline(false);
   for (int i = 0; i < nr_imgs * cache_ratio; i++) {
-    // auto &md5 = md5_from_file(imgs.at(i));
     std::string md5;
     md5_file >> md5;
     // std::cout << imgs.at(i) << " " << md5 << std::endl;
     pipe.set(md5, feats.at(i));
   }
   pipe.exec();
-  std::cout << "Done warm up redis" << std::endl;
+  std::cout << "Done warm up cache" << std::endl;
   return 0;
 }
 
