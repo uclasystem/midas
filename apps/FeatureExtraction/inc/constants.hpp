@@ -16,4 +16,5 @@ constexpr static double kSkewness = 0.9;  // zipf
 const static std::string data_dir = "/mnt/ssd/yifan/code/cache-service/caas/";
 
 constexpr bool kSimulate = true;
+constexpr bool kUseRedis = false;
 } // namespace FeatExt

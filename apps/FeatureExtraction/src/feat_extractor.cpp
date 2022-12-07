@@ -9,25 +9,45 @@
 #include "socket.hpp"
 #include "utils.hpp"
 #include "zipf.hpp"
+#include "midas_utils.hpp"
 
 namespace FeatExt {
 Socket sockets[kNrThd];
 
 const std::string getFeatVector(struct FeatReq req) {
   auto &md5 = md5_from_file(req.filename);
-  auto redis = global_redis();
-  auto feat_opt = redis->get(md5);
-  if (feat_opt)
-    return *feat_opt;
-
-  // Cache miss
-  redis->set(md5, req.feat->to_string_view());
-  if (kSimulate) {
-    global_fake_backend()->serve_req();
-    return "";
+  // Cache hit
+  if (kUseRedis) {
+    auto redis = global_redis();
+    auto feat_opt = redis->get(md5);
+    if (feat_opt)
+      return *feat_opt;
+  } else {
+    auto hashmap = global_hashmap();
+    MD5Key key;
+    key.from_string(md5);
+    auto feat_opt = hashmap->get(key);
+    if (feat_opt)
+      return "";
   }
 
-  sockets[req.tid].send_recv(req.filename);
+  // Cache miss
+  if (kSimulate) {
+    global_fake_backend()->serve_req();
+  } else {
+    sockets[req.tid].send_recv(req.filename);
+  }
+  // // Update cache
+  // if (kUseRedis) {
+  //   auto redis = global_redis();
+  //   redis->set(md5, req.feat->to_string_view());
+  // } else {
+  //   auto hashmap = global_hashmap();
+  //   MD5Key key;
+  //   key.from_string(md5);
+  //   hashmap->set(key, *req.feat);
+  // }
+
   return "";
 }
 
@@ -119,17 +139,32 @@ int FeatExtractor::warmup_cache(float cache_ratio) {
     return -1;
   }
 
-  size_t nr_imgs = imgs.size();
-  std::cout << nr_imgs << " " << feats.size() << std::endl;
-  auto pipe = global_redis()->pipeline(false);
-  for (int i = 0; i < nr_imgs * cache_ratio; i++) {
-    std::string md5;
-    md5_file >> md5;
-    // std::cout << imgs.at(i) << " " << md5 << std::endl;
-    pipe.set(md5, feats.at(i)->to_string_view());
+  if (kUseRedis) {
+    size_t nr_imgs = imgs.size();
+    std::cout << nr_imgs << " " << feats.size() << std::endl;
+    auto pipe = global_redis()->pipeline(false);
+    for (int i = 0; i < nr_imgs * cache_ratio; i++) {
+      std::string md5;
+      md5_file >> md5;
+      // std::cout << imgs.at(i) << " " << md5 << std::endl;
+      pipe.set(md5, feats.at(i)->to_string_view());
+    }
+    pipe.exec();
+    std::cout << "Done warm up redis" << std::endl;
+  } else { // midas
+    size_t nr_imgs = imgs.size();
+    std::cout << nr_imgs << " " << feats.size() << std::endl;
+    auto hashmap = global_hashmap();
+    for (int i = 0; i < nr_imgs * cache_ratio; i++) {
+      std::string md5;
+      md5_file >> md5;
+      MD5Key key;
+      key.from_string(md5);
+      hashmap->set(key, *feats.at(i));
+      // std::cout << imgs.at(i) << " " << md5 << std::endl;
+    }
+    std::cout << "Done warm up midas" << std::endl;
   }
-  pipe.exec();
-  std::cout << "Done warm up cache" << std::endl;
   return 0;
 }
 

@@ -5,8 +5,13 @@ CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
 
 BUILD_DIR = build
 
-INC += -Iinc
+INC += -Iinc -I../../inc
 LIBS += -lredis++ -lhiredis -lcrypto -pthread
+
+# libmidas_lib = $(wildcard ../../src/*.o)
+# libmidas_lib := $(filter-out $(wildcard ../../src/daemon_main.o),$(libmidas_lib))
+libmidas_lib := ../../libmidas.a -lrt -ldl
+LIBS += $(libmidas_lib)
 
 APP_BIN = img2vec
 APP_SRC = $(wildcard src/*.cpp)
@@ -24,15 +29,15 @@ $(APP_BIN) : $(BUILD_DIR)/$(APP_BIN)
 $(TOOL_BIN) : $(BUILD_DIR)/$(TOOL_BIN)
 
 $(BUILD_DIR)/$(APP_BIN) : $(APP_OBJ)
-	mkdir -p $(@D)
+	-mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 $(BUILD_DIR)/$(TOOL_BIN) : $(TOOL_OBJ)
-	mkdir -p $(@D)
+	-mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 $(BUILD_DIR)/%.o : %.cpp Makefile
-	mkdir -p $(@D)
+	-mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 ifneq ($(MAKECMDGOALS),clean)

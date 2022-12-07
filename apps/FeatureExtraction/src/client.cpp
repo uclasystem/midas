@@ -14,10 +14,12 @@ int main(int argc, char *argv[]) {
   }
   cache_ratio = std::atof(argv[1]);
 
-  auto redis = global_redis();
-  // std::cout << redis.ping() << std::endl;
-  redis->command("config", "set", "maxmemory",
-                 static_cast<int>(cache_size * cache_ratio));
+  if (FeatExt::kUseRedis) {
+    auto redis = global_redis();
+    // std::cout << redis.ping() << std::endl;
+    redis->command("config", "set", "maxmemory",
+                  static_cast<int>(cache_size * cache_ratio));
+  }
 
   FeatExt::FeatExtractor client;
   client.warmup_cache(cache_ratio);
