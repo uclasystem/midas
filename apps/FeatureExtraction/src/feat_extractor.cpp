@@ -8,6 +8,7 @@
 #include "redis_utils.hpp"
 #include "socket.hpp"
 #include "utils.hpp"
+#include "zipf.hpp"
 
 namespace FeatExt {
 Socket sockets[kNrThd];
@@ -20,7 +21,7 @@ const std::string getFeatVector(struct FeatReq req) {
     return *feat_opt;
 
   // Cache miss
-  redis->set(md5, *req.feat);
+  redis->set(md5, req.feat->to_string_view());
   if (kSimulate) {
     global_fake_backend()->serve_req();
     return "";
@@ -32,11 +33,12 @@ const std::string getFeatVector(struct FeatReq req) {
 
 /** initialization & utils */
 FeatExtractor::FeatExtractor()
-    : gen(rd()), raw_feats(nullptr), dist_zipf(0, 1) {
+    : raw_feats(nullptr) {
   std::string img_file_name = data_dir + "val_img_names.txt";
   std::string feat_file_name = data_dir + "enb5_feat_vec.data";
   load_imgs(img_file_name);
   load_feats(feat_file_name);
+  gen_load();
 }
 
 FeatExtractor::~FeatExtractor() {
@@ -44,10 +46,24 @@ FeatExtractor::~FeatExtractor() {
     delete[] raw_feats;
 }
 
-FeatReq FeatExtractor::gen_req(int tid) {
-  auto id = kSkewedDist ? dist_zipf(gen) - 1 : dist_uniform(gen);
-  FeatReq req{.tid = tid, .feat = &feats.at(id), .filename = imgs.at(id)};
-  return req;
+void FeatExtractor::gen_load() {
+  auto nr_imgs = imgs.size();
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
+  std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
+
+  for (int tid = 0; tid < kNrThd; tid++) {
+    const auto nr_imgs = imgs.size();
+    reqs[tid].clear();
+    for (int o = 0; o < KPerThdLoad; o++) {
+      auto id = kSkewedDist ? zipf_dist(gen) : uni_dist(gen);
+      FeatReq req{
+          .tid = tid, .filename = imgs.at(id), .feat = feats.at(id)};
+      reqs[tid].push_back(req);
+    }
+  }
+  std::cout << "Finish load generation." << std::endl;
 }
 
 bool FeatExtractor::serve_req(FeatReq req) {
@@ -70,13 +86,9 @@ int FeatExtractor::load_imgs(const std::string &img_file_name) {
     // std::cout << name << " " << imgs.at(imgs.size() - 1) << std::endl;
   }
 
-  size_t nr_imgs = imgs.size();
+  auto nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << imgs[0] << " " << md5_from_file(imgs[0])
             << std::endl;
-
-  dist_uniform = std::uniform_int_distribution<>(0, nr_imgs - 1);
-  dist_zipf = zipf_table_distribution<>(nr_imgs, kSkewness);
-
   return nr_imgs;
 }
 
@@ -92,7 +104,7 @@ int FeatExtractor::load_feats(const std::string &feat_file_name) {
 
   char *ptr = raw_feats;
   for (int i = 0; i < nr_imgs; i++) {
-    feats.push_back(StringView(ptr, sizeof(float) * kFeatDim));
+    feats.push_back(reinterpret_cast<Feature *>(ptr));
     ptr += sizeof(float) * kFeatDim;
   }
 
@@ -114,7 +126,7 @@ int FeatExtractor::warmup_cache(float cache_ratio) {
     std::string md5;
     md5_file >> md5;
     // std::cout << imgs.at(i) << " " << md5 << std::endl;
-    pipe.set(md5, feats.at(i));
+    pipe.set(md5, feats.at(i)->to_string_view());
   }
   pipe.exec();
   std::cout << "Done warm up cache" << std::endl;
@@ -127,8 +139,7 @@ void FeatExtractor::perf() {
   for (int tid = 0; tid < kNrThd; tid++) {
     worker_thds.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < KPerThdLoad; i++) {
-        auto req = gen_req(tid);
-        serve_req(req);
+        serve_req(reqs[tid][i]);
       }
     }));
   }

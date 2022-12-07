@@ -1,10 +1,14 @@
 #pragma once
 
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <memory>
 #include <openssl/md5.h>
 #include <string>
+#include <string_view>
+#include <sw/redis++/cxx_utils.h>
+#include <sw/redis++/redis++.h>
 
 #include "constants.hpp"
 
@@ -43,4 +47,30 @@ inline const std::string md5_from_file(const std::string &filename) {
     md5str_stream << std::setw(2) << (int)byte;
   return md5str_stream.str();
 }
+
+struct MD5Key {
+  char data[kMD5Len];
+
+  void from_string(const std::string &str) {
+    std::memcpy(data, str.c_str(), kMD5Len);
+  }
+  const std::string to_string() {
+    char str[kMD5Len + 1];
+    std::memcpy(str, data, kMD5Len);
+    str[kMD5Len] = '\0';
+    return str;
+  }
+};
+static_assert(sizeof(MD5Key) == kMD5Len, "MD5Key size incorrect");
+
+struct Feature {
+  float data[kFeatDim];
+
+  sw::redis::StringView to_string_view() {
+    return sw::redis::StringView(reinterpret_cast<const char *>(data),
+                                 sizeof(Feature));
+  }
+};
+static_assert(sizeof(Feature) == sizeof(float) * kFeatDim,
+              "Feature struct size incorrect");
 } // namespace FeatExt
