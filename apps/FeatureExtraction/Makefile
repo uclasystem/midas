@@ -25,15 +25,15 @@ $(TOOL_BIN) : $(BUILD_DIR)/$(TOOL_BIN)
 
 $(BUILD_DIR)/$(APP_BIN) : $(APP_OBJ)
 	mkdir -p $(@D)
-	$(CXX) $(CXX_FLAGS) $^ -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 $(BUILD_DIR)/$(TOOL_BIN) : $(TOOL_OBJ)
 	mkdir -p $(@D)
-	$(CXX) $(CXX_FLAGS) $^ -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 $(BUILD_DIR)/%.o : %.cpp Makefile
 	mkdir -p $(@D)
-	$(CXX) $(CXX_FLAGS) $(INC) -MMD -MP -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 ifneq ($(MAKECMDGOALS),clean)
 -include $(dep)
