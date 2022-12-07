@@ -119,9 +119,8 @@ inline bool SmallObjectHdr::is_valid() noexcept {
 
 inline void SmallObjectHdr::set_size(uint32_t size_) noexcept {
   size_ = round_up_to_align(size_, kSmallObjSizeUnit);
-  size_ /= kSmallObjSizeUnit;
-  assert(size_ < (1 << 12));
-  size = size_;
+  assert(size_ <= kSmallObjThreshold);
+  size = size_ / kSmallObjSizeUnit;
 }
 inline uint32_t SmallObjectHdr::get_size() const noexcept {
   return size * kSmallObjSizeUnit;
@@ -195,8 +194,8 @@ inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
 
 inline size_t ObjectPtr::total_size(size_t data_size) noexcept {
   data_size = round_up_to_align(data_size, kSmallObjSizeUnit);
-  return data_size < kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
-                                        : sizeof(LargeObjectHdr) + data_size;
+  return data_size <= kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
+                                         : sizeof(LargeObjectHdr) + data_size;
 }
 
 inline size_t ObjectPtr::total_size() const noexcept {

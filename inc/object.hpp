@@ -4,10 +4,11 @@
 #include <optional>
 
 #include "transient_ptr.hpp"
+#include "utils.hpp"
 
 namespace cachebank {
 
-constexpr static uint32_t kSmallObjThreshold = 8 << 10; /* 8KB */
+constexpr static uint32_t kSmallObjThreshold = kSmallObjSizeUnit << 10;
 
 /** flags = 0, size = 0; rref = 0x1f1f1f1f1f1f */
 constexpr static uint64_t kInvalidHdr = 0x0'000'1f1f1f1f1f1f;
@@ -62,7 +63,7 @@ static_assert(sizeof(MetaObjectHdr) <= sizeof(uint64_t),
 
 struct SmallObjectHdr {
   // Format:
-  //  I) |P(1b)|S(1b)|E(1b)|M(1b)|A(2b)|  Obj Size(12b)  |  Reverse Ref (48b)  |
+  //  I) |P(1b)|S(1b)|E(1b)|M(1b)|A(2b)|  Obj Size(10b)  |  Reverse Ref (48b)  |
   //                   P: present bit.
   //                   S: small obj bit -- the object is a small obj
   //                      (size <= 8B * 2^10 == 8KB).
