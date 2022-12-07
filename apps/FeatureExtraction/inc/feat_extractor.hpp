@@ -16,8 +16,7 @@ struct FeatReq {
 
 class FeatExtractor {
 public:
-  FeatExtractor(Redis &_redis, const std::string &img_file_name,
-                const std::string &feat_file_name);
+  FeatExtractor();
   ~FeatExtractor();
   int warmup_redis(float cache_ratio = 1.0);
   void perf();
@@ -29,7 +28,6 @@ private:
   FeatReq gen_req(int tid);
   bool serve_req(FeatReq img_req);
 
-  Redis &redis;
   std::vector<std::string> imgs;
   char *raw_feats;
   std::vector<StringView> feats;

@@ -15,14 +15,15 @@ using namespace sw::redis;
 // Socket sockets[kNrThd];
 FakeBackend fakeGPUBackend;
 
-const std::string getFeatVector(Redis &redis, struct FeatReq req) {
+const std::string getFeatVector(struct FeatReq req) {
+  auto redis = global_redis();
   auto &md5 = md5_from_file(req.filename);
-  auto feat_opt = redis.get(md5);
+  auto feat_opt = redis->get(md5);
   if (feat_opt)
     return *feat_opt;
 
   // Cache miss
-  redis.set(md5, *req.feat);
+  redis->set(md5, *req.feat);
   if (kSimulate) {
     fakeGPUBackend.serve_req();
     return "";
@@ -34,9 +35,10 @@ const std::string getFeatVector(Redis &redis, struct FeatReq req) {
 }
 
 /** initialization & utils */
-FeatExtractor::FeatExtractor(Redis &_redis, const std::string &img_file_name,
-                             const std::string &feat_file_name)
-    : redis(_redis), rd(), gen(rd()), raw_feats(nullptr), dist_zipf(0, 1) {
+FeatExtractor::FeatExtractor()
+    : rd(), gen(rd()), raw_feats(nullptr), dist_zipf(0, 1) {
+  std::string img_file_name = data_dir + "val_img_names.txt";
+  std::string feat_file_name = data_dir + "enb5_feat_vec.data";
   load_imgs(img_file_name);
   load_feats(feat_file_name);
 }
@@ -53,7 +55,7 @@ FeatReq FeatExtractor::gen_req(int tid) {
 }
 
 bool FeatExtractor::serve_req(FeatReq req) {
-  auto &feat = getFeatVector(redis, req);
+  auto &feat = getFeatVector(req);
   return true;
 }
 
@@ -106,7 +108,7 @@ int FeatExtractor::warmup_redis(float cache_ratio) {
 
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
-  auto pipe = redis.pipeline(false);
+  auto pipe = global_redis()->pipeline(false);
   for (int i = 0; i < nr_imgs * cache_ratio; i++) {
     // auto &md5 = md5_from_file(imgs.at(i));
     std::string md5;
