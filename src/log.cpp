@@ -175,6 +175,19 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size) {
 
   ObjectPtr obj_ptr;
 
+  if (pcab.get() && pcab->remaining_bytes() >=
+                        size + sizeof(LargeObjectHdr) + sizeof(MetaObjectHdr)) {
+    auto option =
+        pcab->alloc_large(size, TransientPtr(), TransientPtr());
+    if (!option)
+      goto slowpath;
+    auto [head_tptr, alloced_size] = *option;
+    if (obj_ptr.init_from_soft(head_tptr) != RetCode::Succ)
+      return std::nullopt;
+    return obj_ptr;
+  }
+slowpath:
+
   std::vector<std::shared_ptr<LogSegment>> segments;
   std::vector<std::shared_ptr<LogChunk>> chunks;
   {
