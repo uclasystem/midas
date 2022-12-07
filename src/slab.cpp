@@ -1,3 +1,5 @@
+#ifdef ENABLE_SLAB
+
 #include <cstddef>
 #include <iostream>
 
@@ -5,8 +7,6 @@
 #include "resource_manager.hpp"
 #include "slab.hpp"
 #include "utils.hpp"
-
-#ifdef ENABLE_SLAB
 
 namespace cachebank {
 
