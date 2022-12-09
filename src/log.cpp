@@ -21,8 +21,8 @@ using RetCode = ObjectPtr::RetCode;
 /** LogChunk */
 inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
   auto obj_size = ObjectPtr::total_size(size);
-  if (pos_ + obj_size + sizeof(MetaObjectHdr) >=
-      start_addr_ + kLogChunkSize) { // current chunk is full
+  if (pos_ - start_addr_ + obj_size + sizeof(MetaObjectHdr) >
+      kLogChunkSize) { // current chunk is full
     assert(!full());
     seal();
     return std::nullopt;
@@ -37,7 +37,7 @@ inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
 inline std::optional<std::pair<TransientPtr, size_t>>
 LogChunk::alloc_large(size_t size, TransientPtr head_tptr,
                       TransientPtr prev_tptr) {
-  if (pos_ + sizeof(LargeObjectHdr) >= start_addr_ + kLogChunkSize) {
+  if (pos_ - start_addr_ + sizeof(LargeObjectHdr) > kLogChunkSize) {
     LOG(kError) << "Chunk is full during large allocation!";
     seal();
     return std::nullopt;
@@ -61,8 +61,8 @@ LogChunk::alloc_large(size_t size, TransientPtr head_tptr,
   }
 
   pos_ += sizeof(LargeObjectHdr) + trunced_size;
-  seal();
-
+  if (pos_ - start_addr_ == kLogChunkSize)
+    seal();
   return std::make_pair(addr, trunced_size);
 }
 
