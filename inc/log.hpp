@@ -98,7 +98,7 @@ public:
 
 private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
-  std::optional<ObjectPtr> alloc_large(size_t size);
+  std::optional<ObjectPtr> alloc_large(size_t size, bool overcommit);
   std::shared_ptr<LogChunk> getChunk();
   std::shared_ptr<LogSegment> getSegment();
   std::shared_ptr<LogSegment> allocSegment(bool overcommit = false);
