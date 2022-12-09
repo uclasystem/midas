@@ -201,6 +201,9 @@ public:
   LockID lock();
   static void unlock(LockID id);
 
+  /** Print & Debug */
+  const std::string to_string() noexcept;
+
 private:
   RetCode free_small() noexcept;
   RetCode free_large() noexcept;

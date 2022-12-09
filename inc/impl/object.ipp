@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <string>
 
 #include "logging.hpp"
 #include "utils.hpp"
@@ -409,6 +410,13 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   if (ret != RetCode::Succ)
     return ret;
   return RetCode::Succ;
+}
+
+inline const std::string ObjectPtr::to_string() noexcept {
+  std::stringstream sstream;
+  sstream << (is_small_obj() ? "Small" : "Large") << " Object @ " << std::hex
+          << obj_.to_normal_address();
+  return sstream.str();
 }
 
 template <class T> inline bool load_hdr(T &hdr, ObjectPtr &obj_hdr) noexcept {
