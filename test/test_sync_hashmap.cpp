@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "resource_manager.hpp"
-#include "slab.hpp"
 #include "sync_hashmap.hpp"
 
 #define TEST_OBJECT 1
