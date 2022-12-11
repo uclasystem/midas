@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 
 #include "transient_ptr.hpp"
 #include "utils.hpp"
@@ -113,8 +114,12 @@ struct LargeObjectHdr {
   //                   A: accessed bits..
   //                   C: continue bit, meaning the objct is a large obj and
   //                      the current chunk is a continued chunk.
-  //         Object Size: the size of the pointed object.
+  //         Object Size: the size of the pointed object. If object spans
+  //                      multiple chunks, then size only represents the partial
+  //                      object size in the current chunk.
   //   Reverse reference: the only pointer referencing this object.
+  //                      For the continued chunks, rref stores the pointer to
+  //                      the head chunk.
 public:
   LargeObjectHdr();
 
@@ -173,6 +178,7 @@ public:
 
   /** Header related */
   bool is_small_obj() const noexcept;
+  bool is_head_obj() const noexcept;
   static size_t total_size(size_t data_size) noexcept;
   size_t total_size() const noexcept;
   size_t hdr_size() const noexcept;
@@ -214,7 +220,8 @@ private:
 
 #pragma pack(push, 1)
   bool small_obj_ : 1;
-  uint32_t size_ : 31; // not in use for now. Support up to 2^31 = 2GB.
+  bool head_obj_ : 1;
+  uint32_t size_ : 30; // not in use for now. Support up to 2^30 = 1GB.
   uint32_t deref_cnt_;
   TransientPtr obj_;
 #pragma pack(pop)
