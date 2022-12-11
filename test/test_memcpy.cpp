@@ -78,7 +78,7 @@ void performance(int buf_len) {
     }
     auto end = cachebank::timer::timer();
     t_memcpy = cachebank::timer::duration(stt, end);
-    std::cout << "memcpy takes " << std::setprecision(5) << t_memcpy << " s"
+    std::cout << " memcpy takes " << std::setprecision(5) << t_memcpy << " s"
               << std::endl;
   }
 
@@ -89,7 +89,7 @@ void performance(int buf_len) {
     }
     auto end = cachebank::timer::timer();
     t_rmemcpy = cachebank::timer::duration(stt, end);
-    std::cout << "rmemcpy takes " << std::setprecision(5) << t_memcpy << " s"
+    std::cout << "rmemcpy takes " << std::setprecision(5) << t_rmemcpy << " s"
               << std::endl;
   }
   std::cout << "Speedup of rmemcpy: " << std::setprecision(5)
