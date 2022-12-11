@@ -9,6 +9,7 @@ LockID ObjectPtr::lock() {
 }
 
 void ObjectPtr::unlock(LockID id) {
+  assert(id != INV_LOCK_ID);
   auto locker = ObjLocker::global_objlocker();
   locker->unlock(id);
 }
@@ -19,7 +20,7 @@ RetCode ObjectPtr::free(bool locked) noexcept {
 
   auto ret = RetCode::Fail;
   LockID lock_id = lock();
-  if (lock_id == -1) // lock failed as obj_ has just been reset.
+  if (lock_id == INV_LOCK_ID) // lock failed as obj_ has just been reset.
     return RetCode::Fail;
   if (!null())
     ret = is_small_obj() ? free_small() : free_large();
@@ -32,7 +33,7 @@ bool ObjectPtr::copy_from_small(const void *src, size_t len, int64_t offset) {
   if (null())
     return false;
   auto lock_id = lock();
-  if (lock_id == -1) // lock failed as obj_ has just been reset.
+  if (lock_id == INV_LOCK_ID) // lock failed as obj_ has just been reset.
     return false;
   if (!null()) {
     MetaObjectHdr meta_hdr;
@@ -60,7 +61,7 @@ bool ObjectPtr::copy_to_small(void *dst, size_t len, int64_t offset) {
   if (null())
     return false;
   auto lock_id = lock();
-  if (lock_id == -1) // lock failed as obj_ has just been reset.
+  if (lock_id == INV_LOCK_ID) // lock failed as obj_ has just been reset.
     return false;
   if (!null()) {
     MetaObjectHdr meta_hdr;
@@ -84,7 +85,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
   if (null())
     return false;
   auto lock_id = lock();
-  if (lock_id == -1)
+  if (lock_id == INV_LOCK_ID)
     return false;
   if (!null()) {
     MetaObjectHdr meta_hdr;
@@ -144,7 +145,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
   if (null())
     return false;
   auto lock_id = lock();
-  if (lock_id == -1)
+  if (lock_id == INV_LOCK_ID)
     return false;
   if (!null()) {
     MetaObjectHdr meta_hdr;

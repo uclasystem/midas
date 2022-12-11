@@ -8,6 +8,7 @@
 
 namespace cachebank {
 
+constexpr static uint32_t INV_LOCK_ID = -1;
 using LockID = uint32_t; // need to be the same as in object.hpp
 
 class ObjLocker {
