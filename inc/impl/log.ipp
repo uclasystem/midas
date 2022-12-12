@@ -99,18 +99,19 @@ inline int64_t LogAllocator::total_alive_cnt() noexcept {
 inline void LogAllocator::reset_alive_cnt() noexcept { total_alive_cnt_ = 0; }
 
 inline void LogAllocator::count_access() {
-  constexpr static int32_t kAccPrecision = 1024;
+  constexpr static int32_t kAccPrecision = 32;
   access_cnt_++;
   if (UNLIKELY(access_cnt_ >= kAccPrecision)) {
     total_access_cnt_ += access_cnt_;
     access_cnt_ = 0;
+    // if (total_access_cnt_ > total_alive_cnt_ * kGCScanFreqFactor)
     if (total_access_cnt_ > total_alive_cnt_)
       signal_scanner();
   }
 }
 
 inline void LogAllocator::count_alive(int val) {
-  constexpr static int32_t kAccPrecision = 1024;
+  constexpr static int32_t kAccPrecision = 32;
   alive_cnt_ += val;
   if (UNLIKELY(alive_cnt_ >= kAccPrecision || alive_cnt_ <= -kAccPrecision)) {
     total_alive_cnt_ += alive_cnt_;
@@ -124,6 +125,11 @@ inline void LogAllocator::thd_exit() {
   if (access_cnt_) {
     total_access_cnt_ += access_cnt_;
     access_cnt_ = 0;
+  }
+
+  if (alive_cnt_) {
+    total_alive_cnt_ += alive_cnt_;
+    alive_cnt_ = 0;
   }
 }
 
