@@ -231,7 +231,7 @@ inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
   assert(data_size <= kLogChunkSize - sizeof(LargeObjectHdr));
   small_obj_ = false;
   head_obj_ = is_head;
-  size_ = data_size;
+  size_ = data_size; // YIFAN: check this later!!
   deref_cnt_ = 0;
 
   LargeObjectHdr hdr;
@@ -402,6 +402,15 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
    */
   if (!obj_.copy_from(src.obj_, src.total_size()))
     return RetCode::Fail;
+  if (!is_small_obj()) { // large object
+    if (is_head_obj())
+      ret = move_large_head(src);
+    else {
+      ret = move_large_cont(src);
+    }
+    if (ret != RetCode::Succ)
+      return ret;
+  }
   ret = src.free(/* locked = */ true);
   if (ret != RetCode::Succ)
     return ret;

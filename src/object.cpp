@@ -5,7 +5,14 @@
 namespace cachebank {
 LockID ObjectPtr::lock() {
   auto locker = ObjLocker::global_objlocker();
-  return locker->lock(obj_);
+  if (is_small_obj() || is_head_obj())
+    return locker->lock(obj_);
+  else { // always lock the head chunk even this is a continued chunk.
+    LargeObjectHdr lhdr;
+    if (!copy_to(&lhdr, sizeof(lhdr)))
+      return INV_LOCK_ID;
+    return locker->lock(lhdr.get_head());
+  }
 }
 
 void ObjectPtr::unlock(LockID id) {
@@ -204,4 +211,23 @@ done:
   return ret;
 }
 
+RetCode ObjectPtr::move_large_head(ObjectPtr &src) noexcept {
+  LargeObjectHdr lhdr;
+  if (!src.obj_.copy_to(&lhdr, sizeof(lhdr)))
+    return RetCode::Fault;
+  auto next = lhdr.get_next();
+  assert(next.null());
+  while (!next.null()) {
+    if (!next.copy_to(&lhdr, sizeof(lhdr)))
+      return RetCode::Fault;
+    lhdr.set_head(this->obj_);
+    next = lhdr.get_next();
+  }
+  return RetCode::Succ;
+}
+
+RetCode ObjectPtr::move_large_cont(ObjectPtr &src) noexcept {
+  ABORT("Not implemented");
+  return RetCode::Fault;
+}
 } // namespace cachebank

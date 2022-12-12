@@ -14,6 +14,7 @@
 #include "object.hpp"
 #include "resource_manager.hpp"
 #include "timer.hpp"
+#include "utils.hpp"
 
 namespace cachebank {
 
@@ -29,18 +30,24 @@ inline bool scannable() {
   return true;
 }
 
-inline int64_t get_nr_to_reclaim() {
+inline std::pair<int64_t, float> get_nr_to_reclaim() {
   auto manager = ResourceManager::global_manager();
   float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
                       (manager->NumRegionLimit() + 1);
+  uint64_t nr_to_reclaim = 0;
   if (avail_ratio < 0.05)
-    return 24;
+    // return 24;
+    nr_to_reclaim = std::max(manager->NumRegionLimit() / 100, 2ul);
   else if (avail_ratio < 0.1)
-    return 12;
+    // return 12;
+    nr_to_reclaim = std::max(manager->NumRegionLimit() / 100, 1ul);
   else if (avail_ratio < 0.2)
-    return 4;
+    // return 4;
+    nr_to_reclaim = manager->NumRegionLimit() / 800;
   else
-    return 0;
+    // return 0;
+    nr_to_reclaim = 0;
+  return std::make_pair(nr_to_reclaim, avail_ratio);
 }
 
 void Evacuator::init() {
@@ -59,8 +66,10 @@ void Evacuator::init() {
     while (!terminated_) {
       {
         std::unique_lock lk(evacuator_mtx_);
-        evacuator_cv_.wait(
-            lk, [this] { return terminated_ || get_nr_to_reclaim(); });
+        evacuator_cv_.wait(lk, [this] {
+          auto [nr_to_reclaim, _] = get_nr_to_reclaim();
+          return terminated_ || nr_to_reclaim;
+        });
       }
       gc();
     }
@@ -99,29 +108,34 @@ void Evacuator::scan(int nr_thds) {
 }
 
 int64_t Evacuator::gc() {
-  auto nr_to_reclaim = get_nr_to_reclaim();
+  auto [nr_to_reclaim, avail_region_ratio] = get_nr_to_reclaim();
   if (nr_to_reclaim == 0)
     return 0;
 
   auto stt = timer::timer();
-retry:
-  std::unique_lock<std::mutex> ul(mtx_);
-  std::atomic_int64_t nr_evaced = 0;
   auto allocator = LogAllocator::global_allocator();
-  auto &segments = allocator->vSegments_;
-
+  std::atomic_int64_t nr_evaced = 0;
   auto nr_evac_thds = nr_to_reclaim;
   std::vector<LogSegment *> agg_evac_tasks;
 
-  int tid = 0;
+retry:
+  std::unique_lock<std::mutex> ul(mtx_);
+  auto &segments = allocator->vSegments_;
+  if (segments.size() == 0) {
+    LOG(kError) << segments.size();
+    return 0;
+  }
+
   for (auto segment : segments) {
     auto alive_ratio = segment->get_alive_ratio();
     if (alive_ratio < 0.95)
       agg_evac_tasks.push_back(segment.get());
   }
   if (agg_evac_tasks.empty()) {
-    if (nr_to_reclaim < 24)
+    if (avail_region_ratio > 0.1) {
+      LOG(kError) << avail_region_ratio;
       return 0;
+    }
     else {
       ul.unlock();
       scan();
@@ -140,7 +154,7 @@ retry:
 
   auto end = timer::timer();
   auto nr_reclaimed = ResourceManager::global_manager()->NumRegionAvail();
-  LOG(kInfo) << "GC: " << nr_evaced << " evacuated, " << nr_reclaimed
+  LOG(kError) << "GC: " << nr_evaced << " evacuated, " << nr_reclaimed
              << " reclaimed (" << timer::duration(stt, end) << "s).";
 
   return nr_reclaimed;
@@ -250,11 +264,8 @@ inline bool Evacuator::iterate_chunk(LogChunk *chunk, uint64_t &pos,
   assert(ret == RetCode::Succ);
   if (optr.is_small_obj())
     pos += optr.total_size();
-  else {
-    LOG(kError) << "Not implemented yet!";
-    exit(-1);
-    // TODO: adapt to large obj spanning multiple chunks
-    // pos += optr.total_size();
+  else { // large obj
+    pos += optr.total_size(); // TODO: the size here is incorrect!
   }
   return true;
 }
@@ -264,13 +275,14 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
     return kMaxAliveBytes;
 
   int alive_bytes = 0;
+  int nr_present = 0;
 
   // counters
   int nr_deactivated = 0;
-  int nr_present = 0;
   int nr_non_present = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
+  int nr_large_objs = 0;
   int nr_failed = 0;
 
   ObjectPtr obj_ptr;
@@ -305,17 +317,39 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
         } else
           nr_non_present++;
       }
-    } else { // TODO: large object
-      ABORT("Not implemented yet!");
+    } else { // large object
+      // ABORT("Not implemented yet!");
+      nr_large_objs++;
       MetaObjectHdr meta_hdr;
       if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        if (meta_hdr.is_continue()) {
-          // this is a inner chunk storing a large object.
-        } else {
-          // this is the head chunk of a large object.
-        }
+        auto obj_size = obj_ptr.total_size(); // TODO: incorrect size here!
+        if (meta_hdr.is_present()) {
+          nr_present++;
+          if (!meta_hdr.is_continue()) { // head chunk
+            if (!deactivate) {
+              alive_bytes += obj_size;
+            } else if (meta_hdr.is_accessed()) {
+              meta_hdr.dec_accessed();
+              if (!store_hdr(meta_hdr, obj_ptr))
+                goto faulted;
+              nr_deactivated++;
+              alive_bytes += obj_size;
+            } else {
+              // This will free all chunks belonging to this object
+              if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+                goto faulted;
+
+              nr_freed++;
+            }
+          } else { // continued chunk
+            ABORT("Impossible for now");
+            // this is a inner chunk storing a large object.
+            alive_bytes += obj_size;
+          }
+        } else
+          nr_non_present++;
       }
     }
     obj_ptr.unlock(lock_id);
@@ -335,6 +369,7 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
   if (deactivate) // meaning this is a scanning thread
     LogAllocator::count_alive(nr_present);
   LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
+              << ", nr_large_objs: " << nr_large_objs
               << ", nr_non_present: " << nr_non_present
               << ", nr_deactivated: " << nr_deactivated
               << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
@@ -389,19 +424,58 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
         } else
           nr_freed++;
       }
-    } else { // TODO: large object
-      LOG(kError) << "Not implemented yet!";
-      exit(-1);
+    } else { // large object
       MetaObjectHdr meta_hdr;
       if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        if (meta_hdr.is_continue()) {
-          // this is a inner chunk storing a large object.
-        } else {
-          // this is the head chunk of a large object.
-          goto faulted;
-        }
+        if (meta_hdr.is_present()) {
+          auto obj_size = obj_ptr.total_size(); // TODO: incorrect size here!
+          if (!meta_hdr.is_continue()) { // the head chunk of a large object.
+            nr_present++;
+            obj_ptr.unlock(lock_id);
+            auto allocator = LogAllocator::global_allocator();
+            auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+            lock_id = obj_ptr.lock();
+            assert(lock_id != -1 && !obj_ptr.null());
+
+            if (optptr) {
+              auto new_ptr = *optptr;
+              auto ret = new_ptr.move_from(obj_ptr);
+              if (ret == RetCode::Succ) {
+                nr_moved++;
+              } else if (ret == RetCode::Fail) {
+                LOG(kError) << "Failed to move the object!";
+                nr_failed++;
+              } else
+                goto faulted;
+            } else
+              nr_failed++;
+          } else { // an inner chunk of a large obj
+            // TODO: remap this chunk directly if (obj_size == kLogChunkSize).
+            ABORT("Not implemented yet!");
+            nr_present++;
+            obj_ptr.unlock(lock_id);
+            auto allocator = LogAllocator::global_allocator();
+            auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+            lock_id = obj_ptr.lock();
+            assert(lock_id != -1 && !obj_ptr.null());
+
+            if (optptr) {
+              auto new_ptr = *optptr;
+              auto ret = new_ptr.move_from(obj_ptr);
+              if (ret == RetCode::Succ) {
+                nr_moved++;
+              } else if (ret == RetCode::Fail) {
+                LOG(kError) << "Failed to move the object!";
+                nr_failed++;
+              } else
+                goto faulted;
+            } else
+              nr_failed++;
+          }
+        } else
+          nr_freed++;
       }
     }
     obj_ptr.unlock(lock_id);
@@ -447,17 +521,22 @@ inline bool Evacuator::free_chunk(LogChunk *chunk) {
         } else
           nr_non_present++;
       }
-    } else { // TODO: large object
-      LOG(kError) << "Not implemented yet!";
-      exit(-1);
+    } else { // large object
       MetaObjectHdr meta_hdr;
       if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        if (meta_hdr.is_continue()) {
-          // this is a inner chunk storing a large object.
-        } else {
+        if (!meta_hdr.is_continue()) {
           // this is the head chunk of a large object.
+          if (meta_hdr.is_present()) {
+            if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+              goto faulted;
+            nr_freed++;
+          } else
+            nr_non_present++;
+        } else {
+          // this is a inner chunk storing a large object.
+          ABORT("Not implemented yet!");
           goto faulted;
         }
       }

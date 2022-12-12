@@ -217,6 +217,8 @@ private:
   bool copy_to_small(void *dst, size_t len, int64_t offset);
   bool copy_from_large(const void *src, size_t len, int64_t offset);
   bool copy_to_large(void *dst, size_t len, int64_t offset);
+  RetCode move_large_head(ObjectPtr &src) noexcept;
+  RetCode move_large_cont(ObjectPtr &src) noexcept;
 
 #pragma pack(push, 1)
   bool small_obj_ : 1;
