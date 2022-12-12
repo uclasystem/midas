@@ -1,2 +1,5 @@
 img2vec
 gen_feats
+
+build/*
+data/*

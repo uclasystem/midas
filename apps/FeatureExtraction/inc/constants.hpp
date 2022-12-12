@@ -13,7 +13,8 @@ constexpr static int KPerThdLoad = 10000;
 constexpr static bool kSkewedDist = true; // false for uniform distribution
 constexpr static double kSkewness = 0.9;  // zipf
 
-const static std::string data_dir = "/mnt/ssd/yifan/code/cache-service/caas/";
+const static std::string data_dir =
+    "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/";
 
 constexpr bool kSimulate = true;
 constexpr bool kUseRedis = false;
