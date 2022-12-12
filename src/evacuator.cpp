@@ -390,88 +390,59 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
   while (iterate_chunk(chunk, pos, obj_ptr)) {
     auto lock_id = obj_ptr.lock();
     assert(lock_id != -1 && !obj_ptr.null());
+    MetaObjectHdr meta_hdr;
+    if (!load_hdr(meta_hdr, obj_ptr))
+      goto faulted;
+    if (!meta_hdr.is_present()) {
+      nr_freed++;
+      obj_ptr.unlock(lock_id);
+      continue;
+    }
+    nr_present++;
     if (obj_ptr.is_small_obj()) {
       nr_small_objs++;
+      obj_ptr.unlock(lock_id);
+      auto allocator = LogAllocator::global_allocator();
+      auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+      lock_id = optptr->lock();
+      assert(lock_id != -1 && !obj_ptr.null());
 
-      MetaObjectHdr meta_hdr;
-      if (!load_hdr(meta_hdr, obj_ptr))
-        goto faulted;
-      else {
-        if (meta_hdr.is_present()) {
-          nr_present++;
-          obj_ptr.unlock(lock_id);
-          auto allocator = LogAllocator::global_allocator();
-          auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
-          lock_id = optptr->lock();
-          assert(lock_id != -1 && !obj_ptr.null());
-
-          if (optptr) {
-            auto new_ptr = *optptr;
-            auto ret = new_ptr.move_from(obj_ptr);
-            if (ret == RetCode::Succ) {
-              nr_moved++;
-            } else if (ret == RetCode::Fail) {
-              LOG(kError) << "Failed to move the object!";
-              nr_failed++;
-            } else
-              goto faulted;
-          } else
-            nr_failed++;
+      if (optptr) {
+        auto new_ptr = *optptr;
+        auto ret = new_ptr.move_from(obj_ptr);
+        if (ret == RetCode::Succ) {
+          nr_moved++;
+        } else if (ret == RetCode::Fail) {
+          LOG(kError) << "Failed to move the object!";
+          nr_failed++;
         } else
-          nr_freed++;
-      }
+          goto faulted;
+      } else
+        nr_failed++;
     } else { // large object
-      MetaObjectHdr meta_hdr;
-      if (!load_hdr(meta_hdr, obj_ptr))
-        goto faulted;
-      else {
-        if (meta_hdr.is_present()) {
-          auto obj_size = obj_ptr.obj_size(); // TODO: incorrect size here!
-          if (!meta_hdr.is_continue()) { // the head chunk of a large object.
-            nr_present++;
-            obj_ptr.unlock(lock_id);
-            auto allocator = LogAllocator::global_allocator();
-            auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
-            lock_id = obj_ptr.lock();
-            assert(lock_id != -1 && !obj_ptr.null());
+      if (!meta_hdr.is_continue()) { // the head chunk of a large object.
+        obj_ptr.unlock(lock_id);
+        auto allocator = LogAllocator::global_allocator();
+        auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+        lock_id = obj_ptr.lock();
+        assert(lock_id != -1 && !obj_ptr.null());
 
-            if (optptr) {
-              auto new_ptr = *optptr;
-              auto ret = new_ptr.move_from(obj_ptr);
-              if (ret == RetCode::Succ) {
-                nr_moved++;
-              } else if (ret == RetCode::Fail) {
-                LOG(kError) << "Failed to move the object!";
-                nr_failed++;
-              } else
-                goto faulted;
-            } else
-              nr_failed++;
-          } else { // an inner chunk of a large obj
-            // TODO: remap this chunk directly if (obj_size == kLogChunkSize).
-            ABORT("Not implemented yet!");
-            nr_present++;
-            obj_ptr.unlock(lock_id);
-            auto allocator = LogAllocator::global_allocator();
-            auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
-            lock_id = obj_ptr.lock();
-            assert(lock_id != -1 && !obj_ptr.null());
-
-            if (optptr) {
-              auto new_ptr = *optptr;
-              auto ret = new_ptr.move_from(obj_ptr);
-              if (ret == RetCode::Succ) {
-                nr_moved++;
-              } else if (ret == RetCode::Fail) {
-                LOG(kError) << "Failed to move the object!";
-                nr_failed++;
-              } else
-                goto faulted;
-            } else
-              nr_failed++;
-          }
+        if (optptr) {
+          auto new_ptr = *optptr;
+          auto ret = new_ptr.move_from(obj_ptr);
+          if (ret == RetCode::Succ) {
+            nr_moved++;
+          } else if (ret == RetCode::Fail) {
+            LOG(kError) << "Failed to move the object!";
+            nr_failed++;
+          } else
+            goto faulted;
         } else
-          nr_freed++;
+          nr_failed++;
+      } else { // an inner chunk of a large obj
+        // TODO: remap this chunk directly if (obj_size == kLogChunkSize).
+        /* For now, let's skip it and let the head chunk handle all the
+         * continued chunks together. */
       }
     }
     obj_ptr.unlock(lock_id);
