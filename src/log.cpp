@@ -43,6 +43,13 @@ LogChunk::alloc_large(size_t size, TransientPtr head_tptr,
     return std::nullopt;
   }
 
+  // YIFAN: a hack for now to avoid cont'ed chunks for large objs
+  if (pos_ - start_addr_ + sizeof(LargeObjectHdr) + size > kLogChunkSize) {
+    // LOG(kError) << "Chunk is full during large allocation!";
+    seal();
+    return std::nullopt;
+  }
+
   ObjectPtr obj_ptr;
   size_t trunced_size = std::min(
       kLogChunkSize - (pos_ - start_addr_) - sizeof(LargeObjectHdr), size);
