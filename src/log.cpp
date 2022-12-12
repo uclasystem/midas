@@ -20,7 +20,7 @@ using RetCode = ObjectPtr::RetCode;
 
 /** LogChunk */
 inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
-  auto obj_size = ObjectPtr::total_size(size);
+  auto obj_size = ObjectPtr::obj_size(size);
   if (pos_ - start_addr_ + obj_size + sizeof(MetaObjectHdr) >
       kLogChunkSize) { // current chunk is full
     assert(!full());

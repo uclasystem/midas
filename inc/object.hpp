@@ -179,8 +179,8 @@ public:
   /** Header related */
   bool is_small_obj() const noexcept;
   bool is_head_obj() const noexcept;
-  static size_t total_size(size_t data_size) noexcept;
-  size_t total_size() const noexcept;
+  static size_t obj_size(size_t data_size) noexcept;
+  size_t obj_size() const noexcept;
   size_t hdr_size() const noexcept;
   size_t data_size() const noexcept;
 

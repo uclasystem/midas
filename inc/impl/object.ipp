@@ -194,13 +194,13 @@ inline ObjectPtr::ObjectPtr()
 
 inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
 
-inline size_t ObjectPtr::total_size(size_t data_size) noexcept {
+inline size_t ObjectPtr::obj_size(size_t data_size) noexcept {
   data_size = round_up_to_align(data_size, kSmallObjSizeUnit);
   return data_size <= kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
                                          : sizeof(LargeObjectHdr) + data_size;
 }
 
-inline size_t ObjectPtr::total_size() const noexcept {
+inline size_t ObjectPtr::obj_size() const noexcept {
   return hdr_size() + data_size();
 }
 inline size_t ObjectPtr::hdr_size() const noexcept {
@@ -221,7 +221,7 @@ inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
 
   SmallObjectHdr hdr;
   hdr.init(size_);
-  obj_ = TransientPtr(stt_addr, total_size());
+  obj_ = TransientPtr(stt_addr, obj_size());
   return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
 }
 
@@ -236,7 +236,7 @@ inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
 
   LargeObjectHdr hdr;
   hdr.init(data_size, is_head, head, next);
-  obj_ = TransientPtr(stt_addr, total_size());
+  obj_ = TransientPtr(stt_addr, obj_size());
   return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
 }
 
@@ -255,7 +255,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
     SmallObjectHdr shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
     small_obj_ = true;
     size_ = shdr.get_size();
-    obj_ = TransientPtr(soft_ptr.to_normal_address(), total_size());
+    obj_ = TransientPtr(soft_ptr.to_normal_address(), obj_size());
   } else {
     LargeObjectHdr lhdr;
     if (!obj_.copy_to(&lhdr, sizeof(lhdr)))
@@ -263,7 +263,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
     small_obj_ = false;
     head_obj_ = !MetaObjectHdr::cast_from(&lhdr)->is_continue();
     size_ = lhdr.get_size();
-    obj_ = TransientPtr(soft_ptr.to_normal_address(), total_size());
+    obj_ = TransientPtr(soft_ptr.to_normal_address(), obj_size());
   }
 
   return RetCode::Succ;
@@ -393,14 +393,14 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   auto ret = RetCode::Fail;
   if (null() || src.null())
     return RetCode::Fail;
-  assert(src.total_size() == this->total_size());
+  assert(src.obj_size() == this->obj_size());
   /* NOTE (YIFAN): the order of operations below are tricky:
    *      1. copy data from src to this.
    *      2. free src (rref will be reset to nullptr).
    *      3. mark this as present, finish setup.
    *      4. update rref, let it point to this.
    */
-  if (!obj_.copy_from(src.obj_, src.total_size()))
+  if (!obj_.copy_from(src.obj_, src.obj_size()))
     return RetCode::Fail;
   if (!is_small_obj()) { // large object
     if (is_head_obj())

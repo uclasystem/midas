@@ -259,9 +259,9 @@ inline bool Evacuator::iterate_chunk(LogChunk *chunk, uint64_t &pos,
   }
   assert(ret == RetCode::Succ);
   if (optr.is_small_obj())
-    pos += optr.total_size();
+    pos += optr.obj_size();
   else { // large obj
-    pos += optr.total_size(); // TODO: the size here is incorrect!
+    pos += optr.obj_size(); // TODO: the size here is incorrect!
   }
   return true;
 }
@@ -290,7 +290,7 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
     if (obj_ptr.is_small_obj()) {
       nr_small_objs++;
 
-      auto obj_size = obj_ptr.total_size();
+      auto obj_size = obj_ptr.obj_size();
       MetaObjectHdr meta_hdr;
       if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
@@ -320,7 +320,7 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
       if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto obj_size = obj_ptr.total_size(); // TODO: incorrect size here!
+        auto obj_size = obj_ptr.obj_size(); // TODO: incorrect size here!
         if (meta_hdr.is_present()) {
           nr_present++;
           if (!meta_hdr.is_continue()) { // head chunk
@@ -426,7 +426,7 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
         goto faulted;
       else {
         if (meta_hdr.is_present()) {
-          auto obj_size = obj_ptr.total_size(); // TODO: incorrect size here!
+          auto obj_size = obj_ptr.obj_size(); // TODO: incorrect size here!
           if (!meta_hdr.is_continue()) { // the head chunk of a large object.
             nr_present++;
             obj_ptr.unlock(lock_id);
