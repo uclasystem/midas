@@ -12,16 +12,16 @@
 #include "sync_hashmap.hpp"
 
 #define TEST_OBJECT 1
-#define TEST_LARGE 0
+#define TEST_LARGE 1
 
 constexpr static int kNBuckets = (1 << 20);
-constexpr static int kNumInsertThds = 20;
-constexpr static int kNumRemoveThds = 20;
+constexpr static int kNumInsertThds = 10;
+constexpr static int kNumRemoveThds = 10;
 
 #if TEST_LARGE
-constexpr static int kNumObjs = 1024;
-constexpr static int kKLen = 61;
-constexpr static int kVLen = 100000;
+constexpr static int kNumObjs = 10240;
+constexpr static int kKLen = 32;
+constexpr static int kVLen = 8192;
 #else // !TEST_LARGE
 constexpr static int kNumObjs = 102400;
 constexpr static int kKLen = 61;
@@ -74,6 +74,7 @@ template <> std::string get_K() {
   static std::uniform_int_distribution<int> dist('A', 'z');
 
   std::string str = "";
+  str.reserve(kKLen);
   for (uint32_t i = 0; i < kKLen - 1; i++)
     str += dist(mt);
   str += '\0';
@@ -86,18 +87,18 @@ template <> std::string get_V() {
   static std::uniform_int_distribution<int> dist('A', 'z');
 
   std::string str = "";
-  if (kVLen <= 10000) {
+  str.reserve(kVLen);
+#if TEST_LARGE == 1
     for (uint32_t i = 0; i < kVLen - 1; i++)
       str += dist(mt);
-  }
-  else {
-    constexpr static int kFillStride = 1000;
+#else
+    constexpr static int kFillStride = 2000;
     for (uint32_t i = 0; i < kVLen - 1; i++)
       if (i % kFillStride == 0)
         str += dist(mt);
       else
         str += static_cast<char>(i % ('z' - 'A')) + 'A';
-  }
+#endif
   str += '\0';
   return str;
 }
