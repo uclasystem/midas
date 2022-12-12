@@ -19,16 +19,14 @@ constexpr static int kMD5Len = 32;
 
 constexpr static int kMissPenalty = 12; // ms
 constexpr static int kNrThd = 24;
-constexpr static int KPerThdLoad = 10000;
+constexpr static int KPerThdLoad = 1000;
 constexpr static int kNumBuckets = 1 << 20;
 
 constexpr static bool kSkewedDist = true; // false for uniform distribution
 constexpr static double kSkewness = 0.9;  // zipf
 
-constexpr static bool kSimulate = true;
-
 const static std::string data_dir =
-    "/home/yifan/code/cachebank/apps/FeatureExtraction/";
+    "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/";
 
 float cache_ratio = 1.0;
 int cache_size = 420 * 1024 * 1024;
@@ -158,7 +156,6 @@ private:
   int load_feats(const std::string &feat_file_name);
 
   void gen_load();
-  // FeatReq gen_req(int tid);
   bool serve_req(const FeatReq &img_req);
 
   FakeBackend fakeGPUBackend;
@@ -167,10 +164,13 @@ private:
   char *raw_feats;
   std::vector<std::shared_ptr<Feature>> feats;
 
+  struct {
+    int nr_hit = 0;
+    int nr_miss = 0;
+  } perthd_cnts[kNrThd];
+  void report_hit_rate();
   std::vector<FeatReq> reqs[kNrThd];
   std::shared_ptr<std::mt19937> gens[kNrThd];
-  // std::shared_ptr<std::uniform_int_distribution<>> dist_uniform[kNrThd];
-  // std::shared_ptr<cachebank::zipf_table_distribution<>> dist_zipf[kNrThd];
 
   std::shared_ptr<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>
       feat_map;
@@ -189,10 +189,6 @@ FeatExtractor::FeatExtractor(const std::string &img_file_name,
   for (int i = 0; i < kNrThd; i++) {
     std::random_device rd;
     gens[i] = std::make_shared<std::mt19937>(rd());
-    // dist_uniform[i] =
-    //     std::make_shared<std::uniform_int_distribution<>>(0, nr_imgs - 1);
-    // dist_zipf[i] = std::make_shared<cachebank::zipf_table_distribution<>>(
-    //     nr_imgs, kSkewness);
   }
   gen_load();
 }
@@ -205,44 +201,33 @@ FeatExtractor::~FeatExtractor() {
 void FeatExtractor::gen_load() {
   std::vector<std::thread> thds;
   for (int tid = 0; tid < kNrThd; tid++) {
-    // thds.push_back(std::thread([&, tid = tid]() {
-      const auto nr_imgs = imgs.size();
-      cachebank::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
-      std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
-      reqs[tid].clear();
-      for (int o = 0; o < KPerThdLoad; o++) {
-        auto id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
-        FeatReq req{
-            .tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
-        reqs[tid].push_back(req);
-      }
-    // }));
+    const auto nr_imgs = imgs.size();
+    cachebank::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
+    std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
+    reqs[tid].clear();
+    for (int o = 0; o < KPerThdLoad; o++) {
+      auto id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
+      FeatReq req{
+          .tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
+      reqs[tid].push_back(req);
+    }
   }
-  // for (auto &thd : thds)
-  //   thd.join();
   std::cout << "Finish load generation." << std::endl;
 }
-
-// FeatReq FeatExtractor::gen_req(int tid) {
-//   auto id = kSkewedDist ? (*dist_zipf[tid])(*gens[tid]) - 1
-//                         : (*dist_uniform[tid])(*gens[tid]);
-//   FeatReq req{.tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
-//   return req;
-// }
 
 bool FeatExtractor::serve_req(const FeatReq &req) {
   MD5Key md5;
   md5_from_file(md5, req.filename);
   auto feat_opt = feat_map->get(md5);
-  if (feat_opt)
-    return true;
-
-  // Cache miss
-  // feat_map->set(md5, *req.feat);
-  if (kSimulate) {
-    fakeGPUBackend.serve_req();
+  if (feat_opt) {
+    perthd_cnts[req.tid].nr_hit++;
     return true;
   }
+
+  // Cache miss
+  perthd_cnts[req.tid].nr_miss++;
+  fakeGPUBackend.serve_req();
+  feat_map->set(md5, *req.feat);
   return true;
 }
 
@@ -295,7 +280,8 @@ int FeatExtractor::warmup_cache() {
 
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
-  for (int i = 0; i < nr_imgs * cache_ratio; i++) {
+  // for (int i = 0; i < nr_imgs * cache_ratio; i++) {
+  for (int i = 0; i < nr_imgs; i++) {
     MD5Key md5;
     std::string md5_str;
     md5_file >> md5_str;
@@ -331,6 +317,18 @@ void FeatExtractor::perf() {
   auto tput = static_cast<float>(kNrThd * KPerThdLoad) / duration;
   std::cout << "Perf done. Duration: " << duration
             << " ms, Throughput: " << tput << " Kops" << std::endl;
+  report_hit_rate();
+}
+
+void FeatExtractor::report_hit_rate() {
+  int nr_hit = 0;
+  int nr_miss = 0;
+  for (int i = 0; i < kNrThd; i++) {
+    nr_hit += perthd_cnts[i].nr_hit;
+    nr_miss += perthd_cnts[i].nr_miss;
+  }
+  std::cout << "Cache hit ratio = " << nr_hit << "/" << nr_hit + nr_miss
+            << " = " << 1.0 * nr_hit / (nr_hit + nr_miss) << std::endl;
 }
 
 
@@ -340,6 +338,17 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
   cache_ratio = std::stof(argv[1]);
+
+  std::ofstream mem_cfg_file("/mnt/ssd/yifan/code/cachebank/config/mem.config");
+  if (mem_cfg_file.is_open()) {
+    mem_cfg_file << std::to_string(
+        static_cast<uint64_t>(cache_size * cache_ratio));
+    // auto str_cache_size = std::to_string(static_cast<int>(cache_size * cache_ratio));
+    // mem_cfg_file.write(str_cache_size.c_str(), str_cache_size.size());
+    mem_cfg_file.close();
+  } else {
+    std::cerr << "Failed to set cache size!" << std::endl;
+  }
 
   FeatExtractor client(data_dir + "val_img_names.txt",
                        data_dir + "enb5_feat_vec.data");
