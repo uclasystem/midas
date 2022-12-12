@@ -15,13 +15,17 @@ constexpr static uint64_t kVolatileSttAddr = 0x01f'000'000'000;
 constexpr static uint64_t kVolatileEndAddr =
     0x01f'000'000'000 + 0x040'000'000'000;
 
-// log structured allocator related
+/** Log Structured Allocator related */
 constexpr static uint32_t kLogChunkSize = kPageChunkSize;
 constexpr static uint64_t kLogChunkMask = ~(kLogChunkSize - 1ull);
 constexpr static uint32_t kRegionSize = kLogChunkSize;
 constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
 
 constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
+/** Evacuator related */
+constexpr static float kGCScanFreqFactor = 1.001;
+// constexpr static float kGCEvacThreshold = 0.95;
+constexpr static float kGCEvacThreshold = 1.1;
 
 #define LIKELY(x) __builtin_expect((x), 1)
 #define UNLIKELY(x) __builtin_expect((x), 0)

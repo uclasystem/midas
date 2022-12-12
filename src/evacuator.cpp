@@ -21,7 +21,7 @@ namespace cachebank {
 inline bool scannable() {
   const auto total_accessed = LogAllocator::total_access_cnt();
   const auto total_alive = LogAllocator::total_alive_cnt();
-  if (total_alive == 0 || total_accessed < total_alive * 1.0)
+  if (total_alive == 0 || total_accessed <= total_alive * kGCScanFreqFactor)
     return false;
   LOG(kError) << "total acc cnt: " << total_accessed
               << ", total alive cnt: " << total_alive;
@@ -36,16 +36,12 @@ inline std::pair<int64_t, float> get_nr_to_reclaim() {
                       (manager->NumRegionLimit() + 1);
   uint64_t nr_to_reclaim = 0;
   if (avail_ratio < 0.05)
-    // return 24;
     nr_to_reclaim = std::max(manager->NumRegionLimit() / 100, 2ul);
   else if (avail_ratio < 0.1)
-    // return 12;
-    nr_to_reclaim = std::max(manager->NumRegionLimit() / 100, 1ul);
+    nr_to_reclaim = std::max(manager->NumRegionLimit() / 200, 1ul);
   else if (avail_ratio < 0.2)
-    // return 4;
     nr_to_reclaim = manager->NumRegionLimit() / 800;
   else
-    // return 0;
     nr_to_reclaim = 0;
   return std::make_pair(nr_to_reclaim, avail_ratio);
 }
@@ -128,11 +124,11 @@ retry:
 
   for (auto segment : segments) {
     auto alive_ratio = segment->get_alive_ratio();
-    if (alive_ratio < 0.95)
+    if (alive_ratio < kGCEvacThreshold)
       agg_evac_tasks.push_back(segment.get());
   }
   if (agg_evac_tasks.empty()) {
-    if (avail_region_ratio > 0.1) {
+    if (avail_region_ratio > 0.1) { // TODO (YIFAN): this is dirty
       LOG(kError) << avail_region_ratio;
       return 0;
     }
