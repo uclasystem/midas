@@ -403,7 +403,7 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
       nr_small_objs++;
       obj_ptr.unlock(lock_id);
       auto allocator = LogAllocator::global_allocator();
-      auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+      auto optptr = allocator->alloc_(obj_ptr.data_size_in_chunk(), true);
       lock_id = optptr->lock();
       assert(lock_id != -1 && !obj_ptr.null());
 
@@ -421,9 +421,12 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
         nr_failed++;
     } else { // large object
       if (!meta_hdr.is_continue()) { // the head chunk of a large object.
+        auto opt_data_size = obj_ptr.total_data_size();
+        if (!opt_data_size)
+          goto faulted;
         obj_ptr.unlock(lock_id);
         auto allocator = LogAllocator::global_allocator();
-        auto optptr = allocator->alloc_(obj_ptr.data_size(), true);
+        auto optptr = allocator->alloc_(*opt_data_size, true);
         lock_id = obj_ptr.lock();
         assert(lock_id != -1 && !obj_ptr.null());
 

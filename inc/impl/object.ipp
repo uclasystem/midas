@@ -201,13 +201,24 @@ inline size_t ObjectPtr::obj_size(size_t data_size) noexcept {
 }
 
 inline size_t ObjectPtr::obj_size() const noexcept {
-  return hdr_size() + data_size();
+  return hdr_size() + data_size_in_chunk();
 }
 inline size_t ObjectPtr::hdr_size() const noexcept {
   return is_small_obj() ? sizeof(SmallObjectHdr) : sizeof(LargeObjectHdr);
 }
-inline size_t ObjectPtr::data_size() const noexcept { return size_; }
+/** Return data size in this chunk.
+ *    For small objects, it always equals to the data size;
+ *    For large objects, the total size of the object can be larger if the
+ *      object spans multiple chunks.
+ */
+inline size_t ObjectPtr::data_size_in_chunk() const noexcept { return size_; }
 
+/** [WIP] Return total data size of the object for both small and large objects. */
+inline std::optional<size_t> ObjectPtr::total_data_size() {
+  return static_cast<size_t>(size_);
+}
+
+/** Return total data size of the object for both small and large objects. */
 inline bool ObjectPtr::is_small_obj() const noexcept { return small_obj_; }
 
 inline bool ObjectPtr::is_head_obj() const noexcept { return head_obj_; }
