@@ -201,13 +201,13 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   }
   assert(option);
   auto [head_tptr, alloced_size] = *option;
-  if (obj_ptr.init_from_soft(head_tptr) != RetCode::Succ)
-    return std::nullopt;
   remaining_size -= alloced_size;
-  // if (remaining_size <= 0) { // common path.
-  //   assert(remaining_size == 0);
-  //   return obj_ptr;
-  // }
+  if (remaining_size <= 0) { // common path.
+    assert(remaining_size == 0);
+    if (obj_ptr.init_from_soft(head_tptr) != RetCode::Succ)
+      return std::nullopt;
+    return obj_ptr;
+  }
 
   std::vector<TransientPtr> alloced_ptrs;
   auto prev_tptr = head_tptr;
@@ -227,6 +227,8 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
     alloced_size = option->second;
     remaining_size -= alloced_size;
   }
+  if (obj_ptr.init_from_soft(head_tptr) != RetCode::Succ)
+    goto failed;
 
   return obj_ptr;
 failed:
