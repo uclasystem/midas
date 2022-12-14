@@ -14,6 +14,7 @@ public:
   bool null() const noexcept;
   bool set(uint64_t addr, size_t size); /* point to a transient addr. */
   bool reset() noexcept;
+  TransientPtr slice(int64_t offset) const;
   TransientPtr slice(int64_t offset, size_t size) const;
   size_t size() const noexcept;
   /**

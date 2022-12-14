@@ -37,8 +37,16 @@ inline bool TransientPtr::reset() noexcept {
 
 inline size_t TransientPtr::size() const noexcept { return 0; }
 
+inline TransientPtr TransientPtr::slice(int64_t offset) const {
+#ifdef BOUND_CHECK
+  return null() ? TransientPtr() : TransientPtr(ptr_ + offset, size_ - offset);
+#else // !BOUND_CHECK
+  return null() ? TransientPtr() : TransientPtr(ptr_ + offset, 0);
+#endif // BOUND_CHECK
+}
+
 inline TransientPtr TransientPtr::slice(int64_t offset, size_t size) const {
-  return null() ? TransientPtr(ptr_ + offset, size) : TransientPtr();
+  return null() ? TransientPtr() : TransientPtr(ptr_ + offset, size);
 }
 
 /**
