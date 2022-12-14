@@ -125,12 +125,12 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
     // Now optr is pointing to the first part for copy
     int64_t remaining_len = len;
     while (remaining_len > 0) {
-      const auto copy_len =
-          std::min<int64_t>(remaining_len, optr.data_size_in_chunk());
+      const auto copy_len = std::min<int64_t>(
+          remaining_len, optr.data_size_in_chunk() - remaining_offset);
       if (!optr.obj_.copy_from(src, copy_len,
                                sizeof(LargeObjectHdr) + remaining_offset))
         goto done;
-      remaining_offset = 0; // copy from the beginning for non-head parts
+      remaining_offset = 0; // copy from the beginning for the following parts
       remaining_len -= copy_len;
       if (remaining_len <= 0)
         break;
@@ -188,12 +188,12 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
     // Now optr is pointing to the first part for copy
     int64_t remaining_len = len;
     while (remaining_len > 0) {
-      const auto copy_len =
-          std::min<int64_t>(remaining_len, optr.data_size_in_chunk());
+      const auto copy_len = std::min<int64_t>(
+          remaining_len, optr.data_size_in_chunk() - remaining_offset);
       if (!optr.obj_.copy_to(dst, copy_len,
                              sizeof(LargeObjectHdr) + remaining_offset))
         goto done;
-      remaining_offset = 0; // copy from the beginning for non-head parts
+      remaining_offset = 0; // copy from the beginning for the following parts
       remaining_len -= copy_len;
       if (remaining_len <= 0)
         break;
