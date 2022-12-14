@@ -89,15 +89,15 @@ template <> std::string get_V() {
   std::string str = "";
   str.reserve(kVLen);
 #if TEST_LARGE == 1
-    for (uint32_t i = 0; i < kVLen - 1; i++)
+  constexpr static int kFillStride = 2000;
+  for (uint32_t i = 0; i < kVLen - 1; i++)
+    if (i % kFillStride == 0)
       str += dist(mt);
-#else
-    constexpr static int kFillStride = 2000;
-    for (uint32_t i = 0; i < kVLen - 1; i++)
-      if (i % kFillStride == 0)
-        str += dist(mt);
-      else
-        str += static_cast<char>(i % ('z' - 'A')) + 'A';
+    else
+      str += static_cast<char>(i % ('z' - 'A')) + 'A';
+#else // !TEST_LARGE
+  for (uint32_t i = 0; i < kVLen - 1; i++)
+    str += dist(mt);
 #endif
   str += '\0';
   return str;
