@@ -4,12 +4,14 @@
 
 namespace cachebank {
 LockID ObjectPtr::lock() {
+  if (null())
+    return INV_LOCK_ID;
   auto locker = ObjLocker::global_objlocker();
   if (is_small_obj() || is_head_obj())
     return locker->lock(obj_);
   else { // always lock the head chunk even this is a continued chunk.
     LargeObjectHdr lhdr;
-    if (!copy_to(&lhdr, sizeof(lhdr)))
+    if (!load_hdr(lhdr, *this))
       return INV_LOCK_ID;
     return locker->lock(lhdr.get_head());
   }
