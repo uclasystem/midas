@@ -21,7 +21,7 @@ public:
   LogChunk(LogSegment *segment, uint64_t addr);
   std::optional<ObjectPtr> alloc_small(size_t size);
   std::optional<std::pair<TransientPtr, size_t>>
-  alloc_large(size_t size, TransientPtr head_addr, TransientPtr prev_addr);
+  alloc_large(size_t size, const TransientPtr head_addr, TransientPtr prev_addr);
   bool free(ObjectPtr &ptr);
   void seal() noexcept;
   bool full() const noexcept;

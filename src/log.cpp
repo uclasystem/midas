@@ -35,7 +35,7 @@ inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
 }
 
 inline std::optional<std::pair<TransientPtr, size_t>>
-LogChunk::alloc_large(size_t size, TransientPtr head_tptr,
+LogChunk::alloc_large(size_t size, const TransientPtr head_tptr,
                       TransientPtr prev_tptr) {
   if (pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogChunkSize) {
     // LOG(kError) << "Chunk is full during large allocation!";
