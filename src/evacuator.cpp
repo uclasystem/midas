@@ -421,7 +421,7 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
         nr_failed++;
     } else { // large object
       if (!meta_hdr.is_continue()) { // the head chunk of a large object.
-        auto opt_data_size = obj_ptr.total_data_size();
+        auto opt_data_size = obj_ptr.large_data_size();
         if (!opt_data_size)
           goto faulted;
         obj_ptr.unlock(lock_id);

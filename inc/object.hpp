@@ -183,7 +183,7 @@ public:
   size_t obj_size() const noexcept;
   size_t hdr_size() const noexcept;
   size_t data_size_in_chunk() const noexcept;
-  std::optional<size_t> total_data_size();
+  std::optional<size_t> large_data_size();
 
   RetCode set_invalid() noexcept;
   RetCode is_valid() noexcept;
