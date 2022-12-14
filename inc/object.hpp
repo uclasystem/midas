@@ -164,10 +164,12 @@ public:
   ObjectPtr();
 
   /** Trinary return code :
-   *    Form 1: {True, False, Fault } for get_*() / is_*() operations;
-   *    Form 2: {Succ, Fail,  Fault } for set_*() / upd_*() operations.
+   *    Form 1: {Fault, False, True} for get_*() / is_*() operations;
+   *    Form 2: {Fault, Fail , Succ} for set_*() / upd_*() operations.
+   *    We keep Fault as 0 to adapt to fault handler's design so that it can
+   * always return 0 to indicate a fault.
    */
-  enum class RetCode { True = 0, False = 1, Fault, Succ = True, Fail = False };
+  enum class RetCode { Fault = 0, False = 1, True = 2, Fail = False, Succ = True };
 
   RetCode init_small(uint64_t stt_addr, size_t data_size);
   RetCode init_large(uint64_t stt_addr, size_t data_size, bool is_head,
