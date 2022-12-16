@@ -285,7 +285,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
     obj_ = TransientPtr(soft_ptr.to_normal_address(), obj_size());
   } else {
     LargeObjectHdr lhdr;
-    if (!obj_.copy_to(&lhdr, sizeof(lhdr)))
+    if (!load_hdr(lhdr, *this))
       return RetCode::Fault;
     small_obj_ = false;
     head_obj_ = !MetaObjectHdr::cast_from(&lhdr)->is_continue();
@@ -335,15 +335,13 @@ inline RetCode ObjectPtr::free_large() noexcept {
   auto next = hdr.get_next();
   while (!next.null()) {
     ObjectPtr optr;
-    if (optr.init_from_soft(next) != RetCode::Succ ||
-        !optr.obj_.copy_to(&hdr, sizeof(hdr))) {
+    if (optr.init_from_soft(next) != RetCode::Succ || !load_hdr(hdr, optr)) {
       return RetCode::Fault;
     }
     next = hdr.get_next();
 
-    auto meta_hdr = MetaObjectHdr::cast_from(this);
-    meta_hdr->clr_present();
-    if (!optr.obj_.copy_from(&hdr, sizeof(hdr))) {
+    MetaObjectHdr::cast_from(&hdr)->clr_present();
+    if (!store_hdr(hdr, optr)) {
       return RetCode::Fault;
     }
   }
