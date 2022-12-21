@@ -3,3 +3,7 @@ gen_feats
 
 build/*
 data/*
+
+md5.txt
+val_img_names.txt
+*.data
