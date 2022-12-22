@@ -221,18 +221,13 @@ inline std::optional<size_t> ObjectPtr::large_data_size() {
   ObjectPtr optr = *this;
   while (!optr.null()) {
     size += optr.data_size_in_chunk();
-    LargeObjectHdr lhdr;
-    if (!load_hdr(lhdr, optr))
-      goto failed;
-    auto next = lhdr.get_next();
-    if (next.null())
+    auto ret = iter_large(optr);
+    if (ret == RetCode::Fault)
+      return std::nullopt;
+    else if (ret == RetCode::Fail)
       break;
-    if (optr.init_from_soft(next) != RetCode::Succ)
-      goto failed;
   }
   return size;
-failed:
-  return std::nullopt;
 }
 
 inline bool ObjectPtr::is_small_obj() const noexcept { return small_obj_; }
@@ -449,6 +444,16 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   if (ret != RetCode::Succ)
     return ret;
   return RetCode::Succ;
+}
+
+inline RetCode ObjectPtr::iter_large(ObjectPtr &optr) {
+  LargeObjectHdr lhdr;
+  if (!load_hdr(lhdr, optr))
+    return RetCode::Fault;
+  auto next = lhdr.get_next();
+  if (next.null())
+    return RetCode::Fail;
+  return optr.init_from_soft(next);
 }
 
 inline const std::string ObjectPtr::to_string() noexcept {

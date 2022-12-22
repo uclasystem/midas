@@ -115,11 +115,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
         break;
       remaining_offset -= optr.data_size_in_chunk();
 
-      LargeObjectHdr lhdr;
-      if (!load_hdr(lhdr, optr))
-        goto done;
-      auto next = lhdr.get_next();
-      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
+      if (iter_large(optr) != RetCode::Succ)
         goto done;
     }
     // Now optr is pointing to the first part for copy
@@ -137,11 +133,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
       src = reinterpret_cast<const void *>(reinterpret_cast<uint64_t>(src) +
                                            copy_len);
 
-      LargeObjectHdr lhdr;
-      if (!load_hdr(lhdr, optr))
-        goto done;
-      auto next = lhdr.get_next();
-      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
+      if (iter_large(optr) != RetCode::Succ)
         goto done;
     }
     ret = true;
@@ -178,11 +170,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
         break;
       remaining_offset -= optr.data_size_in_chunk();
 
-      LargeObjectHdr lhdr;
-      if (!load_hdr(lhdr, optr))
-        goto done;
-      auto next = lhdr.get_next();
-      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
+      if (iter_large(optr) != RetCode::Succ)
         goto done;
     }
     // Now optr is pointing to the first part for copy
@@ -200,11 +188,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
       dst =
           reinterpret_cast<void *>(reinterpret_cast<uint64_t>(dst) + copy_len);
 
-      LargeObjectHdr lhdr;
-      if (!load_hdr(lhdr, optr))
-        goto done;
-      auto next = lhdr.get_next();
-      if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
+      if (iter_large(optr) != RetCode::Succ)
         goto done;
     }
     ret = true;
