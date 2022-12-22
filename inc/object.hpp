@@ -169,7 +169,13 @@ public:
    *    We keep Fault as 0 to adapt to fault handler's design so that it can
    * always return 0 to indicate a fault.
    */
-  enum class RetCode { Fault = 0, False = 1, True = 2, Fail = False, Succ = True };
+  enum class RetCode {
+    Fault = 0,
+    False = 1,
+    True = 2,
+    Fail = False,
+    Succ = True
+  };
 
   RetCode init_small(uint64_t stt_addr, size_t data_size);
   RetCode init_large(uint64_t stt_addr, size_t data_size, bool is_head,
@@ -230,16 +236,19 @@ private:
   TransientPtr obj_;
 #pragma pack(pop)
 
-  template <class T> friend bool load_hdr(T &hdr, ObjectPtr &obj_hdr) noexcept;
+  template <class T> friend bool load_hdr(T &hdr, ObjectPtr &optr) noexcept;
   template <class T>
-  friend bool store_hdr(const T &hdr, ObjectPtr &obj_hdr) noexcept;
+  friend bool store_hdr(const T &hdr, ObjectPtr &optr) noexcept;
 };
 
 static_assert(sizeof(ObjectPtr) <= 16,
               "ObjectPtr is not correctly aligned!");
 
-template <class T> bool load_hdr(T &hdr, ObjectPtr &obj_ptr) noexcept;
-template <class T> bool store_hdr(const T &hdr, ObjectPtr &obj_ptr) noexcept;
+template <class T> bool load_hdr(T &hdr, ObjectPtr &optr) noexcept;
+template <class T> bool store_hdr(const T &hdr, ObjectPtr &optr) noexcept;
+
+template <class T> bool load_hdr(T &hdr, TransientPtr &tptr) noexcept;
+template <class T> bool store_hdr(const T &hdr, TransientPtr &tptr) noexcept;
 } // namespace cachebank
 
 #include "impl/object.ipp"

@@ -463,13 +463,22 @@ inline const std::string ObjectPtr::to_string() noexcept {
   return sstream.str();
 }
 
-template <class T> inline bool load_hdr(T &hdr, ObjectPtr &obj_hdr) noexcept {
-  return obj_hdr.obj_.copy_to(&hdr, sizeof(hdr));
+template <class T> inline bool load_hdr(T &hdr, TransientPtr &tptr) noexcept {
+  return tptr.copy_to(&hdr, sizeof(hdr));
 }
 
 template <class T>
-inline bool store_hdr(const T &hdr, ObjectPtr &obj_ptr) noexcept {
-  return obj_ptr.obj_.copy_from(&hdr, sizeof(hdr));
+inline bool store_hdr(const T &hdr, TransientPtr &tptr) noexcept {
+  return tptr.copy_from(&hdr, sizeof(hdr));
+}
+
+template <class T> inline bool load_hdr(T &hdr, ObjectPtr &optr) noexcept {
+  return load_hdr(hdr, optr.obj_);
+}
+
+template <class T>
+inline bool store_hdr(const T &hdr, ObjectPtr &optr) noexcept {
+  return store_hdr(hdr, optr.obj_);
 }
 
 } // namespace cachebank
