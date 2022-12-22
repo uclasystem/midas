@@ -141,7 +141,7 @@ inline LargeObjectHdr::LargeObjectHdr() : size(0), flags(0), rref(0), next(0) {}
 inline void LargeObjectHdr::init(uint32_t size_, bool is_head,
                                  TransientPtr head_,
                                  TransientPtr next_) noexcept {
-  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
+  auto *meta_hdr = MetaObjectHdr::cast_from(this);
   meta_hdr->set_present();
   meta_hdr->set_large_obj();
   is_head ? meta_hdr->clr_continue() : meta_hdr->set_continue();
@@ -154,12 +154,12 @@ inline void LargeObjectHdr::init(uint32_t size_, bool is_head,
 }
 
 inline void LargeObjectHdr::set_invalid() noexcept {
-  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
+  auto *meta_hdr = MetaObjectHdr::cast_from(this);
   meta_hdr->set_invalid();
 }
 
 inline bool LargeObjectHdr::is_valid() noexcept {
-  auto *meta_hdr = reinterpret_cast<MetaObjectHdr *>(this);
+  auto *meta_hdr = MetaObjectHdr::cast_from(this);
   return meta_hdr->is_valid();
 }
 
