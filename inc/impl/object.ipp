@@ -347,17 +347,17 @@ inline bool ObjectPtr::set_rref(uint64_t addr) noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+    if (!load_hdr(hdr, *this))
       return false;
     hdr.set_rref(addr);
-    if (!obj_.copy_from(&hdr, sizeof(SmallObjectHdr)))
+    if (!store_hdr(hdr, *this))
       return false;
   } else {
     LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+    if (!load_hdr(hdr, *this))
       return false;
     hdr.set_rref(addr);
-    if (!obj_.copy_from(&hdr, sizeof(LargeObjectHdr)))
+    if (!store_hdr(hdr, *this))
       return false;
   }
   return true;
@@ -371,12 +371,12 @@ inline ObjectPtr *ObjectPtr::get_rref() noexcept {
   assert(!null());
   if (is_small_obj()) {
     SmallObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(SmallObjectHdr)))
+    if (!load_hdr(hdr, *this))
       return nullptr;
     return reinterpret_cast<ObjectPtr *>(hdr.get_rref());
   } else {
     LargeObjectHdr hdr;
-    if (!obj_.copy_to(&hdr, sizeof(LargeObjectHdr)))
+    if (!load_hdr(hdr, *this))
       return nullptr;
     return reinterpret_cast<ObjectPtr *>(hdr.get_rref());
   }
@@ -385,7 +385,7 @@ inline ObjectPtr *ObjectPtr::get_rref() noexcept {
 }
 
 inline RetCode ObjectPtr::upd_rref() noexcept {
-  auto *ref = reinterpret_cast<ObjectPtr *>(get_rref());
+  auto *ref = get_rref();
   if (!ref)
     return RetCode::Fail;
   ref->obj_ = this->obj_;
