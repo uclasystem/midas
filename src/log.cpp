@@ -21,8 +21,7 @@ using RetCode = ObjectPtr::RetCode;
 /** LogChunk */
 inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
   auto obj_size = ObjectPtr::obj_size(size);
-  if (pos_ - start_addr_ + obj_size + sizeof(MetaObjectHdr) >
-      kLogChunkSize) { // current chunk is full
+  if (pos_ - start_addr_ + obj_size > kLogChunkSize) { // current chunk is full
     assert(!full());
     seal();
     return std::nullopt;
@@ -38,7 +37,6 @@ inline std::optional<std::pair<TransientPtr, size_t>>
 LogChunk::alloc_large(size_t size, const TransientPtr head_tptr,
                       TransientPtr prev_tptr) {
   if (pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogChunkSize) {
-    // LOG(kError) << "Chunk is full during large allocation!";
     seal();
     return std::nullopt;
   }
@@ -60,16 +58,16 @@ LogChunk::alloc_large(size_t size, const TransientPtr head_tptr,
     return std::nullopt;
   if (!prev_tptr.null()) {
     LargeObjectHdr lhdr;
-    if (!prev_tptr.copy_to(&lhdr, sizeof(lhdr)))
+    if (!load_hdr(lhdr, prev_tptr))
       return std::nullopt;
     lhdr.set_next(addr);
-    if (!prev_tptr.copy_from(&lhdr, sizeof(lhdr)))
+    if (!store_hdr(lhdr, prev_tptr))
       return std::nullopt;
   }
 
   pos_ += sizeof(LargeObjectHdr) + trunced_size;
-  if (pos_ - start_addr_ == kLogChunkSize)
-    seal();
+  // if (pos_ - start_addr_ == kLogChunkSize)
+  //   seal();
   return std::make_pair(addr, trunced_size);
 }
 

@@ -13,11 +13,11 @@ inline void LogChunk::seal() noexcept {
     return;
   }
 
-  MetaObjectHdr endHdr;
-  endHdr.set_invalid();
-  auto endPtr = TransientPtr(pos_, sizeof(MetaObjectHdr));
-  auto _ = endPtr.copy_from(&endHdr, sizeof(endHdr)); // ignore return value
-  pos_ += sizeof(MetaObjectHdr);
+  // MetaObjectHdr endHdr;
+  // endHdr.set_invalid();
+  // auto endPtr = TransientPtr(pos_, sizeof(MetaObjectHdr));
+  // auto _ = endPtr.copy_from(&endHdr, sizeof(endHdr)); // ignore return value
+  // pos_ += sizeof(MetaObjectHdr);
   sealed_ = true;
 }
 
