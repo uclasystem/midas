@@ -152,8 +152,7 @@ inline std::shared_ptr<LogChunk> LogAllocator::allocChunk(bool overcommit) {
 
 std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
   size = round_up_to_align(size, kSmallObjSizeUnit);
-  if (size > kSmallObjThreshold) { // large obj
-    // LOG(kError) << "large obj allocation is not implemented yet!";
+  if (size >= kSmallObjThreshold) { // large obj
     return alloc_large(size, overcommit);
   }
 
@@ -177,7 +176,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
 // Large objects
 std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
                                                    bool overcommit) {
-  assert(size > kSmallObjThreshold);
+  assert(size >= kSmallObjThreshold);
 
   ObjectPtr obj_ptr;
   int64_t remaining_size = size;

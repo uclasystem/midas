@@ -120,7 +120,7 @@ inline bool SmallObjectHdr::is_valid() noexcept {
 
 inline void SmallObjectHdr::set_size(uint32_t size_) noexcept {
   size_ = round_up_to_align(size_, kSmallObjSizeUnit);
-  assert(size_ <= kSmallObjThreshold);
+  assert(size_ < kSmallObjThreshold);
   size = size_ / kSmallObjSizeUnit;
 }
 inline uint32_t SmallObjectHdr::get_size() const noexcept {
@@ -196,8 +196,8 @@ inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
 
 inline size_t ObjectPtr::obj_size(size_t data_size) noexcept {
   data_size = round_up_to_align(data_size, kSmallObjSizeUnit);
-  return data_size <= kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
-                                         : sizeof(LargeObjectHdr) + data_size;
+  return data_size < kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
+                                        : sizeof(LargeObjectHdr) + data_size;
 }
 
 inline size_t ObjectPtr::obj_size() const noexcept {
@@ -244,7 +244,7 @@ inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
   SmallObjectHdr hdr;
   hdr.init(size_);
   obj_ = TransientPtr(stt_addr, obj_size());
-  return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
+  return store_hdr(hdr, obj_) ? RetCode::Succ : RetCode::Fault;
 }
 
 inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
@@ -259,7 +259,7 @@ inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
   LargeObjectHdr hdr;
   hdr.init(data_size, is_head, head, next);
   obj_ = TransientPtr(stt_addr, obj_size());
-  return obj_.copy_from(&hdr, sizeof(hdr)) ? RetCode::Succ : RetCode::Fault;
+  return store_hdr(hdr, obj_) ? RetCode::Succ : RetCode::Fault;
 }
 
 inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
