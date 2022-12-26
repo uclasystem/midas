@@ -14,6 +14,7 @@
 #include "qpair.hpp"
 #include "resource_manager.hpp"
 #include "shm_types.hpp"
+#include "sig_handler.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -43,6 +44,9 @@ ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
       rxqp_(std::to_string(id_), true), stop_(false) {
   handler_thd_ = std::make_shared<std::thread>([&]() { pressure_handler(); });
   connect(daemon_name);
+
+  auto sig_handler = SigHandler::global_sighandler();
+  sig_handler->init();
 }
 
 ResourceManager::~ResourceManager() noexcept {
@@ -239,7 +243,8 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
                 .mmsg = {.region_id = region_id, .size = size}};
     txqp_.send(&msg, sizeof(msg));
 
-    LOG(kDebug) << "Free region " << region_id;
+    LOG(kDebug) << "Free region " << region_id << " @ "
+                << region_iter->second->Addr();
 
     CtrlMsg ack;
     unsigned prio;

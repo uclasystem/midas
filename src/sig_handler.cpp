@@ -42,7 +42,8 @@ bool SigHandler::softfault_handler(siginfo_t *info, ucontext_t *ctx) {
 
   void *ip = (void *)ctx->uc_mcontext.gregs[REG_RIP];
   uint64_t *bp = (uint64_t *)ctx->uc_mcontext.gregs[REG_RBP];
-  LOG_PRINTF(kDebug, "ip = %p, bp = %p\n", ip, bp);
+  LOG_PRINTF(kError, "fault @ %p, ip = %p, bp = %p\n", info->si_addr, ip, bp);
+  // return false;
 
   auto func = dispatcher(ctx->uc_mcontext.gregs[REG_RIP]);
   if (!func)
