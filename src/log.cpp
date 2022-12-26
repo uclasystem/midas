@@ -22,7 +22,6 @@ using RetCode = ObjectPtr::RetCode;
 inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
   auto obj_size = ObjectPtr::obj_size(size);
   if (pos_ - start_addr_ + obj_size > kLogChunkSize) { // current chunk is full
-    assert(!full());
     seal();
     return std::nullopt;
   }
@@ -37,13 +36,6 @@ inline std::optional<std::pair<TransientPtr, size_t>>
 LogChunk::alloc_large(size_t size, const TransientPtr head_tptr,
                       TransientPtr prev_tptr) {
   if (pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogChunkSize) {
-    seal();
-    return std::nullopt;
-  }
-
-  // YIFAN: a hack for now to avoid cont'ed chunks for large objs
-  if (pos_ - start_addr_ + sizeof(LargeObjectHdr) + size > kLogChunkSize) {
-    // LOG(kError) << "Chunk is full during large allocation!";
     seal();
     return std::nullopt;
   }
@@ -219,7 +211,8 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
       pcab = chunk;
       option = pcab->alloc_large(remaining_size, head_tptr, prev_tptr);
     }
-    assert(option);
+    if (!option) // out of memory during allocation
+      goto failed;
     prev_tptr = option->first;
     alloced_size = option->second;
     remaining_size -= alloced_size;

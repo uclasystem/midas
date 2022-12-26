@@ -199,23 +199,75 @@ done:
   return ret;
 }
 
-RetCode ObjectPtr::move_large_head(ObjectPtr &src) noexcept {
-  LargeObjectHdr lhdr;
-  if (!src.obj_.copy_to(&lhdr, sizeof(lhdr)))
-    return RetCode::Fault;
-  auto next = lhdr.get_next();
-  assert(next.null());
-  while (!next.null()) {
-    if (!next.copy_to(&lhdr, sizeof(lhdr)))
+RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
+                                   int64_t from_offset, int64_t to_offset) {
+  if (null())
+    return RetCode::Fail;
+
+  int64_t remaining_offset = to_offset;
+  ObjectPtr optr = *this;
+  while (remaining_offset > 0) {
+    if (optr.null())
+      return RetCode::Fail;
+    if (remaining_offset < optr.data_size_in_chunk())
+      break;
+    remaining_offset -= optr.data_size_in_chunk();
+
+    LargeObjectHdr lhdr;
+    if (!load_hdr(lhdr, optr))
       return RetCode::Fault;
-    lhdr.set_head(this->obj_);
-    next = lhdr.get_next();
+    auto next = lhdr.get_next();
+    if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
+      return RetCode::Fault;
+  }
+  // Now optr is pointing to the first part for copy
+  auto src_tptr = src.slice(from_offset);
+  int64_t remaining_len = len;
+  while (remaining_len > 0) {
+    const auto copy_len = std::min<int64_t>(
+        remaining_len, optr.data_size_in_chunk() - remaining_offset);
+    if (!optr.obj_.copy_from(src_tptr, copy_len, 0,
+                             sizeof(LargeObjectHdr) + remaining_offset)) {
+      LOG(kError);
+      return RetCode::Fault;
+    }
+    remaining_offset = 0; // copy from the beginning for non-head parts
+    remaining_len -= copy_len;
+    if (remaining_len <= 0)
+      break;
+    src_tptr = src_tptr.slice(copy_len);
+
+    if (iter_large(optr) != RetCode::Succ)
+      return RetCode::Fault;
   }
   return RetCode::Succ;
 }
 
-RetCode ObjectPtr::move_large_cont(ObjectPtr &src) noexcept {
-  ABORT("Not implemented");
-  return RetCode::Fault;
+RetCode ObjectPtr::move_large(ObjectPtr &src) noexcept {
+  MetaObjectHdr mhdr;
+  if (!load_hdr(mhdr, *this))
+    return RetCode::Fault;
+  assert(mhdr.is_present());
+  assert(!is_small_obj() && is_head_obj());
+  assert(!src.is_small_obj() && src.is_head_obj());
+
+  size_t dst_offset = 0;
+  ObjectPtr optr = src;
+  while (!optr.null()) {
+    auto ret = RetCode::Fail;
+    assert(optr.hdr_size() == sizeof(LargeObjectHdr));
+    ret = copy_from_large(optr.obj_, optr.data_size_in_chunk(), optr.hdr_size(),
+                          dst_offset);
+    if (ret != RetCode::Succ)
+      return ret;
+    dst_offset += optr.data_size_in_chunk();
+    ret = iter_large(optr);
+    if (ret != RetCode::Succ) {
+      if (ret == RetCode::Fail)
+        break;
+      return ret;
+    }
+  }
+  return RetCode::Succ;
 }
 } // namespace cachebank

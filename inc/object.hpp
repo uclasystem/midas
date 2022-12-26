@@ -227,6 +227,9 @@ private:
   bool copy_from_large(const void *src, size_t len, int64_t offset);
   bool copy_to_large(void *dst, size_t len, int64_t offset);
   RetCode iter_large(ObjectPtr &lobj);
+  RetCode copy_from_large(const TransientPtr &src, size_t len,
+                          int64_t from_offset, int64_t to_offset);
+  RetCode move_large(ObjectPtr &src) noexcept;
 
 #pragma pack(push, 1)
   bool small_obj_ : 1;
@@ -241,8 +244,7 @@ private:
   friend bool store_hdr(const T &hdr, ObjectPtr &optr) noexcept;
 };
 
-static_assert(sizeof(ObjectPtr) <= 16,
-              "ObjectPtr is not correctly aligned!");
+static_assert(sizeof(ObjectPtr) <= 16, "ObjectPtr is not correctly aligned!");
 
 template <class T> bool load_hdr(T &hdr, ObjectPtr &optr) noexcept;
 template <class T> bool store_hdr(const T &hdr, ObjectPtr &optr) noexcept;

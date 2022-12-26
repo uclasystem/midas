@@ -410,39 +410,52 @@ inline bool ObjectPtr::copy_to(void *dst, size_t len, int64_t offset) {
 }
 
 inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
-  auto ret = RetCode::Fail;
   if (null() || src.null())
     return RetCode::Fail;
-  assert(src.obj_size() == this->obj_size());
-  /* NOTE (YIFAN): the order of operations below are tricky:
+
+  /* NOTE (YIFAN): the order of operations below can be tricky:
    *      1. copy data from src to this.
    *      2. free src (rref will be reset to nullptr).
    *      3. mark this as present, finish setup.
    *      4. update rref, let it point to this.
    */
-  if (!obj_.copy_from(src.obj_, src.obj_size()))
-    return RetCode::Fail;
-  if (!is_small_obj()) { // large object
-    if (is_head_obj())
-      ret = move_large_head(src);
-    else {
-      ret = move_large_cont(src);
-    }
+  if (src.is_small_obj()) { // small object
+    assert(src.obj_size() == this->obj_size());
+    auto ret = RetCode::Fail;
+    if (!obj_.copy_from(src.obj_, src.obj_size()))
+      return RetCode::Fail;
+    ret = src.free(/* locked = */ true);
+    if (ret != RetCode::Succ)
+      return ret;
+    MetaObjectHdr meta_hdr;
+    if (!load_hdr(meta_hdr, *this))
+      return ret;
+    meta_hdr.set_present();
+    if (!store_hdr(meta_hdr, *this))
+      return ret;
+    ret = upd_rref();
+    if (ret != RetCode::Succ)
+      return ret;
+  } else { // large object
+    assert(src.is_head_obj());
+    assert(!is_small_obj() && is_head_obj());
+    assert(*src.large_data_size() == *large_data_size());
+    auto ret = move_large(src);
+    if (ret != RetCode::Succ)
+      return ret;
+    LargeObjectHdr lhdr;
+    if (!load_hdr(lhdr, src))
+      return RetCode::Fault;
+    auto rref = lhdr.get_rref();
+    if (!load_hdr(lhdr, *this))
+      return RetCode::Fault;
+    lhdr.set_rref(rref);
+    if (!store_hdr(lhdr, *this))
+      return RetCode::Fault;
+    ret = upd_rref();
     if (ret != RetCode::Succ)
       return ret;
   }
-  ret = src.free(/* locked = */ true);
-  if (ret != RetCode::Succ)
-    return ret;
-  MetaObjectHdr meta_hdr;
-  if (!load_hdr(meta_hdr, *this))
-    return ret;
-  meta_hdr.set_present();
-  if (!store_hdr(meta_hdr, *this))
-    return ret;
-  ret = upd_rref();
-  if (ret != RetCode::Succ)
-    return ret;
   return RetCode::Succ;
 }
 
