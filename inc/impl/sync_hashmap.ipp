@@ -104,10 +104,11 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
   while (node) {
     auto found = iterate_list(key_hash, k, prev_next, node);
     if (found) {
-      Tp tmp_v = v;
+      // Tp tmp_v = v;
+      assert(sizeof(v) <= sizeof(Tp));
       // try to set in place
       if (!node->pair.null() &&
-          node->pair.copy_from(&tmp_v, sizeof(Tp), sizeof(Key))) {
+          node->pair.copy_from(&v, sizeof(Tp1), sizeof(Key))) {
         lock.unlock();
         LogAllocator::count_access();
         return true;
@@ -152,13 +153,15 @@ template <typename K1, typename Tp1>
 inline BNPtr
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
     uint64_t key_hash, K1 &&k, Tp1 &&v) {
-  Tp tmp_v = v;
+  // Tp tmp_v = v;
+  assert(sizeof(k) <= sizeof(Key));
+  assert(sizeof(v) <= sizeof(Tp));
   auto allocator = LogAllocator::global_allocator();
 
   auto *new_node = new BucketNode();
   if (!allocator->alloc_to(sizeof(Key) + sizeof(Tp), &new_node->pair) ||
       !new_node->pair.copy_from(&k, sizeof(Key)) ||
-      !new_node->pair.copy_from(&tmp_v, sizeof(Tp), sizeof(Key))) {
+      !new_node->pair.copy_from(&v, sizeof(Tp1), sizeof(Key))) {
     delete new_node;
     return nullptr;
   }
