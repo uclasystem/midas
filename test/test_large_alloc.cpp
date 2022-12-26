@@ -11,10 +11,10 @@
 #include "object.hpp"
 
 constexpr static int kNumThds = 10;
-constexpr static int kNumObjs = 1024;
+constexpr static int kNumObjs = 10240;
 
-constexpr static int kObjMinSize = 64 * 1024;
-constexpr static int kObjMaxSize = 6 * 1024 * 1024;
+constexpr static int kObjMinSize = 8 * 1000;
+constexpr static int kObjMaxSize = 9 * 1000;
 
 int random_obj_size() {
   static std::random_device rd;
@@ -28,9 +28,7 @@ struct Object {
   int obj_size;
   char *data;
 
-  Object() : obj_size(random_obj_size()) {
-    data = new char[obj_size];
-  }
+  Object() : Object(random_obj_size()) {}
   Object(int obj_size_) : obj_size(obj_size_) {
     data = new char[obj_size];
   }
@@ -43,10 +41,11 @@ struct Object {
     static std::mt19937 mt(rd());
     static std::uniform_int_distribution<int> dist('A', 'z');
 
-    constexpr static int kFillStride = 100;
+    constexpr static int kFillStride = 10;
     for (uint32_t i = 0; i < obj_size / kFillStride; i++) {
       data[i * kFillStride] = dist(mt);
     }
+    // memcpy(data, &obj_size, sizeof(int));
   }
 
   bool equal(Object &other) {
@@ -73,6 +72,8 @@ int main(int argc, char *argv[]) {
   gen_workload();
 
   std::atomic_int nr_errs(0);
+  std::atomic_int nr_eqs(0);
+  std::atomic_int nr_neqs(0);
   std::vector<std::shared_ptr<cachebank::ObjectPtr>> ptrs[kNumThds];
 
   std::vector<std::thread> threads;
@@ -85,12 +86,11 @@ int main(int argc, char *argv[]) {
         bool ret = false;
 
         auto objptr = std::make_shared<cachebank::ObjectPtr>();
+        ptrs[tid].push_back(objptr);
         if (!allocator->alloc_to(size, objptr.get()) ||
             !(ret = objptr->copy_from(obj->data, size))) {
           nr_errs++;
-          continue;
         }
-        ptrs[tid].push_back(objptr);
       }
 
       for (int i = 0; i < ptrs[tid].size(); i++) {
@@ -100,14 +100,21 @@ int main(int argc, char *argv[]) {
 
         auto ptr = ptrs[tid][i];
         Object stored_o(size);
-        if (!ptr->copy_to(stored_o.data, size) ||
-            !objs[tid][i]->equal(stored_o))
+        if (!ptr->copy_to(stored_o.data, size)) {
           nr_errs++;
+          continue;
+        }
+        if (!objs[tid][i]->equal(stored_o)) {
+          nr_neqs++;
+        } else {
+          nr_eqs++;
+        }
       }
 
       for (auto ptr : ptrs[tid]) {
         if (!allocator->free(*ptr))
-          nr_errs++;
+          // nr_errs++;
+          continue;
       }
     }));
   }
@@ -116,6 +123,8 @@ int main(int argc, char *argv[]) {
     thd.join();
   }
 
+  std::cout << "Equal/Not-equal/Total: " << nr_eqs << "/" << nr_neqs << "/"
+            << kNumObjs * kNumThds << std::endl;
   if (nr_errs == 0)
     std::cout << "Test passed!" << std::endl;
   else
