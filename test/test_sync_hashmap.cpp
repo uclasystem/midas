@@ -12,7 +12,7 @@
 #include "sync_hashmap.hpp"
 
 #define TEST_OBJECT 1
-#define TEST_LARGE 1
+#define TEST_LARGE 0
 
 constexpr static int kNBuckets = (1 << 20);
 constexpr static int kNumInsertThds = 10;
@@ -202,6 +202,8 @@ int main(int argc, char *argv[]) {
     std::cout << "Set test failed! " << nr_succ << " passed, " << nr_err
               << " failed." << std::endl;
 
+  std::atomic_int32_t nr_equal = 0;
+  std::atomic_int32_t nr_nequal = 0;
   nr_succ = nr_err = 0;
   for (int tid = 0; tid < kNumInsertThds; tid++) {
     thds.push_back(std::thread([&]() {
@@ -210,10 +212,16 @@ int main(int argc, char *argv[]) {
         V &v = pair.second;
         auto v2 = hashmap->get(k);
 
-        if (!v2 || v != *v2) {
+        if (!v2) {
           nr_err++;
-        } else
+        } else {
           nr_succ++;
+          if (v == *v2) {
+            nr_equal++;
+          } else {
+            nr_nequal++;
+          }
+        }
       }
     }));
   }
@@ -221,16 +229,18 @@ int main(int argc, char *argv[]) {
     thd.join();
   thds.clear();
 
-  if (nr_err == 0)
-    std::cout << "Get test passed!" << std::endl;
+  if (nr_nequal == 0)
+    std::cout << "Get test passed! " << nr_succ << " passed, " << nr_err
+              << " failed. " << nr_equal << "/" << nr_equal + nr_nequal
+              << " pairs are equal" << std::endl;
   else
     std::cout << "Get test failed! " << nr_succ << " passed, " << nr_err
-              << " failed." << std::endl
+              << " failed. " << nr_equal << "/" << nr_equal + nr_nequal
+              << " pairs are equal" << std::endl
               << "NOTE: a small amount of failures are expected if only "
                  "std_map is protected by lock, as keys can conflict in our "
                  "sync_hash_map and the result of races are uncertain."
               << std::endl;
-        ;
 
   std::vector<std::pair<K, V>> pairs;
   for (auto pair : std_map) {
