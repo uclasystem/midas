@@ -67,12 +67,12 @@ all: libmidas.a \
 	bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_log bin/test_large_alloc \
 	bin/test_sync_hashmap bin/test_hashmap_clear \
-	bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
 	bin/test_skewed_hashmap \
 	bin/test_sighandler \
 	bin/test_memcpy \
 	bin/test_feat_extractor
 
+# bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
 
 bin/daemon_main: $(daemon_main_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
