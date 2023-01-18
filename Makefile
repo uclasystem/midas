@@ -2,8 +2,8 @@ CXXFLAGS += -std=c++1z -O2
 CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
 # CXXFLAGS += -Wall -Wextra
 # CXXFLAGS += -g -O0
-CXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
-LDXX = /mnt/ssd/yifan/tools/gcc10/bin/g++
+CXX = g++
+LDXX = g++
 
 INC += -Iinc
 INC += -I/mnt/ssd/yifan/tools/boost_1_79_0
