@@ -74,8 +74,7 @@ int main(int argc, char *argv[]) {
   threads.clear();
 
   cachebank::Evacuator evacuator;
-  evacuator.scan(kNumGCThds);
-  evacuator.evacuate(kNumGCThds);
+  evacuator.gc();
 
   bool kTestFree = false;
   for (int tid = 0; tid < kNumThds; tid++) {
@@ -101,12 +100,9 @@ int main(int argc, char *argv[]) {
     thd.join();
   threads.clear();
 
-  // Scan twice. The first time scanning clears the accessed bit, while the
-  // second time scanning frees the cold objs.
-  evacuator.scan();
-  evacuator.scan();
   // Then evacuate all hot objs.
-  evacuator.evacuate();
+  evacuator.gc();
+  evacuator.gc();
 
   if (nr_errs == 0)
     std::cout << "Test passed!" << std::endl;

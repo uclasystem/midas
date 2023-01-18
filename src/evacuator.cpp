@@ -18,51 +18,28 @@
 
 namespace cachebank {
 
-inline bool scannable() {
-  const auto total_accessed = LogAllocator::total_access_cnt();
-  const auto total_alive = LogAllocator::total_alive_cnt();
-  if (total_alive == 0 || total_accessed <= total_alive * kGCScanFreqFactor)
-    return false;
-  LOG(kError) << "total acc cnt: " << total_accessed
-              << ", total alive cnt: " << total_alive;
-  LogAllocator::reset_access_cnt();
-  LogAllocator::reset_alive_cnt();
-  return true;
-}
-
 inline std::pair<int64_t, float> get_nr_to_reclaim() {
   auto manager = ResourceManager::global_manager();
   float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
                       (manager->NumRegionLimit() + 1);
   uint64_t nr_to_reclaim = 0;
   if (avail_ratio < 0.05)
-    nr_to_reclaim = std::max(manager->NumRegionLimit() / 100, 2ul);
+    nr_to_reclaim = std::max(manager->NumRegionLimit() / 1000, 2ul);
   else if (avail_ratio < 0.1)
-    nr_to_reclaim = std::max(manager->NumRegionLimit() / 200, 1ul);
+    nr_to_reclaim = std::max(manager->NumRegionLimit() / 2000, 1ul);
   else if (avail_ratio < 0.2)
-    nr_to_reclaim = manager->NumRegionLimit() / 800;
+    nr_to_reclaim = manager->NumRegionLimit() / 8000;
   else
     nr_to_reclaim = 0;
   return std::make_pair(nr_to_reclaim, avail_ratio);
 }
 
 void Evacuator::init() {
-  scanner_thd_ = std::make_shared<std::thread>([&]() {
+  gc_thd_ = std::make_shared<std::thread>([&]() {
     while (!terminated_) {
       {
-        std::unique_lock lk(scanner_mtx_);
-        scanner_cv_.wait_for(lk, std::chrono::milliseconds(60 * 1000),
-                             [this] { return terminated_ || scannable(); });
-      }
-      scan(kNumScanThds);
-    }
-  });
-
-  evacuator_thd_ = std::make_shared<std::thread>([&]() {
-    while (!terminated_) {
-      {
-        std::unique_lock lk(evacuator_mtx_);
-        evacuator_cv_.wait(lk, [this] {
+        std::unique_lock lk(gc_mtx_);
+        gc_cv_.wait(lk, [this] {
           auto [nr_to_reclaim, _] = get_nr_to_reclaim();
           return terminated_ || nr_to_reclaim;
         });
@@ -72,99 +49,36 @@ void Evacuator::init() {
   });
 }
 
-void Evacuator::scan(int nr_thds) {
-  // if (!scannable())
-  //   return;
-
-  std::unique_lock<std::mutex> ul(mtx_);
-  auto allocator = LogAllocator::global_allocator();
-  auto &segments = allocator->vSegments_;
-  std::mutex evac_mtx;
-  std::vector<LogSegment *> agg_evac_tasks;
-
-  parallelizer(nr_thds, segments,
-               std::function([&](std::shared_ptr<LogSegment> segment) {
-                 if (under_pressure_ > 0)
-                   return false;
-                 scan_segment(segment.get(), true);
-                 if (segment->get_alive_ratio() < kAliveThresholdLow) {
-                   std::unique_lock<std::mutex> ul(evac_mtx);
-                   agg_evac_tasks.push_back(segment.get());
-                 }
-                 return true;
-               }));
-  if (agg_evac_tasks.empty()) {
-    return;
-  }
-  // std::unique_lock<std::mutex> ul(mtx_);
-  for (auto segment : agg_evac_tasks) {
-    evac_segment(segment);
-  }
-  allocator->cleanup_segments();
-}
-
 int64_t Evacuator::gc() {
-  auto [nr_to_reclaim, avail_region_ratio] = get_nr_to_reclaim();
+  auto [nr_to_reclaim, _] = get_nr_to_reclaim();
   if (nr_to_reclaim == 0)
     return 0;
 
-  auto stt = timer::timer();
   auto allocator = LogAllocator::global_allocator();
+  std::atomic_int64_t nr_scanned = 0;
   std::atomic_int64_t nr_evaced = 0;
-  auto nr_evac_thds = 1;
-  std::vector<LogSegment *> agg_evac_tasks;
+  auto &segments = allocator->segments_;
 
-retry:
-  std::unique_lock<std::mutex> ul(mtx_);
-  auto &segments = allocator->vSegments_;
-  if (segments.size() == 0) {
-    LOG(kError) << segments.size();
-    return 0;
-  }
-
-  for (auto segment : segments) {
-    auto alive_ratio = segment->get_alive_ratio();
-    if (alive_ratio < kGCEvacThreshold)
-      agg_evac_tasks.push_back(segment.get());
-  }
-  if (agg_evac_tasks.empty()) {
-    if (avail_region_ratio > 0.1) { // TODO (YIFAN): this is dirty
-      LOG(kError) << avail_region_ratio;
-      return 0;
+  auto stt = timer::timer();
+  int64_t nr_reclaimed = ResourceManager::global_manager()->NumRegionAvail();
+  while (nr_reclaimed < nr_to_reclaim) {
+    auto segment = segments.pop_front();
+    scan_segment(segment.get(), true);
+    nr_scanned++;
+    if (segment->get_alive_ratio() < kAliveThreshHigh) {
+      evac_segment(segment.get());
+      nr_evaced++;
     } else {
-      ul.unlock();
-      scan();
-      goto retry;
+      segments.push_back(segment);
     }
+    nr_reclaimed = ResourceManager::global_manager()->NumRegionAvail();
   }
-
-  parallelizer(nr_evac_thds, agg_evac_tasks,
-               std::function([&](LogSegment *segment) {
-                 if (evac_segment(segment))
-                   nr_evaced++;
-                 return true;
-               }));
-  agg_evac_tasks.clear();
-  allocator->cleanup_segments();
-
-  int64_t nr_freed = 0;
-  // auto rmanager = ResourceManager::global_manager();
-  // if (rmanager->NumRegionAvail() < nr_to_reclaim) {
-  //   auto segments = allocator->vSegments_;
-  //   for (auto &segment : segments) {
-  //     if (free_segment(segment.get()))
-  //       nr_freed++;
-  //     if (nr_freed >= nr_to_reclaim)
-  //       break;
-  //   }
-  //   allocator->cleanup_segments();
-  // }
-
   auto end = timer::timer();
-  auto nr_reclaimed = ResourceManager::global_manager()->NumRegionAvail();
-  LOG(kError) << "GC: " << nr_evaced << " evacuated, " << nr_freed << " freed, "
-              << nr_reclaimed << " reclaimed (" << timer::duration(stt, end)
-              << "s).";
+
+  if (nr_scanned)
+    LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
+                << " evacuated, " << nr_reclaimed << " reclaimed ("
+                << timer::duration(stt, end) << "s).";
 
   return nr_reclaimed;
 }
@@ -534,182 +448,6 @@ inline bool Evacuator::free_chunk(LogChunk *chunk) {
 
   assert(nr_failed == 0);
   return nr_failed == 0;
-}
-
-/** [Deprecated] */
-
-int64_t Evacuator::stw_gc(int64_t nr_to_reclaim) {
-  if (__sync_fetch_and_add(&under_pressure_, 1) > 0) {
-    std::unique_lock<std::mutex> ul(mtx_);
-    __sync_fetch_and_add(&under_pressure_, -1);
-    return 1;
-  }
-  std::unique_lock<std::mutex> ul(mtx_);
-
-  auto stt = timer::timer();
-  std::atomic_int64_t nr_evaced = 0;
-  auto rmanager = ResourceManager::global_manager();
-  auto allocator = LogAllocator::global_allocator();
-  auto &segments = allocator->vSegments_;
-  auto nr_scan_thds = nr_gc_thds_;
-  auto nr_evac_thds = 1;
-
-  auto prev_nr_segments = segments.size();
-
-  using Pair = std::pair<float, LogSegment *>;
-  std::mutex evac_mtx;
-  std::vector<Pair> agg_evac_tasks;
-
-  parallelizer(nr_scan_thds, segments,
-               std::function([&](std::shared_ptr<LogSegment> segment) {
-                 auto segment_ = segment.get();
-                 scan_segment(segment_, false);
-                 auto alive_ratio = segment_->get_alive_ratio();
-                 if (alive_ratio > kAliveThresholdHigh)
-                   return true;
-                 std::unique_lock<std::mutex> ul(evac_mtx);
-                 agg_evac_tasks.push_back(
-                     std::make_pair(alive_ratio, segment_));
-                 return true;
-               }));
-
-  if (!agg_evac_tasks.empty()) {
-    std::sort(agg_evac_tasks.begin(), agg_evac_tasks.end(),
-              [](Pair v1, Pair v2) { return v1.first < v2.first; });
-    parallelizer(nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
-                   if (evac_segment(p.second))
-                     nr_evaced++;
-                   return rmanager->NumRegionAvail() < nr_to_reclaim;
-                 }));
-    agg_evac_tasks.clear();
-    allocator->cleanup_segments();
-  }
-
-  if (rmanager->NumRegionAvail() < nr_to_reclaim) {
-    for (auto &segment : segments) {
-      if (free_segment(segment.get()))
-        nr_evaced++;
-      auto rmanager = ResourceManager::global_manager();
-      if (rmanager->NumRegionAvail() >= nr_to_reclaim)
-        break;
-    }
-    allocator->cleanup_segments();
-  }
-
-  auto end = timer::timer();
-  __sync_fetch_and_add(&under_pressure_, -1);
-
-  auto nr_reclaimed = rmanager->NumRegionAvail();
-  LOG(kInfo) << "STW GC: " << nr_evaced << " evacuated, " << nr_reclaimed
-             << " reclaimed (" << timer::duration(stt, end) << "s).";
-  return nr_reclaimed;
-}
-
-int64_t Evacuator::conc_gc(int nr_thds) {
-  static float kAliveThreshold = kAliveThresholdLow;
-
-  std::unique_lock<std::mutex> ul(mtx_);
-
-  if (!scannable())
-    return 0;
-
-  auto stt = timer::timer();
-  std::atomic_int64_t nr_evaced = 0;
-  auto allocator = LogAllocator::global_allocator();
-  auto &segments = allocator->vSegments_;
-  auto nr_scan_thds = nr_thds;
-  auto nr_evac_thds = 1;
-
-  std::vector<std::thread> gc_thds;
-  // auto *scan_tasks = new std::vector<LogSegment *>[nr_scan_thds];
-  using Pair = std::pair<float, LogSegment *>;
-  std::mutex evac_mtx;
-  std::vector<Pair> agg_evac_tasks;
-  auto *evac_tasks = new std::vector<LogSegment *>[nr_evac_thds];
-
-  int tid = 0;
-  parallelizer(nr_scan_thds, segments,
-               std::function([&](std::shared_ptr<LogSegment> segment) {
-                 auto segment_ = segment.get();
-                 scan_segment(segment_, true);
-                 auto alive_ratio = segment->get_alive_ratio();
-                 if (alive_ratio <= kAliveThreshold) {
-                   std::unique_lock<std::mutex> ul(evac_mtx);
-                   agg_evac_tasks.push_back(
-                       std::make_pair(alive_ratio, segment_));
-                 }
-                 return true;
-               }));
-
-  if (agg_evac_tasks.empty()) {
-    kAliveThreshold =
-        std::min<float>(kAliveThreshold + kAliveIncStep, kAliveThresholdHigh);
-    goto done;
-  } else {
-    kAliveThreshold = kAliveThresholdLow;
-  }
-  std::sort(agg_evac_tasks.begin(), agg_evac_tasks.end(),
-            [](Pair v1, Pair v2) { return v1.first < v2.first; });
-
-  parallelizer(nr_evac_thds, agg_evac_tasks, std::function([&](Pair p) {
-                 if (evac_segment(p.second))
-                   nr_evaced++;
-                 return true;
-               }));
-  agg_evac_tasks.clear();
-  allocator->cleanup_segments();
-
-done:
-  auto end = timer::timer();
-  auto rmanager = ResourceManager::global_manager();
-  auto nr_reclaimed = rmanager->NumRegionAvail();
-  LOG(kInfo) << "Conc GC: " << nr_evaced << " evacuated, " << nr_reclaimed
-             << " reclaimed (" << timer::duration(stt, end) << "s).";
-
-  return nr_reclaimed;
-}
-
-void Evacuator::evacuate(int nr_thds) {
-  if (under_pressure_ > 0)
-    return;
-  std::unique_lock<std::mutex> ul(mtx_);
-
-  auto allocator = LogAllocator::global_allocator();
-  auto &segments = allocator->vSegments_;
-
-  std::vector<std::thread> gc_thds;
-  auto *tasks = new std::vector<LogSegment *>[nr_thds];
-
-  int tid = 0;
-  auto prev_nr_segments = segments.size();
-  for (auto segment : segments) {
-    auto raw_ptr = segment.get();
-    if (raw_ptr) {
-      tasks[tid].push_back(raw_ptr);
-      tid = (tid + 1) % nr_thds;
-    }
-  }
-
-  for (tid = 0; tid < nr_thds; tid++) {
-    gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto segment : tasks[tid]) {
-        if (under_pressure_ > 0)
-          break;
-        evac_segment(segment);
-      }
-    }));
-  }
-
-  for (auto &thd : gc_thds)
-    thd.join();
-  gc_thds.clear();
-  delete[] tasks;
-
-  allocator->cleanup_segments();
-  auto curr_nr_segments = segments.size();
-
-  LOG(kError) << "Before evacuation: " << prev_nr_segments << " regions";
-  LOG(kError) << "After  evacuation: " << curr_nr_segments << " regions";
 }
 
 } // namespace cachebank

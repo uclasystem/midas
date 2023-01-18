@@ -43,8 +43,7 @@ int main(int argc, char *argv[]) {
   std::thread evac_thd([&]() {
     cachebank::Evacuator evacuator;
     while (!stop_evac) {
-      evacuator.scan(kNumGCThds);
-      evacuator.evacuate(kNumGCThds);
+      evacuator.gc();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   });

@@ -23,9 +23,7 @@ constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
 
 constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 /** Evacuator related */
-constexpr static float kGCScanFreqFactor = 1.001;
-// constexpr static float kGCEvacThreshold = 0.95;
-constexpr static float kGCEvacThreshold = 1.1;
+constexpr static float kAliveThreshHigh = 0.9;
 
 #define LIKELY(x) __builtin_expect((x), 1)
 #define UNLIKELY(x) __builtin_expect((x), 0)

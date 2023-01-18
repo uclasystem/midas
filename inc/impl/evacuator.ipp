@@ -7,26 +7,18 @@
 
 namespace cachebank {
 
-inline Evacuator::Evacuator()
-    : nr_gc_thds_(kNumGCThds), under_pressure_(0), terminated_(false) {
+inline Evacuator::Evacuator() : nr_gc_thds_(kNumGCThds), terminated_(false) {
   init();
 }
 
-inline void Evacuator::signal_scan() { scanner_cv_.notify_all(); }
-
-inline void Evacuator::signal_gc() { evacuator_cv_.notify_all(); }
+inline void Evacuator::signal_gc() { gc_cv_.notify_all(); }
 
 inline Evacuator::~Evacuator() {
   terminated_ = true;
-  signal_scan();
   signal_gc();
-  if (scanner_thd_) {
-    scanner_thd_->join();
-    scanner_thd_.reset();
-  }
-  if (evacuator_thd_) {
-    evacuator_thd_->join();
-    evacuator_thd_.reset();
+  if (gc_thd_) {
+    gc_thd_->join();
+    gc_thd_.reset();
   }
 }
 

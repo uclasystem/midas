@@ -52,6 +52,20 @@ inline float LogSegment::get_alive_ratio() const noexcept {
   return static_cast<float>(alive_bytes_) / kRegionSize;
 }
 
+inline void SegmentList::push_back(std::shared_ptr<LogSegment> segment) {
+  std::unique_lock<std::mutex> ul_(lock_);
+  vSegments_.push_back(segment);
+}
+
+inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
+  std::unique_lock<std::mutex> ul_(lock_);
+  if (vSegments_.empty())
+    return nullptr;
+  auto segment = vSegments_.front();
+  vSegments_.pop_front();
+  return segment;
+}
+
 /** LogAllocator */
 inline LogAllocator::LogAllocator() : curr_segment_(0), curr_chunk_(0) {}
 
@@ -73,18 +87,6 @@ inline bool LogAllocator::free(ObjectPtr &ptr) {
   return ptr.free() == RetCode::Succ;
 }
 
-inline int LogAllocator::cleanup_segments() {
-  int reclaimed = 0;
-  for (auto rit = vSegments_.begin(); rit != vSegments_.end();) {
-    if ((*rit)->destroyed()) {
-      rit = vSegments_.erase(rit);
-      reclaimed++;
-    } else
-      rit++;
-  }
-  return reclaimed;
-}
-
 /* static functions */
 inline int64_t LogAllocator::total_access_cnt() noexcept {
   return total_access_cnt_;
@@ -104,9 +106,6 @@ inline void LogAllocator::count_access() {
   if (UNLIKELY(access_cnt_ >= kAccPrecision)) {
     total_access_cnt_ += access_cnt_;
     access_cnt_ = 0;
-    // if (total_access_cnt_ > total_alive_cnt_ * kGCScanFreqFactor)
-    if (total_access_cnt_ > total_alive_cnt_)
-      signal_scanner();
   }
 }
 

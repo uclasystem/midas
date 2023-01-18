@@ -121,9 +121,8 @@ int main(int argc, char *argv[]) {
   std::thread evac_thd([&]() {
     cachebank::Evacuator evacuator;
     while (!stop) {
-      evacuator.scan(kNumGCThds);
+      evacuator.gc();
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      evacuator.evacuate(kNumGCThds);
     }
   });
 

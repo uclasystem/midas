@@ -48,6 +48,16 @@ private:
   friend class LogAllocator;
 };
 
+class SegmentList {
+public:
+  void push_back(std::shared_ptr<LogSegment> segment);
+  std::shared_ptr<LogSegment> pop_front();
+
+private:
+  std::mutex lock_;
+  std::list<std::shared_ptr<LogSegment>> vSegments_;
+};
+
 class LogSegment {
 public:
   LogSegment(int64_t rid, uint64_t addr);
@@ -99,14 +109,11 @@ public:
 private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::optional<ObjectPtr> alloc_large(size_t size, bool overcommit);
-  std::shared_ptr<LogChunk> getChunk();
-  std::shared_ptr<LogSegment> getSegment();
   std::shared_ptr<LogSegment> allocSegment(bool overcommit = false);
   std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);
 
   /** Allocation */
-  std::mutex lock_;
-  std::list<std::shared_ptr<LogSegment>> vSegments_;
+  SegmentList segments_;
   std::atomic_int32_t curr_segment_;
   std::atomic_int32_t curr_chunk_;
 
@@ -117,7 +124,6 @@ private:
 
   friend class Evacuator;
   friend class LogChunk;
-  int cleanup_segments();
 
   static inline void seal_pcab();
 

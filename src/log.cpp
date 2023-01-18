@@ -95,27 +95,6 @@ void LogSegment::destroy() {
 }
 
 /** LogAllocator */
-// must be called under lock protection
-// try to get a non-empty chunk
-inline std::shared_ptr<LogChunk> LogAllocator::getChunk() {
-  std::unique_lock<std::mutex> ul(lock_);
-  auto segment = getSegment();
-  if (!segment)
-    return nullptr;
-  return segment->allocChunk();
-}
-
-// try to get a non-empty segment
-inline std::shared_ptr<LogSegment> LogAllocator::getSegment() {
-  if (!vSegments_.empty()) {
-    auto segment = vSegments_.back();
-    if (!segment->full())
-      return segment;
-    segment->seal();
-  }
-  return nullptr;
-}
-
 // alloc a new segment
 inline std::shared_ptr<LogSegment> LogAllocator::allocSegment(bool overcommit) {
   auto *rmanager = ResourceManager::global_manager();
@@ -131,14 +110,11 @@ inline std::shared_ptr<LogSegment> LogAllocator::allocSegment(bool overcommit) {
 }
 
 inline std::shared_ptr<LogChunk> LogAllocator::allocChunk(bool overcommit) {
-  std::shared_ptr<LogChunk> chunk = getChunk();
-
   auto segment = allocSegment(overcommit);
   if (!segment)
     return nullptr;
 
-  std::unique_lock<std::mutex> ul(lock_);
-  vSegments_.push_back(segment);
+  segments_.push_back(segment);
   return segment->allocChunk();
 }
 
@@ -231,11 +207,6 @@ failed:
       continue;
   }
   return std::nullopt;
-}
-
-// Evacuation
-void LogAllocator::signal_scanner() {
-  Evacuator::global_evacuator()->signal_scan();
 }
 
 // Define PCAB
