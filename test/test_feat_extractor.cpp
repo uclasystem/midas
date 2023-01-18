@@ -207,6 +207,7 @@ void FeatExtractor::gen_load() {
     reqs[tid].clear();
     for (int o = 0; o < KPerThdLoad; o++) {
       auto id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
+      id = nr_imgs - 1 - id;
       FeatReq req{
           .tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
       reqs[tid].push_back(req);
