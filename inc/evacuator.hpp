@@ -22,6 +22,7 @@ public:
   Evacuator();
   ~Evacuator();
   void signal_gc();
+  int64_t serial_gc();
   void parallel_gc(int nr_workers);
 
   static Evacuator *global_evacuator();

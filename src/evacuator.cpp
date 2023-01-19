@@ -41,7 +41,8 @@ void Evacuator::init() {
         std::unique_lock lk(gc_mtx_);
         gc_cv_.wait(lk, [this] { return terminated_ || get_nr_to_reclaim(); });
       }
-      parallel_gc(4);
+      // parallel_gc(1);
+      serial_gc();
     }
   });
 }
@@ -86,6 +87,59 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
     continue;
   stash:
     stash_list.push_back(segment);
+    continue;
+  }
+  auto end = timer::timer();
+
+  auto nr_reclaimed = rmanager->NumRegionAvail() - nr_avail;
+
+  if (nr_scanned)
+    LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
+                << " evacuated, " << nr_reclaimed << " reclaimed ("
+                << timer::duration(stt, end) << "s).";
+
+  return nr_reclaimed;
+}
+
+int64_t Evacuator::serial_gc() {
+  auto allocator = LogAllocator::global_allocator();
+  auto rmanager = ResourceManager::global_manager();
+  auto nr_target = get_nr_to_reclaim();
+  auto nr_avail = rmanager->NumRegionAvail();
+  if (nr_avail >= nr_target)
+    return 0;
+
+  std::atomic_int64_t nr_scanned = 0;
+  std::atomic_int64_t nr_evaced = 0;
+  auto &segments = allocator->segments_;
+
+  auto stt = timer::timer();
+  while (rmanager->NumRegionAvail() < nr_target) {
+    auto segment = segments.pop_front();
+    if (!segment)
+      continue;
+    EvacState ret = scan_segment(segment.get(), true);
+    if (ret == EvacState::Fault)
+      continue;
+    else if (ret == EvacState::Fail)
+      goto put_back;
+    // must have ret == EvacState::Succ now
+    nr_scanned++;
+
+    if (segment->get_alive_ratio() >= kAliveThreshHigh)
+      goto put_back;
+    ret = evac_segment(segment.get());
+    if (ret == EvacState::Fail)
+      goto put_back;
+    else if (ret == EvacState::DelayRelease) {
+      LOG(kError);
+      segment->destroy();
+    }
+    // must have ret == EvacState::Succ or ret == EvacState::Fault now
+    nr_evaced++;
+    continue;
+  put_back:
+    segments.push_back(segment);
     continue;
   }
   auto end = timer::timer();
