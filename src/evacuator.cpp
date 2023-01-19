@@ -41,7 +41,7 @@ void Evacuator::init() {
         std::unique_lock lk(gc_mtx_);
         gc_cv_.wait(lk, [this] { return terminated_ || get_nr_to_reclaim(); });
       }
-      gc();
+      parallel_gc(4);
     }
   });
 }
@@ -57,23 +57,41 @@ int64_t Evacuator::gc() {
   std::atomic_int64_t nr_scanned = 0;
   std::atomic_int64_t nr_evaced = 0;
   auto &segments = allocator->segments_;
+  SegmentList stash_list;
 
   auto stt = timer::timer();
   while (rmanager->NumRegionAvail() < nr_target) {
     auto segment = segments.pop_front();
     if (!segment)
       continue;
-    if (!scan_segment(segment.get(), true))
+    EvacState ret = scan_segment(segment.get(), true);
+    if (ret == EvacState::Fault)
+      continue;
+    else if (ret == EvacState::Fail)
       goto put_back;
+    // must have ret == EvacState::Succ now
     nr_scanned++;
+
     if (segment->get_alive_ratio() >= kAliveThreshHigh)
       goto put_back;
-    if (!evac_segment(segment.get()))
+    ret = evac_segment(segment.get());
+    if (ret == EvacState::Fail)
       goto put_back;
+    else if (ret == EvacState::DelayRelease)
+      goto stash;
+    // must have ret == EvacState::Succ or ret == EvacState::Fault now
     nr_evaced++;
     continue;
-put_back:
-      segments.push_back(segment);
+  put_back:
+    segments.push_back(segment);
+    continue;
+  stash:
+    stash_list.push_back(segment);
+    continue;
+  }
+  while (!stash_list.empty()) {
+    auto segment = stash_list.pop_front();
+    segment->destroy();
   }
   auto end = timer::timer();
 
@@ -87,31 +105,17 @@ put_back:
   return nr_reclaimed;
 }
 
-template <class C, class T>
-void Evacuator::parallelizer(int nr_workers, C &work_container,
-                             std::function<bool(T)> fn) {
-  auto *tasks = new std::vector<T>[nr_workers];
-  int tid = 0;
-  for (auto task : work_container) {
-    tasks[tid].push_back(task);
-    tid = (tid + 1) % nr_workers;
-  }
-
+void Evacuator::parallel_gc(int nr_workers) {
   std::vector<std::thread> gc_thds;
-  for (tid = 0; tid < nr_workers; tid++) {
+  for (int tid = 0; tid < nr_workers; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
-      for (auto segment : tasks[tid]) {
-        if (!fn(segment))
-          break;
-      }
+      gc();
     }));
   }
 
   for (auto &thd : gc_thds)
     thd.join();
   gc_thds.clear();
-
-  delete[] tasks;
 }
 
 inline bool Evacuator::segment_ready(LogSegment *segment) {
@@ -129,49 +133,48 @@ inline bool Evacuator::segment_ready(LogSegment *segment) {
   return true;
 }
 
-inline bool Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
+inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
   if (!segment_ready(segment))
-    return false;
+    return EvacState::Fail;
   std::unique_lock<std::mutex> ul(segment->mtx_, std::defer_lock);
   if (!ul.try_lock())
-    return false;
+    return EvacState::Fail;
 
-  int32_t alive_bytes = 0;
-  for (auto &chunk : segment->vLogChunks_) {
-    alive_bytes += scan_chunk(chunk.get(), deactivate);
-  }
-  segment->alive_bytes_ = alive_bytes;
-  return true;
+  assert(segment->vLogChunks_.size() == 1);
+  auto chunk = segment->vLogChunks_.front();
+  EvacState ret = scan_chunk(chunk.get(), deactivate);
+  if (ret == EvacState::Fault)
+    segment->destroy();
+  segment->alive_bytes_ = chunk->alive_bytes_;
+  return ret;
 }
 
-inline bool Evacuator::evac_segment(LogSegment *segment) {
+inline EvacState Evacuator::evac_segment(LogSegment *segment) {
   if (!segment_ready(segment))
-    return false;
+    return EvacState::Fail;
   std::unique_lock<std::mutex> ul(segment->mtx_, std::defer_lock);
   if (!ul.try_lock())
-    return false;
+    return EvacState::Fail;
 
-  bool ret = true;
-  for (auto &chunk : segment->vLogChunks_) {
-    ret &= evac_chunk(chunk.get());
-  }
-  if (ret)
+  assert(segment->vLogChunks_.size() == 1);
+  auto chunk = segment->vLogChunks_.front();
+  EvacState ret = evac_chunk(chunk.get());
+  if (ret == EvacState::Succ || ret == EvacState::Fault)
     segment->destroy();
   return ret;
 }
 
-inline bool Evacuator::free_segment(LogSegment *segment) {
+inline EvacState Evacuator::free_segment(LogSegment *segment) {
   if (!segment_ready(segment))
-    return false;
+    return EvacState::Fail;
   std::unique_lock<std::mutex> ul(segment->mtx_, std::defer_lock);
   if (!ul.try_lock())
-    return false;
+    return EvacState::Fail;
 
-  bool ret = true;
-  for (auto &chunk : segment->vLogChunks_) {
-    ret &= free_chunk(chunk.get());
-  }
-  if (ret)
+  assert(segment->vLogChunks_.size() == 1);
+  auto chunk = segment->vLogChunks_.front();
+  EvacState ret = free_chunk(chunk.get());
+  if (ret == EvacState::Succ || ret == EvacState::Fault)
     segment->destroy();
   return ret;
 }
@@ -194,20 +197,21 @@ inline bool Evacuator::iterate_chunk(LogChunk *chunk, uint64_t &pos,
   return true;
 }
 
-inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
+inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
+  chunk->set_alive_bytes(kMaxAliveBytes);
   if (!chunk->sealed_)
-    return kMaxAliveBytes;
+    return EvacState::Fail;
 
   int alive_bytes = 0;
-  int nr_present = 0;
-
   // counters
+  int nr_present = 0;
   int nr_deactivated = 0;
   int nr_non_present = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
   int nr_large_objs = 0;
   int nr_failed = 0;
+  int nr_contd_objs = 0;
 
   ObjectPtr obj_ptr;
 
@@ -242,7 +246,6 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
           nr_non_present++;
       }
     } else { // large object
-      // ABORT("Not implemented yet!");
       nr_large_objs++;
       MetaObjectHdr meta_hdr;
       if (!load_hdr(meta_hdr, obj_ptr))
@@ -261,16 +264,16 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
               nr_deactivated++;
               alive_bytes += obj_size;
             } else {
-              // This will free all chunks belonging to this object
+              // This will free all chunks belonging to the same object
               if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
                 goto faulted;
 
               nr_freed++;
             }
           } else { // continued chunk
-            // ABORT("Impossible for now");
-            // this is a inner chunk storing a large object.
+            // An inner chunk of a large object. Skip it.
             alive_bytes += obj_size;
+            nr_contd_objs++;
           }
         } else
           nr_non_present++;
@@ -284,12 +287,7 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
     obj_ptr.unlock(lock_id);
     break;
   }
-  if (nr_failed) {
-    ABORT("TODO: fault-aware");
-    return kMaxAliveBytes;
-  }
 
-  chunk->set_alive_bytes(alive_bytes);
   if (deactivate) // meaning this is a scanning thread
     LogAllocator::count_alive(nr_present);
   LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
@@ -300,18 +298,24 @@ inline int32_t Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
               << ", alive ratio: "
               << static_cast<float>(chunk->alive_bytes_) / kLogChunkSize;
 
-  return alive_bytes;
+  if (nr_failed) {
+    return EvacState::Fault;
+  }
+  chunk->set_alive_bytes(alive_bytes);
+  return EvacState::Succ;
 }
 
-inline bool Evacuator::evac_chunk(LogChunk *chunk) {
+inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
   if (!chunk->sealed_)
-    return false;
+    return EvacState::Fail;
 
+  // counters
   int nr_present = 0;
   int nr_freed = 0;
   int nr_moved = 0;
   int nr_small_objs = 0;
   int nr_failed = 0;
+  int nr_contd_objs = 0;
 
   ObjectPtr obj_ptr;
   auto pos = chunk->start_addr_;
@@ -350,8 +354,10 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
     } else {                         // large object
       if (!meta_hdr.is_continue()) { // the head chunk of a large object.
         auto opt_data_size = obj_ptr.large_data_size();
-        if (!opt_data_size)
+        if (!opt_data_size) {
+          LOG(kError);
           goto faulted;
+        }
         obj_ptr.unlock(lock_id);
         auto allocator = LogAllocator::global_allocator();
         auto optptr = allocator->alloc_(*opt_data_size, true);
@@ -367,6 +373,7 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
             LOG(kError) << "Failed to move the object!";
             nr_failed++;
           } else {
+            LOG(kError);
             goto faulted;
           }
         } else
@@ -376,6 +383,7 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
         /* For now, let's skip it and let the head chunk handle all the
          * continued chunks together.
          */
+        nr_contd_objs++;
       }
     }
     obj_ptr.unlock(lock_id);
@@ -390,17 +398,22 @@ inline bool Evacuator::evac_chunk(LogChunk *chunk) {
               << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
 
   assert(nr_failed == 0);
-  return nr_failed == 0;
+  if (nr_failed)
+    return EvacState::Fault;
+  if (nr_contd_objs)
+    return EvacState::DelayRelease;
+  return EvacState::Succ;
 }
 
-inline bool Evacuator::free_chunk(LogChunk *chunk) {
+inline EvacState Evacuator::free_chunk(LogChunk *chunk) {
   if (!chunk->sealed_)
-    return false;
+    return EvacState::Fail;
 
   int nr_non_present = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
   int nr_failed = 0;
+  int nr_contd_objs = 0;
 
   ObjectPtr obj_ptr;
   auto pos = chunk->start_addr_;
@@ -434,8 +447,7 @@ inline bool Evacuator::free_chunk(LogChunk *chunk) {
           } else
             nr_non_present++;
         } else { // continued chunk
-          // ABORT("Not implemented yet!");
-          // goto faulted;
+          nr_contd_objs++;
         }
       }
     }
@@ -452,7 +464,11 @@ inline bool Evacuator::free_chunk(LogChunk *chunk) {
               << ", nr_failed: " << nr_failed;
 
   assert(nr_failed == 0);
-  return nr_failed == 0;
+  if (nr_failed)
+    return EvacState::Fault;
+  if (nr_contd_objs)
+    return EvacState::DelayRelease;
+  return EvacState::Succ;
 }
 
 } // namespace cachebank
