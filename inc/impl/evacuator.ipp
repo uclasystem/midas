@@ -7,7 +7,7 @@
 
 namespace cachebank {
 
-inline Evacuator::Evacuator() : nr_gc_thds_(kNumGCThds), terminated_(false) {
+inline Evacuator::Evacuator() : terminated_(false) {
   init();
 }
 

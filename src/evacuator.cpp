@@ -124,18 +124,19 @@ inline bool Evacuator::segment_ready(LogSegment *segment) {
   return true;
 }
 
-inline void Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
+inline bool Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
   if (!segment_ready(segment))
-    return;
+    return false;
   std::unique_lock<std::mutex> ul(segment->mtx_, std::defer_lock);
   if (!ul.try_lock())
-    return;
+    return false;
 
   int32_t alive_bytes = 0;
   for (auto &chunk : segment->vLogChunks_) {
     alive_bytes += scan_chunk(chunk.get(), deactivate);
   }
   segment->alive_bytes_ = alive_bytes;
+  return true;
 }
 
 inline bool Evacuator::evac_segment(LogSegment *segment) {

@@ -18,19 +18,16 @@ class Evacuator {
 public:
   Evacuator();
   ~Evacuator();
-  int64_t gc();
   void signal_gc();
+  int64_t gc();
 
   static Evacuator *global_evacuator();
 
 private:
-  constexpr static int kNumGCThds = 48;
-  constexpr static int kNumScanThds = 8;
-
   void init();
 
   /** Segment opeartions */
-  void scan_segment(LogSegment *segment, bool deactivate);
+  bool scan_segment(LogSegment *segment, bool deactivate);
   bool evac_segment(LogSegment *segment);
   bool free_segment(LogSegment *segment);
 
@@ -45,8 +42,6 @@ private:
   template <class C, class T>
   void parallelizer(int nr_workers, C &work, std::function<bool(T)> fn);
 
-  int32_t nr_gc_thds_;
-  std::mutex mtx_;
   bool terminated_;
 
   std::shared_ptr<std::thread> gc_thd_;
