@@ -54,6 +54,7 @@ inline float LogSegment::get_alive_ratio() const noexcept {
   return static_cast<float>(alive_bytes_) / kRegionSize;
 }
 
+/** SegmentList */
 inline void SegmentList::push_back(std::shared_ptr<LogSegment> segment) {
   std::unique_lock<std::mutex> ul_(lock_);
   segments_.push_back(segment);
@@ -77,6 +78,10 @@ inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
       return segment;
   }
   return nullptr;
+}
+
+inline bool SegmentList::empty() const noexcept {
+  return segments_.empty();
 }
 
 /** LogAllocator */
