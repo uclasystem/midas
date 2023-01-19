@@ -40,6 +40,8 @@ inline LogSegment::LogSegment(int64_t rid, uint64_t addr)
 
 inline void LogSegment::seal() noexcept { sealed_ = true; }
 
+inline bool LogSegment::sealed() const noexcept { return sealed_; }
+
 inline bool LogSegment::destroyed() const noexcept { return destroyed_; }
 
 inline bool LogSegment::full() const noexcept {
@@ -54,16 +56,27 @@ inline float LogSegment::get_alive_ratio() const noexcept {
 
 inline void SegmentList::push_back(std::shared_ptr<LogSegment> segment) {
   std::unique_lock<std::mutex> ul_(lock_);
-  vSegments_.push_back(segment);
+  segments_.push_back(segment);
 }
 
 inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
   std::unique_lock<std::mutex> ul_(lock_);
-  if (vSegments_.empty())
+  if (segments_.empty())
     return nullptr;
-  auto segment = vSegments_.front();
-  vSegments_.pop_front();
-  return segment;
+  auto max_retry = segments_.size();
+  int retry = 0;
+  while (retry < max_retry) {
+    auto segment = segments_.front();
+    segments_.pop_front();
+    retry++;
+    if (!segment->sealed()) { // put in-used segment back to list
+      segments_.push_back(segment);
+    } else if (segment->destroyed()) {
+      continue; // remove destroyed segment (this should never happen though)
+    } else
+      return segment;
+  }
+  return nullptr;
 }
 
 /** LogAllocator */

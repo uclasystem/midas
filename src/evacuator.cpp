@@ -61,14 +61,19 @@ int64_t Evacuator::gc() {
   auto stt = timer::timer();
   while (rmanager->NumRegionAvail() < nr_target) {
     auto segment = segments.pop_front();
-    scan_segment(segment.get(), true);
+    if (!segment)
+      continue;
+    if (!scan_segment(segment.get(), true))
+      goto put_back;
     nr_scanned++;
-    if (segment->get_alive_ratio() < kAliveThreshHigh) {
-      evac_segment(segment.get());
-      nr_evaced++;
-    } else {
+    if (segment->get_alive_ratio() >= kAliveThreshHigh)
+      goto put_back;
+    if (!evac_segment(segment.get()))
+      goto put_back;
+    nr_evaced++;
+    continue;
+put_back:
       segments.push_back(segment);
-    }
   }
   auto end = timer::timer();
 

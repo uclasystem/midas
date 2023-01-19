@@ -55,7 +55,7 @@ public:
 
 private:
   std::mutex lock_;
-  std::list<std::shared_ptr<LogSegment>> vSegments_;
+  std::list<std::shared_ptr<LogSegment>> segments_;
 };
 
 class LogSegment {
@@ -63,6 +63,7 @@ public:
   LogSegment(int64_t rid, uint64_t addr);
   std::shared_ptr<LogChunk> allocChunk();
 
+  bool sealed() const noexcept;
   bool destroyed() const noexcept;
   bool full() const noexcept;
   uint32_t size() const noexcept;
