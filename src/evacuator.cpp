@@ -18,7 +18,7 @@
 
 namespace cachebank {
 
-inline std::pair<int64_t, float> get_nr_to_reclaim() {
+static inline int64_t get_nr_to_reclaim() {
   auto manager = ResourceManager::global_manager();
   float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
                       (manager->NumRegionLimit() + 1);
@@ -31,7 +31,7 @@ inline std::pair<int64_t, float> get_nr_to_reclaim() {
     nr_to_reclaim = manager->NumRegionLimit() / 8000;
   else
     nr_to_reclaim = 0;
-  return std::make_pair(nr_to_reclaim, avail_ratio);
+  return nr_to_reclaim;
 }
 
 void Evacuator::init() {
@@ -39,10 +39,7 @@ void Evacuator::init() {
     while (!terminated_) {
       {
         std::unique_lock lk(gc_mtx_);
-        gc_cv_.wait(lk, [this] {
-          auto [nr_to_reclaim, _] = get_nr_to_reclaim();
-          return terminated_ || nr_to_reclaim;
-        });
+        gc_cv_.wait(lk, [this] { return terminated_ || get_nr_to_reclaim(); });
       }
       gc();
     }
@@ -50,18 +47,19 @@ void Evacuator::init() {
 }
 
 int64_t Evacuator::gc() {
-  auto [nr_to_reclaim, _] = get_nr_to_reclaim();
-  if (nr_to_reclaim == 0)
+  auto allocator = LogAllocator::global_allocator();
+  auto rmanager = ResourceManager::global_manager();
+  auto nr_target = get_nr_to_reclaim();
+  auto nr_avail = rmanager->NumRegionAvail();
+  if (nr_avail >= nr_target)
     return 0;
 
-  auto allocator = LogAllocator::global_allocator();
   std::atomic_int64_t nr_scanned = 0;
   std::atomic_int64_t nr_evaced = 0;
   auto &segments = allocator->segments_;
 
   auto stt = timer::timer();
-  int64_t nr_reclaimed = ResourceManager::global_manager()->NumRegionAvail();
-  while (nr_reclaimed < nr_to_reclaim) {
+  while (rmanager->NumRegionAvail() < nr_target) {
     auto segment = segments.pop_front();
     scan_segment(segment.get(), true);
     nr_scanned++;
@@ -71,9 +69,10 @@ int64_t Evacuator::gc() {
     } else {
       segments.push_back(segment);
     }
-    nr_reclaimed = ResourceManager::global_manager()->NumRegionAvail();
   }
   auto end = timer::timer();
+
+  auto nr_reclaimed = rmanager->NumRegionAvail() - nr_avail;
 
   if (nr_scanned)
     LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
