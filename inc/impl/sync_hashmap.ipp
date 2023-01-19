@@ -165,7 +165,12 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
     delete new_node;
     return nullptr;
   }
-  assert(!new_node->pair.null());
+  // assert(!new_node->pair.null());
+  if (new_node->pair.null()) {
+    LOG(kError) << "new node KV pair is freed!";
+    delete new_node;
+    return nullptr;
+  }
   new_node->key_hash = key_hash;
   new_node->next = nullptr;
   return new_node;
