@@ -443,6 +443,7 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
     auto ret = move_large(src);
     if (ret != RetCode::Succ)
       return ret;
+    ret = src.free(/* locked = */ true);
     LargeObjectHdr lhdr;
     if (!load_hdr(lhdr, src))
       return RetCode::Fault;
