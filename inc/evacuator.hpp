@@ -10,29 +10,26 @@
 
 namespace cachebank {
 
-enum class EvacState {
-  Succ,
-  Fail,
-  Fault,
-  DelayRelease,
-};
+enum class EvacState { Succ, Fail, Fault, DelayRelease };
 
 class LogChunk;
 class LogSegment;
 class ObjectPtr;
+class SegmentList;
 
 class Evacuator {
 public:
   Evacuator();
   ~Evacuator();
   void signal_gc();
-  int64_t gc();
   void parallel_gc(int nr_workers);
 
   static Evacuator *global_evacuator();
 
 private:
   void init();
+
+  int64_t gc(SegmentList &stash_list);
 
   /** Segment opeartions */
   EvacState scan_segment(LogSegment *segment, bool deactivate);

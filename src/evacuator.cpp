@@ -46,7 +46,7 @@ void Evacuator::init() {
   });
 }
 
-int64_t Evacuator::gc() {
+int64_t Evacuator::gc(SegmentList &stash_list) {
   auto allocator = LogAllocator::global_allocator();
   auto rmanager = ResourceManager::global_manager();
   auto nr_target = get_nr_to_reclaim();
@@ -57,7 +57,6 @@ int64_t Evacuator::gc() {
   std::atomic_int64_t nr_scanned = 0;
   std::atomic_int64_t nr_evaced = 0;
   auto &segments = allocator->segments_;
-  SegmentList stash_list;
 
   auto stt = timer::timer();
   while (rmanager->NumRegionAvail() < nr_target) {
@@ -89,10 +88,6 @@ int64_t Evacuator::gc() {
     stash_list.push_back(segment);
     continue;
   }
-  while (!stash_list.empty()) {
-    auto segment = stash_list.pop_front();
-    segment->destroy();
-  }
   auto end = timer::timer();
 
   auto nr_reclaimed = rmanager->NumRegionAvail() - nr_avail;
@@ -106,16 +101,31 @@ int64_t Evacuator::gc() {
 }
 
 void Evacuator::parallel_gc(int nr_workers) {
+  SegmentList stash_list;
+
   std::vector<std::thread> gc_thds;
   for (int tid = 0; tid < nr_workers; tid++) {
     gc_thds.push_back(std::thread([&, tid = tid]() {
-      gc();
+      gc(stash_list);
     }));
   }
 
   for (auto &thd : gc_thds)
     thd.join();
   gc_thds.clear();
+
+  auto &segments = LogAllocator::global_allocator()->segments_;
+  while (!stash_list.empty()) {
+    auto segment = stash_list.pop_front();
+    // segment->destroy();
+    EvacState ret = evac_segment(segment.get());
+    if (ret == EvacState::DelayRelease)
+      segments.push_back(segment);
+    else if (ret != EvacState::Succ) {
+      LOG(kError) << (int)ret;
+      segments.push_back(segment);
+    }
+  }
 }
 
 inline bool Evacuator::segment_ready(LogSegment *segment) {

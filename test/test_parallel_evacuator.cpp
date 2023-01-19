@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
   threads.clear();
 
   cachebank::Evacuator evacuator;
-  evacuator.gc();
+  evacuator.parallel_gc(kNumGCThds);
 
   bool kTestFree = false;
   for (int tid = 0; tid < kNumThds; tid++) {
@@ -101,8 +101,8 @@ int main(int argc, char *argv[]) {
   threads.clear();
 
   // Then evacuate all hot objs.
-  evacuator.gc();
-  evacuator.gc();
+  evacuator.parallel_gc(kNumGCThds);
+  evacuator.parallel_gc(kNumGCThds);
 
   if (nr_errs == 0)
     std::cout << "Test passed!" << std::endl;
