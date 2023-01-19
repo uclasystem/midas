@@ -67,19 +67,17 @@ inline bool TransientPtr::copy_from(const void *src, size_t len,
                                     int64_t offset) {
   if (null())
     return false;
-    // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
   if (offset + len > size_)
     return false;
 #endif // BOUND_CHECK
-  rmemcpy(reinterpret_cast<void *>(ptr_ + offset), src, len);
-  return true;
+  bool ret = rmemcpy(reinterpret_cast<void *>(ptr_ + offset), src, len);
+  return ret;
 }
 
 inline bool TransientPtr::copy_to(void *dst, size_t len, int64_t offset) {
   if (null())
     return false;
-    // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
   if (offset + len > size_)
     return false;
@@ -92,7 +90,6 @@ inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
                                     int64_t from_offset, int64_t to_offset) {
   if (null())
     return false;
-    // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
   if (from_offset + len > src.size_ || to_offset + len > this->size_)
     return false;
@@ -106,14 +103,13 @@ inline bool TransientPtr::copy_to(TransientPtr &dst, size_t len,
                                   int64_t from_offset, int64_t to_offset) {
   if (null())
     return false;
-    // TODO: page-fault-aware logic
 #ifdef BOUND_CHECK
   if (from_offset + len > dst.size_ || to_offset + len > this->size_)
     return false;
 #endif // BOUND_CHECK
-  rmemcpy(reinterpret_cast<void *>(dst.ptr_ + to_offset),
+  bool ret = rmemcpy(reinterpret_cast<void *>(dst.ptr_ + to_offset),
               reinterpret_cast<void *>(this->ptr_ + from_offset), len);
-  return true;
+  return ret;
 }
 
 inline bool TransientPtr::assign_to_non_volatile(TransientPtr *dst) {
