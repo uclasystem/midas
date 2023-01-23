@@ -8,21 +8,12 @@ inline LogChunk::LogChunk(LogSegment *segment, uint64_t addr)
       start_addr_(addr), pos_(addr), sealed_(false) {}
 
 inline void LogChunk::seal() noexcept {
-  if (full()) {
-    sealed_ = true;
-    return;
-  }
-
-  // MetaObjectHdr endHdr;
-  // endHdr.set_invalid();
-  // auto endPtr = TransientPtr(pos_, sizeof(MetaObjectHdr));
-  // auto _ = endPtr.copy_from(&endHdr, sizeof(endHdr)); // ignore return value
-  // pos_ += sizeof(MetaObjectHdr);
   sealed_ = true;
+  segment_->seal();
 }
 
 inline bool LogChunk::full() const noexcept {
-  return sealed_ || pos_ + sizeof(MetaObjectHdr) > start_addr_ + kLogChunkSize;
+  return sealed_ || pos_ - start_addr_ + sizeof(MetaObjectHdr) >= kLogChunkSize;
 }
 
 inline int32_t LogChunk::remaining_bytes() const noexcept {
