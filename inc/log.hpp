@@ -73,6 +73,8 @@ public:
 
   float get_alive_ratio() const noexcept;
 
+  std::list<std::shared_ptr<LogChunk>> vLogChunks_;
+
 private:
   std::mutex mtx_;
   int32_t alive_bytes_;
@@ -82,8 +84,6 @@ private:
   uint64_t pos_;
   bool sealed_;
   bool destroyed_;
-
-  std::list<std::shared_ptr<LogChunk>> vLogChunks_;
 
   friend class LogChunk;
   friend class Evacuator;

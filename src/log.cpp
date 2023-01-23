@@ -152,24 +152,18 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
 
   ObjectPtr obj_ptr;
   int64_t remaining_size = size;
+  TransientPtr head_tptr, prev_tptr;
+  size_t alloced_size = 0;
 
-  if (UNLIKELY(pcab.get() == nullptr)) {
-    auto chunk = allocChunk(overcommit);
-    if (!chunk)
-      return std::nullopt;
-    pcab = chunk;
+  if (pcab) {
+    auto option = pcab->alloc_large(size, TransientPtr(), TransientPtr());
+    if (option) {
+      head_tptr = option->first;
+      alloced_size = option->second;
+      // do not seal pcab at this time as allocation may not finish. Instead,
+      // seal pcab at the end of allocation.
+    }
   }
-  auto option = pcab->alloc_large(size, TransientPtr(), TransientPtr());
-  if (!option) { // Rare path: the chunk is already full.
-    pcab.reset();
-    auto chunk = allocChunk(overcommit);
-    if (!chunk)
-      return std::nullopt;
-    pcab = chunk;
-    option = pcab->alloc_large(size, TransientPtr(), TransientPtr());
-  }
-  assert(option);
-  auto [head_tptr, alloced_size] = *option;
   remaining_size -= alloced_size;
   if (remaining_size <= 0) { // common path.
     assert(remaining_size == 0);
@@ -178,19 +172,43 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
     return obj_ptr;
   }
 
+  std::vector<std::shared_ptr<LogSegment>> alloced_segs;
   std::vector<TransientPtr> alloced_ptrs;
-  auto prev_tptr = head_tptr;
+  if (head_tptr.null()) {
+    auto segment = allocSegment(overcommit);
+    if (!segment)
+      goto failed;
+    alloced_segs.push_back(segment);
+    auto chunk = segment->allocChunk();
+    if (!chunk)
+      goto failed;
+    assert(remaining_size == size);
+    auto option =
+        chunk->alloc_large(remaining_size, TransientPtr(), TransientPtr());
+    if (chunk->full())
+      chunk->seal();
+    if (!option) // out of memory during allocation
+      goto failed;
+    head_tptr = option->first;
+    alloced_size = option->second;
+    remaining_size -= alloced_size;
+  }
+  if (head_tptr.null())
+    goto failed;
+  prev_tptr = head_tptr;
   while (remaining_size > 0) {
     alloced_ptrs.emplace_back(prev_tptr);
-    auto option = pcab->alloc_large(remaining_size, head_tptr, prev_tptr);
-    if (!option) {
-      pcab.reset();
-      auto chunk = allocChunk(overcommit);
-      if (!chunk)
-        goto failed;
-      pcab = chunk;
-      option = pcab->alloc_large(remaining_size, head_tptr, prev_tptr);
-    }
+    auto segment = allocSegment(overcommit);
+    if (!segment)
+      goto failed;
+    alloced_segs.push_back(segment);
+    auto chunk = segment->allocChunk();
+    if (!chunk)
+      goto failed;
+
+    auto option = chunk->alloc_large(remaining_size, head_tptr, prev_tptr);
+    if (chunk->full())
+      chunk->seal();
     if (!option) // out of memory during allocation
       goto failed;
     prev_tptr = option->first;
@@ -200,7 +218,15 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   if (obj_ptr.init_from_soft(head_tptr) != RetCode::Succ)
     goto failed;
 
+  assert(!pcab || pcab->full());
+  if (pcab && pcab->full())
+      pcab->seal();
+  if (!alloced_segs.empty())
+    pcab = alloced_segs.back()->vLogChunks_.front();
+  for (auto &segment : alloced_segs)
+    segments_.push_back(segment);
   return obj_ptr;
+
 failed:
   for (auto &tptr : alloced_ptrs) {
     MetaObjectHdr mhdr;
@@ -210,6 +236,8 @@ failed:
     if (!store_hdr(mhdr, tptr))
       continue;
   }
+  for (auto &segment : alloced_segs)
+    segment->destroy();
   return std::nullopt;
 }
 
