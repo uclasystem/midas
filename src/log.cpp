@@ -20,6 +20,8 @@ using RetCode = ObjectPtr::RetCode;
 
 /** LogChunk */
 inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
+  if (sealed_)
+    return std::nullopt;
   auto obj_size = ObjectPtr::obj_size(size);
   if (pos_ - start_addr_ + obj_size > kLogChunkSize) { // current chunk is full
     seal();
@@ -35,6 +37,8 @@ inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
 inline std::optional<std::pair<TransientPtr, size_t>>
 LogChunk::alloc_large(size_t size, const TransientPtr head_tptr,
                       TransientPtr prev_tptr) {
+  if (sealed_)
+    return std::nullopt;
   if (pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogChunkSize) {
     seal();
     return std::nullopt;
@@ -200,10 +204,10 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
 failed:
   for (auto &tptr : alloced_ptrs) {
     MetaObjectHdr mhdr;
-    if (!tptr.copy_to(&mhdr, sizeof(mhdr)))
+    if (!load_hdr(mhdr, tptr))
       continue;
     mhdr.clr_present();
-    if (!tptr.copy_from(&mhdr, sizeof(mhdr)))
+    if (!store_hdr(mhdr, tptr))
       continue;
   }
   return std::nullopt;
