@@ -132,7 +132,7 @@ int64_t Evacuator::serial_gc() {
     if (ret == EvacState::Fail)
       goto put_back;
     else if (ret == EvacState::DelayRelease) {
-      LOG(kError);
+      LOG(kWarning);
       segment->destroy();
     }
     // must have ret == EvacState::Succ or ret == EvacState::Fault now
@@ -329,8 +329,10 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
               alive_bytes += obj_size;
             } else {
               // This will free all chunks belonging to the same object
-              if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
-                goto faulted;
+              if (obj_ptr.free(/* locked = */ true) == RetCode::Fault) {
+                LOG(kWarning);
+                // goto faulted;
+              }
 
               nr_freed++;
             }
@@ -352,6 +354,7 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
     break;
   }
 
+  assert(nr_failed == 0);
   if (deactivate) // meaning this is a scanning thread
     LogAllocator::count_alive(nr_present);
   LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
@@ -419,8 +422,10 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
       if (!meta_hdr.is_continue()) { // the head chunk of a large object.
         auto opt_data_size = obj_ptr.large_data_size();
         if (!opt_data_size) {
-          LOG(kError);
-          goto faulted;
+          LOG(kWarning);
+          nr_freed++;
+          obj_ptr.unlock(lock_id);
+          continue;
         }
         obj_ptr.unlock(lock_id);
         auto allocator = LogAllocator::global_allocator();
@@ -436,9 +441,9 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
           } else if (ret == RetCode::Fail) {
             LOG(kError) << "Failed to move the object!";
             nr_failed++;
-          } else {
-            LOG(kError);
-            goto faulted;
+          } else { // ret == RetCode::Fault
+            LOG(kWarning);
+            // goto faulted;
           }
         } else
           nr_failed++;
