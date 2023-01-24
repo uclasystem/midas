@@ -113,13 +113,13 @@ struct LargeObjectHdr {
   //                   M: mutate bit -- the pointed data is being mutated.
   //                   A: accessed bits..
   //                   C: continue bit, meaning the objct is a large obj and
-  //                      the current chunk is a continued chunk.
+  //                      the current segment is a continued segment.
   //         Object Size: the size of the pointed object. If object spans
-  //                      multiple chunks, then size only represents the partial
-  //                      object size in the current chunk.
+  //                      multiple segments, then size only represents the partial
+  //                      object size in the current segment.
   //   Reverse reference: the only pointer referencing this object.
-  //                      For the continued chunks, rref stores the pointer to
-  //                      the head chunk.
+  //                      For the continued segments, rref stores the pointer to
+  //                      the head segment.
 public:
   LargeObjectHdr();
 
@@ -152,7 +152,7 @@ private:
   uint32_t size;
   uint32_t flags;
   uint64_t rref; // reverse reference
-  uint64_t next; // pointer to the next chunk
+  uint64_t next; // pointer to the next segment
 #pragma pack(pop)
 };
 
@@ -190,7 +190,7 @@ public:
   static size_t obj_size(size_t data_size) noexcept;
   size_t obj_size() const noexcept;
   size_t hdr_size() const noexcept;
-  size_t data_size_in_chunk() const noexcept;
+  size_t data_size_in_segment() const noexcept;
   std::optional<size_t> large_data_size();
 
   RetCode set_invalid() noexcept;

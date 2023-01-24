@@ -9,7 +9,7 @@ LockID ObjectPtr::lock() {
   auto locker = ObjLocker::global_objlocker();
   if (is_small_obj() || is_head_obj())
     return locker->lock(obj_);
-  else { // always lock the head chunk even this is a continued chunk.
+  else { // always lock the head segment even this is a continued segment.
     LargeObjectHdr lhdr;
     if (!load_hdr(lhdr, *this))
       return INV_LOCK_ID;
@@ -111,9 +111,9 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
     while (remaining_offset > 0) {
       if (optr.null())
         goto done;
-      if (remaining_offset < optr.data_size_in_chunk())
+      if (remaining_offset < optr.data_size_in_segment())
         break;
-      remaining_offset -= optr.data_size_in_chunk();
+      remaining_offset -= optr.data_size_in_segment();
 
       if (iter_large(optr) != RetCode::Succ)
         goto done;
@@ -122,7 +122,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
     int64_t remaining_len = len;
     while (remaining_len > 0) {
       const auto copy_len = std::min<int64_t>(
-          remaining_len, optr.data_size_in_chunk() - remaining_offset);
+          remaining_len, optr.data_size_in_segment() - remaining_offset);
       if (!optr.obj_.copy_from(src, copy_len,
                                sizeof(LargeObjectHdr) + remaining_offset))
         goto done;
@@ -166,9 +166,9 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
     while (remaining_offset > 0) {
       if (optr.null())
         goto done;
-      if (remaining_offset < optr.data_size_in_chunk())
+      if (remaining_offset < optr.data_size_in_segment())
         break;
-      remaining_offset -= optr.data_size_in_chunk();
+      remaining_offset -= optr.data_size_in_segment();
 
       if (iter_large(optr) != RetCode::Succ)
         goto done;
@@ -177,7 +177,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
     int64_t remaining_len = len;
     while (remaining_len > 0) {
       const auto copy_len = std::min<int64_t>(
-          remaining_len, optr.data_size_in_chunk() - remaining_offset);
+          remaining_len, optr.data_size_in_segment() - remaining_offset);
       if (!optr.obj_.copy_to(dst, copy_len,
                              sizeof(LargeObjectHdr) + remaining_offset))
         goto done;
@@ -209,9 +209,9 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
   while (remaining_offset > 0) {
     if (optr.null())
       return RetCode::Fail;
-    if (remaining_offset < optr.data_size_in_chunk())
+    if (remaining_offset < optr.data_size_in_segment())
       break;
-    remaining_offset -= optr.data_size_in_chunk();
+    remaining_offset -= optr.data_size_in_segment();
 
     LargeObjectHdr lhdr;
     if (!load_hdr(lhdr, optr))
@@ -225,7 +225,7 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
   int64_t remaining_len = len;
   while (remaining_len > 0) {
     const auto copy_len = std::min<int64_t>(
-        remaining_len, optr.data_size_in_chunk() - remaining_offset);
+        remaining_len, optr.data_size_in_segment() - remaining_offset);
     if (!optr.obj_.copy_from(src_tptr, copy_len, 0,
                              sizeof(LargeObjectHdr) + remaining_offset)) {
       LOG(kError);
@@ -256,11 +256,11 @@ RetCode ObjectPtr::move_large(ObjectPtr &src) noexcept {
   while (!optr.null()) {
     auto ret = RetCode::Fail;
     assert(optr.hdr_size() == sizeof(LargeObjectHdr));
-    ret = copy_from_large(optr.obj_, optr.data_size_in_chunk(), optr.hdr_size(),
+    ret = copy_from_large(optr.obj_, optr.data_size_in_segment(), optr.hdr_size(),
                           dst_offset);
     if (ret != RetCode::Succ)
       return ret;
-    dst_offset += optr.data_size_in_chunk();
+    dst_offset += optr.data_size_in_segment();
     ret = iter_large(optr);
     if (ret != RetCode::Succ) {
       if (ret == RetCode::Fail)

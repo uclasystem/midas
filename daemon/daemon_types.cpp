@@ -41,12 +41,12 @@ void Client::alloc_region_(size_t size, bool overcommit) {
   if (overcommit || region_cnt_ < region_limit_) {
     int64_t region_id = new_region_id_();
     const auto rwmode = boost::interprocess::read_write;
-    const std::string chunkname = utils::get_region_name(id, region_id);
+    const std::string region_name = utils::get_region_name(id, region_id);
 
     if (regions.find(region_id) == regions.cend()) {
       int64_t actual_size;
       auto region = std::make_shared<SharedMemObj>(
-          boost::interprocess::create_only, chunkname.c_str(), rwmode);
+          boost::interprocess::create_only, region_name.c_str(), rwmode);
       regions[region_id] = region;
       region_cnt_++;
 
@@ -218,7 +218,6 @@ int Daemon::do_free(const CtrlMsg &msg) {
 
   uint64_t region_id = msg.mmsg.region_id;
   size_t region_size = msg.mmsg.size;
-  const std::string chunkname = utils::get_region_name(msg.id, region_id);
   auto &client = client_iter->second;
   client.free_region(region_id);
 

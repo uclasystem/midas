@@ -14,18 +14,21 @@
 
 namespace cachebank {
 
-class LogSegment;
-
-class LogChunk {
+class LogSegment {
 public:
-  LogChunk(LogSegment *segment, uint64_t addr);
+  LogSegment(int64_t rid, uint64_t addr);
   std::optional<ObjectPtr> alloc_small(size_t size);
   std::optional<std::pair<TransientPtr, size_t>>
   alloc_large(size_t size, const TransientPtr head_addr, TransientPtr prev_addr);
   bool free(ObjectPtr &ptr);
   void seal() noexcept;
+  void destroy() noexcept;
+  uint32_t size() const noexcept;
+  bool sealed() const noexcept;
+  bool destroyed() const noexcept;
   bool full() const noexcept;
   int32_t remaining_bytes() const noexcept;
+  float get_alive_ratio() const noexcept;
 
 private:
   void init(uint64_t addr);
@@ -34,15 +37,15 @@ private:
   void set_alive_bytes(int32_t alive_bytes) noexcept;
 
   static_assert(kRegionSize % kLogChunkSize == 0,
-                "Region size must be multiple chunk size");
-
-  /** Belonging segment */
-  LogSegment *segment_;
+                "Region size must equal to segment size");
 
   bool sealed_;
+  bool destroyed_;
   int32_t alive_bytes_;
   uint64_t start_addr_;
   uint64_t pos_;
+
+  int64_t region_id_;
 
   friend class Evacuator;
   friend class LogAllocator;
@@ -57,36 +60,6 @@ public:
 private:
   std::mutex lock_;
   std::list<std::shared_ptr<LogSegment>> segments_;
-};
-
-class LogSegment {
-public:
-  LogSegment(int64_t rid, uint64_t addr);
-  std::shared_ptr<LogChunk> allocChunk();
-
-  bool sealed() const noexcept;
-  bool destroyed() const noexcept;
-  bool full() const noexcept;
-  uint32_t size() const noexcept;
-  void seal() noexcept;
-  void destroy();
-
-  float get_alive_ratio() const noexcept;
-
-  std::list<std::shared_ptr<LogChunk>> vLogChunks_;
-
-private:
-  std::mutex mtx_;
-  int32_t alive_bytes_;
-
-  int64_t region_id_;
-  uint64_t start_addr_;
-  uint64_t pos_;
-  bool sealed_;
-  bool destroyed_;
-
-  friend class LogChunk;
-  friend class Evacuator;
 };
 
 class LogAllocator {
@@ -112,12 +85,9 @@ private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::optional<ObjectPtr> alloc_large(size_t size, bool overcommit);
   std::shared_ptr<LogSegment> allocSegment(bool overcommit = false);
-  std::shared_ptr<LogChunk> allocChunk(bool overcommit = false);
 
   /** Allocation */
   SegmentList segments_;
-  std::atomic_int32_t curr_segment_;
-  std::atomic_int32_t curr_chunk_;
 
   /** Counters */
   static std::atomic_int64_t total_access_cnt_;
@@ -125,14 +95,14 @@ private:
   static void signal_scanner();
 
   friend class Evacuator;
-  friend class LogChunk;
+  friend class LogSegment;
 
   static inline void seal_pcab();
 
   /** Thread-local variables */
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers
-  static thread_local std::shared_ptr<LogChunk> pcab;
+  static thread_local std::shared_ptr<LogSegment> pcab;
   static thread_local int32_t access_cnt_;
   static thread_local int32_t alive_cnt_;
 };

@@ -2,42 +2,28 @@
 
 namespace cachebank {
 
-/** LogChunk */
-inline LogChunk::LogChunk(LogSegment *segment, uint64_t addr)
-    : alive_bytes_(kMaxAliveBytes), segment_(segment),
-      start_addr_(addr), pos_(addr), sealed_(false) {}
+/** LogSegment */
+inline LogSegment::LogSegment(int64_t rid, uint64_t addr)
+    : alive_bytes_(kMaxAliveBytes), region_id_(rid), start_addr_(addr),
+      pos_(addr), sealed_(false), destroyed_(false) {}
 
-inline void LogChunk::seal() noexcept {
-  sealed_ = true;
-  segment_->seal();
-}
-
-inline bool LogChunk::full() const noexcept {
+inline bool LogSegment::full() const noexcept {
   return sealed_ || pos_ - start_addr_ + sizeof(MetaObjectHdr) >= kLogChunkSize;
 }
 
-inline int32_t LogChunk::remaining_bytes() const noexcept {
+inline int32_t LogSegment::remaining_bytes() const noexcept {
   return start_addr_ + kLogChunkSize - pos_;
 }
 
-inline void LogChunk::set_alive_bytes(int32_t alive_bytes) noexcept {
+inline void LogSegment::set_alive_bytes(int32_t alive_bytes) noexcept {
   alive_bytes_ = alive_bytes;
 }
-
-/** LogSegment */
-inline LogSegment::LogSegment(int64_t rid, uint64_t addr)
-    : alive_bytes_(kMaxAliveBytes), region_id_(rid),
-      start_addr_(addr), pos_(addr), sealed_(false), destroyed_(false) {}
 
 inline void LogSegment::seal() noexcept { sealed_ = true; }
 
 inline bool LogSegment::sealed() const noexcept { return sealed_; }
 
 inline bool LogSegment::destroyed() const noexcept { return destroyed_; }
-
-inline bool LogSegment::full() const noexcept {
-  return pos_ >= start_addr_ + kRegionSize;
-}
 
 inline uint32_t LogSegment::size() const noexcept { return pos_ / kRegionSize; }
 
@@ -76,7 +62,7 @@ inline bool SegmentList::empty() const noexcept {
 }
 
 /** LogAllocator */
-inline LogAllocator::LogAllocator() : curr_segment_(0), curr_chunk_(0) {}
+inline LogAllocator::LogAllocator() {}
 
 inline std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
   return alloc_(size, false);

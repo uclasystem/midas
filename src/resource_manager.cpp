@@ -193,7 +193,7 @@ retry:
   assert(region->Size() == ret_msg.mmsg.size);
   assert((reinterpret_cast<uint64_t>(region->Addr()) & (~kRegionMask)) == 0);
 
-  LOG(kDebug) << "Allocated a page chunk: " << region->Addr() << " ["
+  LOG(kDebug) << "Allocated region: " << region->Addr() << " ["
               << region->Size() << "]";
   return region_id;
 }
@@ -210,7 +210,7 @@ void ResourceManager::FreeRegion(int64_t rid) noexcept {
 void ResourceManager::FreeRegions(size_t size) noexcept {
   std::unique_lock<std::mutex> lk(mtx_);
   size_t total_freed = 0;
-  int nr_freed_chunks = 0;
+  int nr_freed_regions = 0;
   while (!region_map_.empty()) {
     auto region_iter = region_map_.begin();
     int64_t freed_bytes = free_region(region_iter->second->ID());
@@ -220,11 +220,11 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
       break;
     }
     total_freed += freed_bytes;
-    nr_freed_chunks++;
+    nr_freed_regions++;
     if (total_freed >= size)
       break;
   }
-  LOG(kInfo) << "Freed " << nr_freed_chunks << " page chunks (" << total_freed
+  LOG(kInfo) << "Freed " << nr_freed_regions << " regions (" << total_freed
              << "bytes)";
 }
 
@@ -257,7 +257,7 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
   }
 
   region_map_.erase(region_id);
-  LOG(kDebug) << "page_chunk_map size: " << region_map_.size();
+  LOG(kDebug) << "region_map size: " << region_map_.size();
   return size;
 }
 

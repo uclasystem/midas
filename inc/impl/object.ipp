@@ -147,7 +147,7 @@ inline void LargeObjectHdr::init(uint32_t size_, bool is_head,
   is_head ? meta_hdr->clr_continue() : meta_hdr->set_continue();
 
   set_size(size_);
-  // for the first chunk of a large obj, head_(rref_) must be 0 at this time.
+  // for the first segment of a large obj, head_(rref_) must be 0 at this time.
   assert(!is_head || head_.null());
   set_head(head_);
   set_next(next_);
@@ -201,17 +201,17 @@ inline size_t ObjectPtr::obj_size(size_t data_size) noexcept {
 }
 
 inline size_t ObjectPtr::obj_size() const noexcept {
-  return hdr_size() + data_size_in_chunk();
+  return hdr_size() + data_size_in_segment();
 }
 inline size_t ObjectPtr::hdr_size() const noexcept {
   return is_small_obj() ? sizeof(SmallObjectHdr) : sizeof(LargeObjectHdr);
 }
-/** Return data size in this chunk.
+/** Return data size in this segment.
  *    For small objects, it always equals to the data size;
  *    For large objects, the total size of the object can be larger if the
- *      object spans multiple chunks.
+ *      object spans multiple segments.
  */
-inline size_t ObjectPtr::data_size_in_chunk() const noexcept { return size_; }
+inline size_t ObjectPtr::data_size_in_segment() const noexcept { return size_; }
 
 /** Return total data size of the object for both small and large objects. */
 inline std::optional<size_t> ObjectPtr::large_data_size() {
@@ -220,7 +220,7 @@ inline std::optional<size_t> ObjectPtr::large_data_size() {
 
   ObjectPtr optr = *this;
   while (!optr.null()) {
-    size += optr.data_size_in_chunk();
+    size += optr.data_size_in_segment();
     auto ret = iter_large(optr);
     if (ret == RetCode::Fault)
       return std::nullopt;

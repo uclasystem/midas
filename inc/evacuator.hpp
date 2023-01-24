@@ -12,7 +12,6 @@ namespace cachebank {
 
 enum class EvacState { Succ, Fail, Fault, DelayRelease };
 
-class LogChunk;
 class LogSegment;
 class ObjectPtr;
 class SegmentList;
@@ -37,14 +36,9 @@ private:
   EvacState evac_segment(LogSegment *segment);
   EvacState free_segment(LogSegment *segment);
 
-  /** Chunk opeartions */
-  EvacState scan_chunk(LogChunk *chunk, bool deactivate);
-  EvacState evac_chunk(LogChunk *chunk);
-  EvacState free_chunk(LogChunk *chunk);
-
   /** Helper funcs */
   bool segment_ready(LogSegment *segment);
-  bool iterate_chunk(LogChunk *chunk, uint64_t &pos, ObjectPtr &optr);
+  bool iterate_segment(LogSegment *segment, uint64_t &pos, ObjectPtr &optr);
 
   bool terminated_;
 

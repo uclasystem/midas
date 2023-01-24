@@ -159,9 +159,7 @@ void Evacuator::parallel_gc(int nr_workers) {
 
   std::vector<std::thread> gc_thds;
   for (int tid = 0; tid < nr_workers; tid++) {
-    gc_thds.push_back(std::thread([&, tid = tid]() {
-      gc(stash_list);
-    }));
+    gc_thds.push_back(std::thread([&, tid = tid]() { gc(stash_list); }));
   }
 
   for (auto &thd : gc_thds)
@@ -183,77 +181,20 @@ void Evacuator::parallel_gc(int nr_workers) {
 }
 
 inline bool Evacuator::segment_ready(LogSegment *segment) {
-  if (!segment->sealed_ || segment->destroyed())
-    return false;
-  bool sealed = true;
-  for (auto &chunk : segment->vLogChunks_) {
-    if (!chunk->sealed_) {
-      sealed = false;
-      break;
-    }
-  }
-  if (!sealed)
-    return false;
-  return true;
+  return segment->sealed_ && !segment->destroyed();
 }
 
-inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
-  if (!segment_ready(segment))
-    return EvacState::Fail;
-  std::unique_lock<std::mutex> ul(segment->mtx_, std::defer_lock);
-  if (!ul.try_lock())
-    return EvacState::Fail;
-
-  assert(segment->vLogChunks_.size() == 1);
-  auto chunk = segment->vLogChunks_.front();
-  EvacState ret = scan_chunk(chunk.get(), deactivate);
-  if (ret == EvacState::Fault)
-    segment->destroy();
-  segment->alive_bytes_ = chunk->alive_bytes_;
-  return ret;
-}
-
-inline EvacState Evacuator::evac_segment(LogSegment *segment) {
-  if (!segment_ready(segment))
-    return EvacState::Fail;
-  std::unique_lock<std::mutex> ul(segment->mtx_, std::defer_lock);
-  if (!ul.try_lock())
-    return EvacState::Fail;
-
-  assert(segment->vLogChunks_.size() == 1);
-  auto chunk = segment->vLogChunks_.front();
-  EvacState ret = evac_chunk(chunk.get());
-  if (ret == EvacState::Succ || ret == EvacState::Fault)
-    segment->destroy();
-  return ret;
-}
-
-inline EvacState Evacuator::free_segment(LogSegment *segment) {
-  if (!segment_ready(segment))
-    return EvacState::Fail;
-  std::unique_lock<std::mutex> ul(segment->mtx_, std::defer_lock);
-  if (!ul.try_lock())
-    return EvacState::Fail;
-
-  assert(segment->vLogChunks_.size() == 1);
-  auto chunk = segment->vLogChunks_.front();
-  EvacState ret = free_chunk(chunk.get());
-  if (ret == EvacState::Succ || ret == EvacState::Fault)
-    segment->destroy();
-  return ret;
-}
-
-/** Evacuate a particular chunk */
-inline bool Evacuator::iterate_chunk(LogChunk *chunk, uint64_t &pos,
-                                     ObjectPtr &optr) {
-  if (pos + sizeof(MetaObjectHdr) > chunk->pos_)
+/** Evacuate a particular segment */
+inline bool Evacuator::iterate_segment(LogSegment *segment, uint64_t &pos,
+                                       ObjectPtr &optr) {
+  if (pos + sizeof(MetaObjectHdr) > segment->pos_)
     return false;
 
   auto ret = optr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
   if (ret == RetCode::Fail)
     return false;
   else if (ret == RetCode::Fault) {
-    LOG(kError) << "chunk is unmapped under the hood";
+    LOG(kError) << "segment is unmapped under the hood";
     return false;
   }
   assert(ret == RetCode::Succ);
@@ -261,10 +202,10 @@ inline bool Evacuator::iterate_chunk(LogChunk *chunk, uint64_t &pos,
   return true;
 }
 
-inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
-  chunk->set_alive_bytes(kMaxAliveBytes);
-  if (!chunk->sealed_)
+inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
+  if (!segment_ready(segment))
     return EvacState::Fail;
+  segment->set_alive_bytes(kMaxAliveBytes);
 
   int alive_bytes = 0;
   // counters
@@ -279,8 +220,8 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
 
   ObjectPtr obj_ptr;
 
-  auto pos = chunk->start_addr_;
-  while (iterate_chunk(chunk, pos, obj_ptr)) {
+  auto pos = segment->start_addr_;
+  while (iterate_segment(segment, pos, obj_ptr)) {
     auto lock_id = obj_ptr.lock();
     assert(lock_id != -1 && !obj_ptr.null());
     if (obj_ptr.is_small_obj()) {
@@ -318,7 +259,7 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
         auto obj_size = obj_ptr.obj_size(); // TODO: incorrect size here!
         if (meta_hdr.is_present()) {
           nr_present++;
-          if (!meta_hdr.is_continue()) { // head chunk
+          if (!meta_hdr.is_continue()) { // head segment
             if (!deactivate) {
               alive_bytes += obj_size;
             } else if (meta_hdr.is_accessed()) {
@@ -328,7 +269,7 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
               nr_deactivated++;
               alive_bytes += obj_size;
             } else {
-              // This will free all chunks belonging to the same object
+              // This will free all segments belonging to the same object
               if (obj_ptr.free(/* locked = */ true) == RetCode::Fault) {
                 LOG(kWarning);
                 // goto faulted;
@@ -336,8 +277,8 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
 
               nr_freed++;
             }
-          } else { // continued chunk
-            // An inner chunk of a large object. Skip it.
+          } else { // continued segment
+            // An inner segment of a large object. Skip it.
             alive_bytes += obj_size;
             nr_contd_objs++;
           }
@@ -349,7 +290,7 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
     continue;
   faulted:
     nr_failed++;
-    LOG(kError) << "chunk is unmapped under the hood";
+    LOG(kError) << "segment is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
   }
@@ -363,17 +304,18 @@ inline EvacState Evacuator::scan_chunk(LogChunk *chunk, bool deactivate) {
               << ", nr_deactivated: " << nr_deactivated
               << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
               << ", alive ratio: "
-              << static_cast<float>(chunk->alive_bytes_) / kLogChunkSize;
+              << static_cast<float>(segment->alive_bytes_) / kLogChunkSize;
 
   if (nr_failed) {
+    segment->destroy();
     return EvacState::Fault;
   }
-  chunk->set_alive_bytes(alive_bytes);
+  segment->set_alive_bytes(alive_bytes);
   return EvacState::Succ;
 }
 
-inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
-  if (!chunk->sealed_)
+inline EvacState Evacuator::evac_segment(LogSegment *segment) {
+  if (!segment_ready(segment))
     return EvacState::Fail;
 
   // counters
@@ -385,8 +327,8 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
   int nr_contd_objs = 0;
 
   ObjectPtr obj_ptr;
-  auto pos = chunk->start_addr_;
-  while (iterate_chunk(chunk, pos, obj_ptr)) {
+  auto pos = segment->start_addr_;
+  while (iterate_segment(segment, pos, obj_ptr)) {
     auto lock_id = obj_ptr.lock();
     assert(lock_id != -1 && !obj_ptr.null());
     MetaObjectHdr meta_hdr;
@@ -402,7 +344,7 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
       nr_small_objs++;
       obj_ptr.unlock(lock_id);
       auto allocator = LogAllocator::global_allocator();
-      auto optptr = allocator->alloc_(obj_ptr.data_size_in_chunk(), true);
+      auto optptr = allocator->alloc_(obj_ptr.data_size_in_segment(), true);
       lock_id = optptr->lock();
       assert(lock_id != -1 && !obj_ptr.null());
 
@@ -419,7 +361,7 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
       } else
         nr_failed++;
     } else {                         // large object
-      if (!meta_hdr.is_continue()) { // the head chunk of a large object.
+      if (!meta_hdr.is_continue()) { // the head segment of a large object.
         auto opt_data_size = obj_ptr.large_data_size();
         if (!opt_data_size) {
           LOG(kWarning);
@@ -447,10 +389,10 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
           }
         } else
           nr_failed++;
-      } else { // an inner chunk of a large obj
-        // TODO: remap this chunk directly if (obj_size == kLogChunkSize).
-        /* For now, let's skip it and let the head chunk handle all the
-         * continued chunks together.
+      } else { // an inner segment of a large obj
+        // TODO: remap this segment directly if (obj_size == kLogsegmentSize).
+        /* For now, let's skip it and let the head segment handle all the
+         * continued segments together.
          */
         nr_contd_objs++;
       }
@@ -459,7 +401,7 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
     continue;
   faulted:
     nr_failed++;
-    LOG(kError) << "chunk is unmapped under the hood";
+    LOG(kError) << "segment is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
   }
@@ -467,17 +409,21 @@ inline EvacState Evacuator::evac_chunk(LogChunk *chunk) {
               << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
 
   assert(nr_failed == 0);
-  if (nr_failed)
+  if (nr_failed) {
+    segment->destroy();
     return EvacState::Fault;
+  }
   if (nr_contd_objs)
     return EvacState::DelayRelease;
+  segment->destroy();
   return EvacState::Succ;
 }
 
-inline EvacState Evacuator::free_chunk(LogChunk *chunk) {
-  if (!chunk->sealed_)
+inline EvacState Evacuator::free_segment(LogSegment *segment) {
+  if (!segment_ready(segment))
     return EvacState::Fail;
 
+  // counters
   int nr_non_present = 0;
   int nr_freed = 0;
   int nr_small_objs = 0;
@@ -485,8 +431,8 @@ inline EvacState Evacuator::free_chunk(LogChunk *chunk) {
   int nr_contd_objs = 0;
 
   ObjectPtr obj_ptr;
-  auto pos = chunk->start_addr_;
-  while (iterate_chunk(chunk, pos, obj_ptr)) {
+  auto pos = segment->start_addr_;
+  while (iterate_segment(segment, pos, obj_ptr)) {
     auto lock_id = obj_ptr.lock();
     assert(lock_id != -1 && !obj_ptr.null());
     if (obj_ptr.is_small_obj()) {
@@ -508,14 +454,14 @@ inline EvacState Evacuator::free_chunk(LogChunk *chunk) {
       if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        if (!meta_hdr.is_continue()) { // head chunk
+        if (!meta_hdr.is_continue()) { // head segment
           if (meta_hdr.is_present()) {
             if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
               goto faulted;
             nr_freed++;
           } else
             nr_non_present++;
-        } else { // continued chunk
+        } else { // continued segment
           nr_contd_objs++;
         }
       }
@@ -524,7 +470,7 @@ inline EvacState Evacuator::free_chunk(LogChunk *chunk) {
     continue;
   faulted:
     nr_failed++;
-    LOG(kError) << "chunk is unmapped under the hood";
+    LOG(kError) << "segment is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
   }
@@ -533,10 +479,13 @@ inline EvacState Evacuator::free_chunk(LogChunk *chunk) {
               << ", nr_failed: " << nr_failed;
 
   assert(nr_failed == 0);
-  if (nr_failed)
+  if (nr_failed) {
+    segment->destroy();
     return EvacState::Fault;
+  }
   if (nr_contd_objs)
     return EvacState::DelayRelease;
+  segment->destroy();
   return EvacState::Succ;
 }
 

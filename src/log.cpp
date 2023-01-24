@@ -18,12 +18,12 @@ namespace cachebank {
 
 using RetCode = ObjectPtr::RetCode;
 
-/** LogChunk */
-inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
+/** LogSegment */
+inline std::optional<ObjectPtr> LogSegment::alloc_small(size_t size) {
   if (sealed_)
     return std::nullopt;
   auto obj_size = ObjectPtr::obj_size(size);
-  if (pos_ - start_addr_ + obj_size > kLogChunkSize) { // current chunk is full
+  if (pos_ - start_addr_ + obj_size > kLogChunkSize) { // current segment is full
     seal();
     return std::nullopt;
   }
@@ -35,7 +35,7 @@ inline std::optional<ObjectPtr> LogChunk::alloc_small(size_t size) {
 }
 
 inline std::optional<std::pair<TransientPtr, size_t>>
-LogChunk::alloc_large(size_t size, const TransientPtr head_tptr,
+LogSegment::alloc_large(size_t size, const TransientPtr head_tptr,
                       TransientPtr prev_tptr) {
   if (sealed_)
     return std::nullopt;
@@ -67,31 +67,11 @@ LogChunk::alloc_large(size_t size, const TransientPtr head_tptr,
   return std::make_pair(addr, trunced_size);
 }
 
-inline bool LogChunk::free(ObjectPtr &ptr) {
+inline bool LogSegment::free(ObjectPtr &ptr) {
   return ptr.free() == RetCode::Succ;
 }
 
-/** LogSegment */
-inline std::shared_ptr<LogChunk> LogSegment::allocChunk() {
-  if (full()) {
-    seal();
-    return nullptr;
-  }
-
-  uint64_t addr = pos_;
-  pos_ += kLogChunkSize;
-  if (pos_ >= start_addr_ + kLogChunkSize)
-    seal();
-  auto chunk = std::make_shared<LogChunk>(this, addr);
-  vLogChunks_.push_back(chunk);
-  return chunk;
-}
-
-void LogSegment::destroy() {
-  while (!vLogChunks_.empty()) {
-    vLogChunks_.pop_back();
-  }
-
+void LogSegment::destroy() noexcept {
   auto *rmanager = ResourceManager::global_manager();
   rmanager->FreeRegion(region_id_);
   alive_bytes_ = kMaxAliveBytes;
@@ -107,19 +87,8 @@ inline std::shared_ptr<LogSegment> LogAllocator::allocSegment(bool overcommit) {
     return nullptr;
   VRange range = rmanager->GetRegion(rid);
 
-  auto segment = std::make_shared<LogSegment>(
-      rid, reinterpret_cast<uint64_t>(range.stt_addr));
-
-  return segment;
-}
-
-inline std::shared_ptr<LogChunk> LogAllocator::allocChunk(bool overcommit) {
-  auto segment = allocSegment(overcommit);
-  if (!segment)
-    return nullptr;
-
-  segments_.push_back(segment);
-  return segment->allocChunk();
+  return std::make_shared<LogSegment>(rid,
+                                    reinterpret_cast<uint64_t>(range.stt_addr));
 }
 
 std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
@@ -135,11 +104,12 @@ std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
     pcab.reset();
   }
   // slowpath
-  auto chunk = allocChunk(overcommit);
-  if (!chunk)
+  auto segment = allocSegment(overcommit);
+  if (!segment)
     return std::nullopt;
+  segments_.push_back(segment);
 
-  pcab = chunk;
+  pcab = segment;
   auto ret = pcab->alloc_small(size);
   assert(ret);
   return ret;
@@ -179,14 +149,11 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
     if (!segment)
       goto failed;
     alloced_segs.push_back(segment);
-    auto chunk = segment->allocChunk();
-    if (!chunk)
-      goto failed;
     assert(remaining_size == size);
     auto option =
-        chunk->alloc_large(remaining_size, TransientPtr(), TransientPtr());
-    if (chunk->full())
-      chunk->seal();
+        segment->alloc_large(remaining_size, TransientPtr(), TransientPtr());
+    if (segment->full())
+      segment->seal();
     if (!option) // out of memory during allocation
       goto failed;
     head_tptr = option->first;
@@ -202,13 +169,9 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
     if (!segment)
       goto failed;
     alloced_segs.push_back(segment);
-    auto chunk = segment->allocChunk();
-    if (!chunk)
-      goto failed;
-
-    auto option = chunk->alloc_large(remaining_size, head_tptr, prev_tptr);
-    if (chunk->full())
-      chunk->seal();
+    auto option = segment->alloc_large(remaining_size, head_tptr, prev_tptr);
+    if (segment->full())
+      segment->seal();
     if (!option) // out of memory during allocation
       goto failed;
     prev_tptr = option->first;
@@ -222,7 +185,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   if (pcab && pcab->full())
       pcab->seal();
   if (!alloced_segs.empty())
-    pcab = alloced_segs.back()->vLogChunks_.front();
+    pcab = alloced_segs.back();
   for (auto &segment : alloced_segs)
     segments_.push_back(segment);
   return obj_ptr;
@@ -242,7 +205,7 @@ failed:
 }
 
 // Define PCAB
-thread_local std::shared_ptr<LogChunk> LogAllocator::pcab;
+thread_local std::shared_ptr<LogSegment> LogAllocator::pcab;
 thread_local int32_t LogAllocator::access_cnt_ = 0;
 thread_local int32_t LogAllocator::alive_cnt_ = 0;
 std::atomic_int64_t LogAllocator::total_access_cnt_{0};
