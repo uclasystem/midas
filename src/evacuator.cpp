@@ -304,7 +304,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
               << ", nr_deactivated: " << nr_deactivated
               << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
               << ", alive ratio: "
-              << static_cast<float>(segment->alive_bytes_) / kLogChunkSize;
+              << static_cast<float>(segment->alive_bytes_) / kLogSegmentSize;
 
   if (nr_failed) {
     segment->destroy();

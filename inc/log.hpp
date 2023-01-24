@@ -19,7 +19,8 @@ public:
   LogSegment(int64_t rid, uint64_t addr);
   std::optional<ObjectPtr> alloc_small(size_t size);
   std::optional<std::pair<TransientPtr, size_t>>
-  alloc_large(size_t size, const TransientPtr head_addr, TransientPtr prev_addr);
+  alloc_large(size_t size, const TransientPtr head_addr,
+              TransientPtr prev_addr);
   bool free(ObjectPtr &ptr);
   void seal() noexcept;
   void destroy() noexcept;
@@ -36,7 +37,7 @@ private:
 
   void set_alive_bytes(int32_t alive_bytes) noexcept;
 
-  static_assert(kRegionSize % kLogChunkSize == 0,
+  static_assert(kRegionSize % kLogSegmentSize == 0,
                 "Region size must equal to segment size");
 
   bool sealed_;

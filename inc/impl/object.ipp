@@ -55,9 +55,7 @@ inline void MetaObjectHdr::dec_accessed() noexcept {
   flags &= ~kAccessedMask;
   flags |= (accessed << kAccessedBit);
 }
-inline void MetaObjectHdr::clr_accessed() noexcept {
-  flags &= ~kAccessedMask;
-}
+inline void MetaObjectHdr::clr_accessed() noexcept { flags &= ~kAccessedMask; }
 
 inline bool MetaObjectHdr::is_evacuate() const noexcept {
   return flags & (1ull << kEvacuateBit);
@@ -250,7 +248,7 @@ inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
 inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
                                      bool is_head, TransientPtr head,
                                      TransientPtr next) {
-  assert(data_size <= kLogChunkSize - sizeof(LargeObjectHdr));
+  assert(data_size <= kLogSegmentSize - sizeof(LargeObjectHdr));
   small_obj_ = false;
   head_obj_ = is_head;
   size_ = data_size; // YIFAN: check this later!!

@@ -8,11 +8,12 @@ inline LogSegment::LogSegment(int64_t rid, uint64_t addr)
       pos_(addr), sealed_(false), destroyed_(false) {}
 
 inline bool LogSegment::full() const noexcept {
-  return sealed_ || pos_ - start_addr_ + sizeof(MetaObjectHdr) >= kLogChunkSize;
+  return sealed_ ||
+         pos_ - start_addr_ + sizeof(MetaObjectHdr) >= kLogSegmentSize;
 }
 
 inline int32_t LogSegment::remaining_bytes() const noexcept {
-  return start_addr_ + kLogChunkSize - pos_;
+  return start_addr_ + kLogSegmentSize - pos_;
 }
 
 inline void LogSegment::set_alive_bytes(int32_t alive_bytes) noexcept {
@@ -57,9 +58,7 @@ inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
   return nullptr;
 }
 
-inline bool SegmentList::empty() const noexcept {
-  return segments_.empty();
-}
+inline bool SegmentList::empty() const noexcept { return segments_.empty(); }
 
 /** LogAllocator */
 inline LogAllocator::LogAllocator() {}

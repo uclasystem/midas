@@ -23,7 +23,7 @@ inline std::optional<ObjectPtr> LogSegment::alloc_small(size_t size) {
   if (sealed_)
     return std::nullopt;
   auto obj_size = ObjectPtr::obj_size(size);
-  if (pos_ - start_addr_ + obj_size > kLogChunkSize) { // current segment is full
+  if (pos_ - start_addr_ + obj_size > kLogSegmentSize) { // this segment is full
     seal();
     return std::nullopt;
   }
@@ -36,17 +36,17 @@ inline std::optional<ObjectPtr> LogSegment::alloc_small(size_t size) {
 
 inline std::optional<std::pair<TransientPtr, size_t>>
 LogSegment::alloc_large(size_t size, const TransientPtr head_tptr,
-                      TransientPtr prev_tptr) {
+                        TransientPtr prev_tptr) {
   if (sealed_)
     return std::nullopt;
-  if (pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogChunkSize) {
+  if (pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogSegmentSize) {
     seal();
     return std::nullopt;
   }
 
   ObjectPtr obj_ptr;
   size_t trunced_size = std::min(
-      kLogChunkSize - (pos_ - start_addr_) - sizeof(LargeObjectHdr), size);
+      kLogSegmentSize - (pos_ - start_addr_) - sizeof(LargeObjectHdr), size);
   TransientPtr addr(pos_, sizeof(LargeObjectHdr) + trunced_size);
   const bool is_head = head_tptr.null();
   if (obj_ptr.init_large(pos_, trunced_size, is_head, head_tptr,
@@ -62,7 +62,7 @@ LogSegment::alloc_large(size_t size, const TransientPtr head_tptr,
   }
 
   pos_ += sizeof(LargeObjectHdr) + trunced_size;
-  // if (pos_ - start_addr_ == kLogChunkSize)
+  // if (pos_ - start_addr_ == kLogSegmentSize)
   //   seal();
   return std::make_pair(addr, trunced_size);
 }
@@ -87,8 +87,8 @@ inline std::shared_ptr<LogSegment> LogAllocator::allocSegment(bool overcommit) {
     return nullptr;
   VRange range = rmanager->GetRegion(rid);
 
-  return std::make_shared<LogSegment>(rid,
-                                    reinterpret_cast<uint64_t>(range.stt_addr));
+  return std::make_shared<LogSegment>(
+      rid, reinterpret_cast<uint64_t>(range.stt_addr));
 }
 
 std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
@@ -183,7 +183,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
 
   assert(!pcab || pcab->full());
   if (pcab && pcab->full())
-      pcab->seal();
+    pcab->seal();
   if (!alloced_segs.empty())
     pcab = alloced_segs.back();
   for (auto &segment : alloced_segs)
