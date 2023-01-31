@@ -1,5 +1,5 @@
-**/libmidas.a
-**/libmidas.so
+**/libmidas++.a
+**/libmidas++.so
 
 # Prerequisites
 *.d

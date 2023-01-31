@@ -71,7 +71,7 @@ test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
 
 .PHONY: all clean
 
-all: libmidas.a \
+all: libmidas++.a \
 	bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_log bin/test_large_alloc \
 	bin/test_sync_hashmap bin/test_hashmap_clear \
@@ -131,7 +131,7 @@ bin/test_memcpy: $(test_memcpy_obj) $(lib_obj)
 bin/test_c_connector: $(test_c_connector_obj) libmidas.a
 	$(LD) -o $@ $^ $(LDFLAGS) -lstdc++
 
-libmidas.a: $(lib_obj)
+libmidas++.a: $(lib_obj)
 	$(AR) rcs $@ $^
 
 bin/test_feat_extractor: $(test_feat_extractor_obj) $(lib_obj)
