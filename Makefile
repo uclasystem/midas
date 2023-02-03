@@ -8,10 +8,6 @@ LDXX = g++
 INC += -Iinc
 INC += -I/mnt/ssd/yifan/tools/boost_1_79_0
 
-CFLAGS += -O2
-CFLAGS += -march=native
-CC = gcc
-LD = gcc
 
 override LDFLAGS += -lrt -lpthread
 # For stacktrace logging
@@ -63,9 +59,6 @@ test_sighandler_obj = $(test_sighandler_src:.cpp=.o)
 test_memcpy_src = test/test_memcpy.cpp
 test_memcpy_obj = $(test_memcpy_src:.cpp=.o)
 
-test_c_connector_src = test/test_c_connector.c
-test_c_connector_obj = $(test_c_connector_src:.c=.o)
-
 test_feat_extractor_src = test/test_feat_extractor.cpp
 test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
 
@@ -78,7 +71,6 @@ all: libmidas++.a \
 	bin/test_skewed_hashmap \
 	bin/test_sighandler \
 	bin/test_memcpy \
-	bin/test_c_connector \
 	bin/test_feat_extractor
 
 # bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
@@ -128,8 +120,6 @@ bin/test_sighandler: $(test_sighandler_obj) $(lib_obj)
 bin/test_memcpy: $(test_memcpy_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
-bin/test_c_connector: $(test_c_connector_obj) libmidas.a
-	$(LD) -o $@ $^ $(LDFLAGS) -lstdc++
 
 libmidas++.a: $(lib_obj)
 	$(AR) rcs $@ $^
@@ -139,9 +129,6 @@ bin/test_feat_extractor: $(test_feat_extractor_obj) $(lib_obj)
 
 %.o: %.cpp Makefile
 	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
-
-%.o: %.c Makefile
-	$(CC) $(CFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 ifneq ($(MAKECMDGOALS),clean)
 -include $(dep)
