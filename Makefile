@@ -38,6 +38,8 @@ test_slab_src = test/test_slab.cpp
 test_slab_obj = $(test_slab_src:.cpp=.o)
 test_sync_hashmap_src = test/test_sync_hashmap.cpp
 test_sync_hashmap_obj = $(test_sync_hashmap_src:.cpp=.o)
+test_sync_list_src = test/test_sync_list.cpp
+test_sync_list_obj = $(test_sync_list_src:.cpp=.o)
 test_hashmap_clear_src = test/test_hashmap_clear.cpp
 test_hashmap_clear_obj = $(test_hashmap_clear_src:.cpp=.o)
 test_log_src = test/test_log.cpp
@@ -68,6 +70,7 @@ all: libmidas++.a \
 	bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_log bin/test_large_alloc \
 	bin/test_sync_hashmap bin/test_hashmap_clear \
+	bin/test_sync_list \
 	bin/test_skewed_hashmap \
 	bin/test_sighandler \
 	bin/test_memcpy \
@@ -88,6 +91,9 @@ bin/test_slab: $(test_slab_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_sync_hashmap: $(test_sync_hashmap_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_sync_list: $(test_sync_list_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_hashmap_clear: $(test_hashmap_clear_obj) $(lib_obj)
