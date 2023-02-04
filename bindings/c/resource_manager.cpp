@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-ResourceManager get_global_manager() {
+ResourceManager get_global_manager(void) {
   return cachebank::ResourceManager::global_manager();
 };
 

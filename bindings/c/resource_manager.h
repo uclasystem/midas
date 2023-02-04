@@ -7,7 +7,7 @@ extern "C" {
 
 typedef void * ResourceManager;
 
-ResourceManager get_global_manager();
+ResourceManager get_global_manager(void);
 
 #ifdef __cplusplus
 }
