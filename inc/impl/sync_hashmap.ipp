@@ -146,11 +146,17 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::clear() {
   return true;
 }
 
+template <size_t NBuckets, typename Key, typename Tp, typename Hash,
+          typename Pred, typename Alloc, typename Lock>
+using BNPtr =
+    typename SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::BucketNode
+        *;
+
 /** Utility functions */
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 template <typename K1, typename Tp1>
-inline BNPtr
+inline BNPtr<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
     uint64_t key_hash, K1 &&k, Tp1 &&v) {
   // Tp tmp_v = v;
@@ -180,7 +186,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
 // should always use as `node = delete_node()` when iterating the list
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
-inline BNPtr
+inline BNPtr<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::delete_node(
     BNPtr *prev_next, BNPtr node) {
   assert(*prev_next == node);

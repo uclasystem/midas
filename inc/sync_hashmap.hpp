@@ -10,13 +10,6 @@
 
 namespace cachebank {
 
-struct BucketNode {
-  uint64_t key_hash;
-  ObjectPtr pair;
-  BucketNode *next;
-};
-using BNPtr = BucketNode *;
-
 template <size_t NBuckets, typename Key, typename Tp,
           typename Hash = std::hash<Key>, typename Pred = std::equal_to<Key>,
           typename Alloc = LogAllocator, typename Lock = std::mutex>
@@ -32,6 +25,13 @@ public:
   // std::vector<Pair> get_all_pairs();
 
 private:
+  struct BucketNode {
+    uint64_t key_hash;
+    ObjectPtr pair;
+    BucketNode *next;
+  };
+  using BNPtr = BucketNode *;
+
   template <typename K1, typename Tp1>
   BNPtr create_node(uint64_t key_hash, K1 &&k, Tp1 &&v);
   BNPtr delete_node(BNPtr *prev_next, BNPtr node);
