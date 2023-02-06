@@ -1,5 +1,6 @@
 CXXFLAGS += -std=c++1z -O2
 CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
+CXXFLAGS +=  -fPIC
 # CXXFLAGS += -Wall -Wextra
 # CXXFLAGS += -g -O0
 CXX = g++
