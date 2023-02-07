@@ -1,5 +1,5 @@
-#ifndef __RESOURCE_MANAGER_H__
-#define __RESOURCE_MANAGER_H__
+#ifndef __MIDAS_RESOURCE_MANAGER_H
+#define __MIDAS_RESOURCE_MANAGER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -13,4 +13,4 @@ ResourceManager get_global_manager(void);
 }
 #endif
 
-#endif // __RESOURCE_MANAGER_H__
+#endif // __MIDAS_RESOURCE_MANAGER_H
