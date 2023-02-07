@@ -232,6 +232,11 @@ inline bool ObjectPtr::is_small_obj() const noexcept { return small_obj_; }
 
 inline bool ObjectPtr::is_head_obj() const noexcept { return head_obj_; }
 
+inline bool ObjectPtr::contains(uint64_t addr) const noexcept {
+  auto stt_addr = obj_.to_normal_address();
+  return stt_addr <= addr && addr < stt_addr + size_;
+}
+
 using RetCode = ObjectPtr::RetCode;
 
 inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {

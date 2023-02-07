@@ -193,6 +193,8 @@ public:
   size_t data_size_in_segment() const noexcept;
   std::optional<size_t> large_data_size();
 
+  bool contains(uint64_t addr) const noexcept;
+
   RetCode set_invalid() noexcept;
   RetCode is_valid() noexcept;
 
@@ -234,8 +236,8 @@ private:
 #pragma pack(push, 1)
   bool small_obj_ : 1;
   bool head_obj_ : 1;
-  uint32_t size_ : 30; // not in use for now. Support up to 2^30 = 1GB.
-  uint32_t deref_cnt_;
+  uint32_t size_ : 30; // Support up to 2^30 = 1GB.
+  uint32_t deref_cnt_; // not in use for now.
   TransientPtr obj_;
 #pragma pack(pop)
 
