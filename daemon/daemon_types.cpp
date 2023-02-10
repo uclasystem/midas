@@ -226,17 +226,19 @@ int Daemon::do_free(const CtrlMsg &msg) {
 
 void Daemon::monitor() {
   while (true) {
-    uint64_t prev_mem_limit = mem_limit_;
+    uint64_t upd_mem_limit;
     std::ifstream cfg(cfg_file_);
     if (!cfg.is_open()) {
       LOG(kError) << "open " << cfg_file_ << " failed!";
       return;
     }
     cfg >> mem_limit_;
+    cfg >> upd_mem_limit;
     cfg.close();
 
-    if (mem_limit_ != prev_mem_limit) {
-      LOG(kError) << mem_limit_ << " != " << prev_mem_limit;
+    if (mem_limit_ != upd_mem_limit) {
+      LOG(kError) << mem_limit_ << " != " << upd_mem_limit;
+      mem_limit_ = upd_mem_limit;
       for (auto &[id, client] : clients_) {
         client.update_limit(mem_limit_);
       }
