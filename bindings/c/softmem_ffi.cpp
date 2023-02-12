@@ -30,6 +30,11 @@ bool midas_copy_to_soft(ObjectPtr dest, const void *src, size_t len,
   return optr->copy_from(src, len, offset);
 }
 
+bool midas_soft_ptr_null(const ObjectPtr optr) {
+  auto optr_ = reinterpret_cast<cachebank::ObjectPtr *>(optr);
+  return optr_->null();
+}
+
 bool midas_soft_ptr_contains(const ObjectPtr optr, const uint64_t addr) {
   auto *optr_ = reinterpret_cast<cachebank::ObjectPtr *>(optr);
   return optr_->contains(addr);
