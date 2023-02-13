@@ -9,7 +9,7 @@ inline LogSegment::LogSegment(int64_t rid, uint64_t addr)
 
 inline bool LogSegment::full() const noexcept {
   return sealed_ ||
-         pos_ - start_addr_ + sizeof(MetaObjectHdr) >= kLogSegmentSize;
+         pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogSegmentSize;
 }
 
 inline int32_t LogSegment::remaining_bytes() const noexcept {
