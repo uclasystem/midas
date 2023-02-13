@@ -228,7 +228,7 @@ private:
   bool copy_to_small(void *dst, size_t len, int64_t offset);
   bool copy_from_large(const void *src, size_t len, int64_t offset);
   bool copy_to_large(void *dst, size_t len, int64_t offset);
-  RetCode iter_large(ObjectPtr &lobj);
+  static RetCode iter_large(ObjectPtr &obj);
   RetCode copy_from_large(const TransientPtr &src, size_t len,
                           int64_t from_offset, int64_t to_offset);
   RetCode move_large(ObjectPtr &src) noexcept;
