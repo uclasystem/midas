@@ -13,8 +13,9 @@ ObjectPtr midas_alloc_soft(size_t size) {
 }
 
 bool midas_free_soft(ObjectPtr optr) {
-  auto *optr_ = reinterpret_cast<cachebank::ObjectPtr *>(optr);
+  auto optr_ = reinterpret_cast<cachebank::ObjectPtr *>(optr);
   auto ret = optr_->free();
+  delete optr_;
   return ret == cachebank::RetCode::Succ;
 }
 
@@ -36,6 +37,6 @@ bool midas_soft_ptr_null(const ObjectPtr optr) {
 }
 
 bool midas_soft_ptr_contains(const ObjectPtr optr, const uint64_t addr) {
-  auto *optr_ = reinterpret_cast<cachebank::ObjectPtr *>(optr);
+  auto optr_ = reinterpret_cast<cachebank::ObjectPtr *>(optr);
   return optr_->contains(addr);
 }
