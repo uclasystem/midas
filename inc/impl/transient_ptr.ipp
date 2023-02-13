@@ -1,7 +1,6 @@
 #pragma once
 
-#include <cstring>
-
+#include "logging.hpp"
 #include "resilient_func.hpp"
 
 namespace cachebank {
@@ -40,7 +39,7 @@ inline size_t TransientPtr::size() const noexcept { return 0; }
 inline TransientPtr TransientPtr::slice(int64_t offset) const {
 #ifdef BOUND_CHECK
   return null() ? TransientPtr() : TransientPtr(ptr_ + offset, size_ - offset);
-#else // !BOUND_CHECK
+#else  // !BOUND_CHECK
   return null() ? TransientPtr() : TransientPtr(ptr_ + offset, 0);
 #endif // BOUND_CHECK
 }
@@ -68,8 +67,10 @@ inline bool TransientPtr::copy_from(const void *src, size_t len,
   if (null())
     return false;
 #ifdef BOUND_CHECK
-  if (offset + len > size_)
+  if (offset + len > size_) {
+    LOG(kError);
     return false;
+  }
 #endif // BOUND_CHECK
   bool ret = rmemcpy(reinterpret_cast<void *>(ptr_ + offset), src, len);
   return ret;
@@ -79,8 +80,10 @@ inline bool TransientPtr::copy_to(void *dst, size_t len, int64_t offset) {
   if (null())
     return false;
 #ifdef BOUND_CHECK
-  if (offset + len > size_)
+  if (offset + len > size_) {
+    LOG(kError);
     return false;
+  }
 #endif // BOUND_CHECK
   bool ret = rmemcpy(dst, reinterpret_cast<void *>(ptr_ + offset), len);
   return ret;
@@ -91,8 +94,10 @@ inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
   if (null())
     return false;
 #ifdef BOUND_CHECK
-  if (from_offset + len > src.size_ || to_offset + len > this->size_)
+  if (from_offset + len > src.size_ || to_offset + len > this->size_) {
+    LOG(kError);
     return false;
+  }
 #endif // BOUND_CHECK
   bool ret = rmemcpy(reinterpret_cast<void *>(this->ptr_ + to_offset),
                      reinterpret_cast<void *>(src.ptr_ + from_offset), len);
@@ -104,11 +109,13 @@ inline bool TransientPtr::copy_to(TransientPtr &dst, size_t len,
   if (null())
     return false;
 #ifdef BOUND_CHECK
-  if (from_offset + len > dst.size_ || to_offset + len > this->size_)
+  if (from_offset + len > dst.size_ || to_offset + len > this->size_) {
+    LOG(kError);
     return false;
+  }
 #endif // BOUND_CHECK
   bool ret = rmemcpy(reinterpret_cast<void *>(dst.ptr_ + to_offset),
-              reinterpret_cast<void *>(this->ptr_ + from_offset), len);
+                     reinterpret_cast<void *>(this->ptr_ + from_offset), len);
   return ret;
 }
 
