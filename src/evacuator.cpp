@@ -190,7 +190,7 @@ inline bool Evacuator::iterate_segment(LogSegment *segment, uint64_t &pos,
   if (pos + sizeof(MetaObjectHdr) > segment->pos_)
     return false;
 
-  auto ret = optr.init_from_soft(TransientPtr(pos, sizeof(MetaObjectHdr)));
+  auto ret = optr.init_from_soft(TransientPtr(pos, sizeof(LargeObjectHdr)));
   if (ret == RetCode::Fail)
     return false;
   else if (ret == RetCode::Fault) {

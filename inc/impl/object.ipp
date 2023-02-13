@@ -280,7 +280,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
     SmallObjectHdr shdr = *(reinterpret_cast<SmallObjectHdr *>(&hdr));
     small_obj_ = true;
     size_ = shdr.get_size();
-    obj_ = TransientPtr(soft_ptr.to_normal_address(), obj_size());
+    obj_ = TransientPtr(soft_ptr.to_normal_address(), obj_size() + size_);
   } else {
     LargeObjectHdr lhdr;
     if (!load_hdr(lhdr, *this))
@@ -288,7 +288,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
     small_obj_ = false;
     head_obj_ = !MetaObjectHdr::cast_from(&lhdr)->is_continue();
     size_ = lhdr.get_size();
-    obj_ = TransientPtr(soft_ptr.to_normal_address(), obj_size());
+    obj_ = TransientPtr(soft_ptr.to_normal_address(), obj_size() + size_);
   }
 
   return RetCode::Succ;
