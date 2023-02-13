@@ -1,6 +1,8 @@
 **/libmidas++.a
 **/libmidas++.so
 
+config/mem.config
+
 # Prerequisites
 *.d
 
