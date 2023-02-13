@@ -132,6 +132,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
       alloced_size = option->second;
       // do not seal pcab at this time as allocation may not finish. Instead,
       // seal pcab at the end of allocation.
+      assert(alloced_size > 0);
     }
   }
   remaining_size -= alloced_size;
@@ -191,6 +192,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   return obj_ptr;
 
 failed:
+  LOG(kError) << "allocation failed!";
   for (auto &tptr : alloced_ptrs) {
     MetaObjectHdr mhdr;
     if (!load_hdr(mhdr, tptr))

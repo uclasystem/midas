@@ -199,6 +199,7 @@ done:
   return ret;
 }
 
+// For evacuator only. Must have src locked
 RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
                                    int64_t from_offset, int64_t to_offset) {
   if (null())
@@ -251,16 +252,21 @@ RetCode ObjectPtr::move_large(ObjectPtr &src) noexcept {
   assert(!is_small_obj() && is_head_obj());
   assert(!src.is_small_obj() && src.is_head_obj());
 
+  auto opt_size = src.large_data_size();
+  if (!opt_size)
+    return RetCode::Fault;
+  size_t remaining_len = *opt_size;
   size_t dst_offset = 0;
   ObjectPtr optr = src;
   while (!optr.null()) {
     auto ret = RetCode::Fail;
     assert(optr.hdr_size() == sizeof(LargeObjectHdr));
-    ret = copy_from_large(optr.obj_, optr.data_size_in_segment(), optr.hdr_size(),
-                          dst_offset);
+    ret = copy_from_large(optr.obj_, optr.data_size_in_segment(),
+                          optr.hdr_size(), dst_offset);
     if (ret != RetCode::Succ)
       return ret;
     dst_offset += optr.data_size_in_segment();
+    remaining_len -= optr.data_size_in_segment();
     ret = iter_large(optr);
     if (ret != RetCode::Succ) {
       if (ret == RetCode::Fail)
@@ -268,6 +274,8 @@ RetCode ObjectPtr::move_large(ObjectPtr &src) noexcept {
       return ret;
     }
   }
+
+  assert(remaining_len == 0);
   return RetCode::Succ;
 }
 } // namespace cachebank
