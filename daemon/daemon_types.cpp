@@ -232,7 +232,6 @@ void Daemon::monitor() {
       LOG(kError) << "open " << cfg_file_ << " failed!";
       return;
     }
-    cfg >> mem_limit_;
     cfg >> upd_mem_limit;
     cfg.close();
 
