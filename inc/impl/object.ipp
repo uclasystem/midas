@@ -391,7 +391,12 @@ inline RetCode ObjectPtr::upd_rref() noexcept {
   auto *ref = get_rref();
   if (!ref)
     return RetCode::Fail;
-  ref->obj_ = this->obj_;
+  /* We should update obj_ and size_ atomically. As size_ can be protected by
+   * the object lock, the bottomline is to update obj_ atomically. So far we
+   * rely on 64bit CPU to do so. */
+  // ref->obj_ = this->obj_;
+  // ref->size_ = this->size_;
+  *ref = *this;
   return RetCode::Succ;
 }
 
