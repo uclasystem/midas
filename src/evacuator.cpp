@@ -23,12 +23,8 @@ static inline int64_t get_nr_to_reclaim() {
   float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
                       (manager->NumRegionLimit() + 1);
   uint64_t nr_to_reclaim = 0;
-  if (avail_ratio < 0.05)
-    nr_to_reclaim = std::max(manager->NumRegionLimit() / 1000, 2ul);
-  else if (avail_ratio < 0.1)
-    nr_to_reclaim = std::max(manager->NumRegionLimit() / 2000, 1ul);
-  else if (avail_ratio < 0.2)
-    nr_to_reclaim = manager->NumRegionLimit() / 8000;
+  if (manager->NumRegionLimit() - manager->NumRegionAvail() >= 1)
+    nr_to_reclaim = std::max(manager->NumRegionLimit() / 1000, 1ul);
   else
     nr_to_reclaim = 0;
   return nr_to_reclaim;
@@ -41,8 +37,8 @@ void Evacuator::init() {
         std::unique_lock lk(gc_mtx_);
         gc_cv_.wait(lk, [this] { return terminated_ || get_nr_to_reclaim(); });
       }
-      // parallel_gc(1);
-      serial_gc();
+      parallel_gc(8);
+      // serial_gc();
     }
   });
 }
@@ -256,7 +252,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
       if (!load_hdr(meta_hdr, obj_ptr))
         goto faulted;
       else {
-        auto obj_size = obj_ptr.obj_size(); // TODO: incorrect size here!
+        auto obj_size = obj_ptr.obj_size(); // only partial size here!
         if (meta_hdr.is_present()) {
           nr_present++;
           if (!meta_hdr.is_continue()) { // head segment
