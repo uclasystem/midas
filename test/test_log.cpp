@@ -1,4 +1,5 @@
 #include <atomic>
+#include <cstring>
 #include <iostream>
 #include <optional>
 #include <random>
