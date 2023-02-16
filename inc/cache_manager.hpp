@@ -18,6 +18,9 @@ public:
 
   void record_miss(uint64_t cycles, uint64_t bytes);
 
+  inline LogAllocator *get_allocator() const noexcept;
+  inline Evacuator *get_evacuator() const noexcept;
+
   static CachePool *global_cache_pool();
 
 private:
@@ -31,7 +34,7 @@ private:
   size_t miss_bytes_;
 
   std::shared_ptr<LogAllocator> allocator_;
-  std::unique_ptr<Evacuator> evacutor_;
+  std::unique_ptr<Evacuator> evacuator_;
 };
 
 class CacheManager {
