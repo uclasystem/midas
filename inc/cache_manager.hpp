@@ -42,12 +42,15 @@ public:
   CacheManager();
   ~CacheManager();
 
-  bool create_pool(std::string name = "default");
+  bool create_pool(std::string name = default_pool_name);
   bool delete_pool(std::string name);
+  CachePool *get_pool(std::string name);
 
   size_t num_pools() const noexcept;
 
   static CacheManager *global_cache_manager();
+
+  constexpr static char default_pool_name[] = "default";
 
 private:
   std::mutex mtx_;

@@ -10,16 +10,15 @@ inline CachePool::CachePool(std::string name)
 inline CachePool::~CachePool() {}
 
 inline CachePool *CachePool::global_cache_pool() {
-  static std::mutex mtx_;
-  static std::unique_ptr<CachePool> pool_;
-
-  if (pool_.get())
-    return pool_.get();
-  std::unique_lock<std::mutex> ul(mtx_);
-  if (pool_.get())
-    return pool_.get();
-  pool_ = std::make_unique<CachePool>("global");
-  return pool_.get();
+  auto cache_mgr = CacheManager::global_cache_manager();
+  if (!cache_mgr)
+    return nullptr;
+  auto pool = cache_mgr->get_pool(CacheManager::default_pool_name);
+  if (pool)
+    return pool;
+  if (!cache_mgr->create_pool())
+    return nullptr;
+  return cache_mgr->get_pool(CacheManager::default_pool_name);
 }
 
 inline void CachePool::record_miss(uint64_t cycles, uint64_t bytes) {
@@ -46,6 +45,7 @@ inline bool CacheManager::create_pool(std::string name) {
     return false;
   }
   auto pool = std::make_unique<CachePool>(name);
+  LOG(kInfo) << "Create cache pool " << name;
   pools_[name] = std::move(pool);
   return true;
 }
@@ -58,6 +58,14 @@ inline bool CacheManager::delete_pool(std::string name) {
   }
   pools_.erase(name);
   return true;
+}
+
+inline CachePool *CacheManager::get_pool(std::string name) {
+  std::unique_lock<std::mutex> ul(mtx_);
+  auto found = pools_.find(name);
+  if (found == pools_.cend())
+    return nullptr;
+  return found->second.get();
 }
 
 inline size_t CacheManager::num_pools() const noexcept { return pools_.size(); }
