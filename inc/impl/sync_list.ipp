@@ -1,6 +1,12 @@
 namespace cachebank {
 template <typename Tp, typename Alloc, typename Lock>
-SyncList<Tp, Alloc, Lock>::SyncList() : size_(0), list_(nullptr) {}
+SyncList<Tp, Alloc, Lock>::SyncList() : size_(0), list_(nullptr) {
+  pool_ = CachePool::global_cache_pool();
+}
+
+template <typename Tp, typename Alloc, typename Lock>
+SyncList<Tp, Alloc, Lock>::SyncList(CachePool *pool)
+    : pool_(pool), size_(0), list_(nullptr) {}
 
 template <typename Tp, typename Alloc, typename Lock>
 inline bool SyncList<Tp, Alloc, Lock>::empty() const noexcept {
@@ -69,7 +75,7 @@ bool SyncList<Tp, Alloc, Lock>::clear() {
 template <typename Tp, typename Alloc, typename Lock>
 typename SyncList<Tp, Alloc, Lock>::ListNode *
 SyncList<Tp, Alloc, Lock>::create_node(const Tp &v) {
-  auto allocator = LogAllocator::global_allocator();
+  auto allocator = pool_->get_allocator();
   ListNode *node = new ListNode();
 
   if (!allocator->alloc_to(sizeof(Tp), &node->obj) ||

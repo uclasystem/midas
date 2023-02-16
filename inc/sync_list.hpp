@@ -2,6 +2,7 @@
 
 #include "log.hpp"
 #include "object.hpp"
+#include "cache_manager.hpp"
 
 namespace cachebank {
 
@@ -10,6 +11,7 @@ template <typename Tp, typename Alloc = LogAllocator,
 class SyncList {
 public:
   SyncList();
+  SyncList(CachePool *pool);
 
   std::unique_ptr<Tp> pop();
   bool pop(Tp &v);
@@ -27,6 +29,8 @@ private:
 
   ListNode *create_node(const Tp &v);
   void delete_node(ListNode *node);
+
+  CachePool *pool_;
 
   Lock lock_;
 
