@@ -84,6 +84,8 @@ public:
 
   static inline void thd_exit();
 
+  static inline std::shared_ptr<LogAllocator>
+  global_allocator_shared_ptr() noexcept;
   static inline LogAllocator *global_allocator() noexcept;
 
 private:

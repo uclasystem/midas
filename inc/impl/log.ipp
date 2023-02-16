@@ -127,19 +127,24 @@ inline void LogAllocator::thd_exit() {
 }
 
 /* A thread safe way to create a global allocator and get its reference. */
-inline LogAllocator *LogAllocator::global_allocator() noexcept {
+inline std::shared_ptr<LogAllocator>
+LogAllocator::global_allocator_shared_ptr() noexcept {
   static std::mutex mtx_;
-  static std::unique_ptr<LogAllocator> _allocator(nullptr);
+  static std::shared_ptr<LogAllocator> allocator_(nullptr);
 
-  if (LIKELY(_allocator.get() != nullptr))
-    return _allocator.get();
+  if (LIKELY(allocator_.get() != nullptr))
+    return allocator_;
 
   std::unique_lock<std::mutex> lk(mtx_);
-  if (UNLIKELY(_allocator.get() != nullptr))
-    return _allocator.get();
+  if (UNLIKELY(allocator_.get() != nullptr))
+    return allocator_;
 
-  _allocator = std::make_unique<LogAllocator>();
-  return _allocator.get();
+  allocator_ = std::make_unique<LogAllocator>();
+  return allocator_;
+}
+
+inline LogAllocator *LogAllocator::global_allocator() noexcept {
+  return global_allocator_shared_ptr().get();
 }
 
 static thread_local struct ThreadExiter {

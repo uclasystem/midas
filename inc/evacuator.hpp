@@ -8,6 +8,8 @@
 #include <mutex>
 #include <thread>
 
+#include "log.hpp"
+
 namespace cachebank {
 
 enum class EvacState { Succ, Fail, Fault, DelayRelease };
@@ -18,7 +20,7 @@ class SegmentList;
 
 class Evacuator {
 public:
-  Evacuator();
+  Evacuator(std::shared_ptr<LogAllocator> allocator);
   ~Evacuator();
   void signal_gc();
   int64_t serial_gc();
@@ -39,6 +41,8 @@ private:
   /** Helper funcs */
   bool segment_ready(LogSegment *segment);
   bool iterate_segment(LogSegment *segment, uint64_t &pos, ObjectPtr &optr);
+
+  std::shared_ptr<LogAllocator> allocator_;
 
   bool terminated_;
 

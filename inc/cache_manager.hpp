@@ -30,7 +30,7 @@ private:
   size_t miss_cycles_;
   size_t miss_bytes_;
 
-  std::unique_ptr<LogAllocator> allocator_;
+  std::shared_ptr<LogAllocator> allocator_;
   std::unique_ptr<Evacuator> evacutor_;
 };
 

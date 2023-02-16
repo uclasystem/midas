@@ -44,7 +44,6 @@ void Evacuator::init() {
 }
 
 int64_t Evacuator::gc(SegmentList &stash_list) {
-  auto allocator = LogAllocator::global_allocator();
   auto rmanager = ResourceManager::global_manager();
   auto nr_target = get_nr_to_reclaim();
   auto nr_avail = rmanager->NumRegionAvail();
@@ -53,7 +52,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
 
   std::atomic_int64_t nr_scanned = 0;
   std::atomic_int64_t nr_evaced = 0;
-  auto &segments = allocator->segments_;
+  auto &segments = allocator_->segments_;
 
   auto stt = timer::timer();
   while (rmanager->NumRegionAvail() < nr_target) {
@@ -102,7 +101,6 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
 }
 
 int64_t Evacuator::serial_gc() {
-  auto allocator = LogAllocator::global_allocator();
   auto rmanager = ResourceManager::global_manager();
   auto nr_target = get_nr_to_reclaim();
   auto nr_avail = rmanager->NumRegionAvail();
@@ -111,7 +109,7 @@ int64_t Evacuator::serial_gc() {
 
   std::atomic_int64_t nr_scanned = 0;
   std::atomic_int64_t nr_evaced = 0;
-  auto &segments = allocator->segments_;
+  auto &segments = allocator_->segments_;
 
   auto stt = timer::timer();
   while (rmanager->NumRegionAvail() < nr_target) {
@@ -170,7 +168,7 @@ void Evacuator::parallel_gc(int nr_workers) {
     thd.join();
   gc_thds.clear();
 
-  auto &segments = LogAllocator::global_allocator()->segments_;
+  auto &segments = allocator_->segments_;
   while (!stash_list.empty()) {
     auto segment = stash_list.pop_front();
     // segment->destroy();
@@ -347,8 +345,7 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
     if (obj_ptr.is_small_obj()) {
       nr_small_objs++;
       obj_ptr.unlock(lock_id);
-      auto allocator = LogAllocator::global_allocator();
-      auto optptr = allocator->alloc_(obj_ptr.data_size_in_segment(), true);
+      auto optptr = allocator_->alloc_(obj_ptr.data_size_in_segment(), true);
       lock_id = optptr->lock();
       assert(lock_id != -1 && !obj_ptr.null());
 
@@ -374,8 +371,7 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
           continue;
         }
         obj_ptr.unlock(lock_id);
-        auto allocator = LogAllocator::global_allocator();
-        auto optptr = allocator->alloc_(*opt_data_size, true);
+        auto optptr = allocator_->alloc_(*opt_data_size, true);
         lock_id = obj_ptr.lock();
         assert(lock_id != -1 && !obj_ptr.null());
 

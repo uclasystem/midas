@@ -3,8 +3,8 @@
 namespace cachebank {
 CachePool::CachePool(std::string name)
     : name_(name), hits_(0), misses_(0), miss_cycles_(0), miss_bytes_(0) {
-  allocator_ = std::make_unique<LogAllocator>();
-  evacutor_ = std::make_unique<Evacuator>();
+  allocator_ = std::make_shared<LogAllocator>();
+  evacutor_ = std::make_unique<Evacuator>(allocator_);
 }
 
 CachePool::~CachePool() {}
