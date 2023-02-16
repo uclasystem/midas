@@ -61,6 +61,8 @@ test_sighandler_src = test/test_sighandler.cpp
 test_sighandler_obj = $(test_sighandler_src:.cpp=.o)
 test_memcpy_src = test/test_memcpy.cpp
 test_memcpy_obj = $(test_memcpy_src:.cpp=.o)
+test_cache_manager_src = test/test_cache_manager.cpp
+test_cache_manager_obj = $(test_cache_manager_src:.cpp=.o)
 
 test_feat_extractor_src = test/test_feat_extractor.cpp
 test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
@@ -70,8 +72,8 @@ test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
 all: libmidas++.a \
 	bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_log bin/test_large_alloc \
-	bin/test_sync_hashmap bin/test_hashmap_clear \
-	bin/test_sync_list \
+	bin/test_sync_hashmap bin/test_hashmap_clear bin/test_sync_list \
+	bin/test_cache_manager \
 	bin/test_skewed_hashmap \
 	bin/test_sighandler \
 	bin/test_memcpy \
@@ -127,6 +129,8 @@ bin/test_sighandler: $(test_sighandler_obj) $(lib_obj)
 bin/test_memcpy: $(test_memcpy_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
+bin/test_cache_manager: $(test_cache_manager_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 libmidas++.a: $(lib_obj)
 	$(AR) rcs $@ $^
