@@ -26,7 +26,7 @@ public:
   int64_t serial_gc();
   void parallel_gc(int nr_workers);
 
-  static Evacuator *global_evacuator();
+  static inline Evacuator *global_evacuator();
 
 private:
   void init();
