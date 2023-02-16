@@ -7,6 +7,13 @@ class SlabAllocator;
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap() {
+  pool_ = CachePool::global_cache_pool();
+  memset(buckets_, 0, sizeof(buckets_));
+}
+
+template <size_t NBuckets, typename Key, typename Tp, typename Hash,
+          typename Pred, typename Alloc, typename Lock>
+SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap(CachePool *pool) : pool_(pool) {
   memset(buckets_, 0, sizeof(buckets_));
 }
 
@@ -133,7 +140,6 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::clear() {
-  auto allocator = LogAllocator::global_allocator();
   for (int idx = 0; idx < NBuckets; idx++) {
     auto &lock = locks_[idx];
     lock.lock();
@@ -162,7 +168,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
   // Tp tmp_v = v;
   assert(sizeof(k) <= sizeof(Key));
   assert(sizeof(v) <= sizeof(Tp));
-  auto allocator = LogAllocator::global_allocator();
+  auto allocator = pool_->get_allocator();
 
   auto *new_node = new BucketNode();
   if (!allocator->alloc_to(sizeof(Key) + sizeof(Tp), &new_node->pair) ||
@@ -194,7 +200,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::delete_node(
     return nullptr;
   auto next = node->next;
 
-  // LogAllocator::global_allocator()->free(node->pair);
+  // pool_->get_allocator()->free(node->pair);
   node->pair.free();
   delete node;
 

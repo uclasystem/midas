@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "cache_manager.hpp"
 #include "log.hpp"
 #include "object.hpp"
 
@@ -17,6 +18,7 @@ template <size_t NBuckets, typename Key, typename Tp,
 class SyncHashMap {
 public:
   SyncHashMap();
+  SyncHashMap(CachePool *pool);
 
   template <typename K1> std::unique_ptr<Tp> get(K1 &&key);
   template <typename K1> bool get(K1 &&key, Tp &v);
@@ -42,6 +44,8 @@ private:
   template <typename K1> BNPtr *find(K1 &&key, bool remove = false);
   Lock locks_[NBuckets];
   BucketNode *buckets_[NBuckets];
+
+  CachePool *pool_;
 };
 
 } // namespace cachebank

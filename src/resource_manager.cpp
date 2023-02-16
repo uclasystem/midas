@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 
+#include "cache_manager.hpp"
 #include "evacuator.hpp"
 #include "logging.hpp"
 #include "qpair.hpp"
@@ -147,7 +148,7 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
 
 inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
   assert(nr_to_reclaim > 0);
-  Evacuator::global_evacuator()->signal_gc();
+  CachePool::global_cache_pool()->get_evacuator()->signal_gc();
   LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.", nr_to_reclaim);
   while (NumRegionAvail() < 0)
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -163,7 +164,7 @@ inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
 int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
 retry:
   if (!overcommit && reclaim_trigger()) {
-    Evacuator::global_evacuator()->signal_gc();
+    CachePool::global_cache_pool()->get_evacuator()->signal_gc();
   }
 
   std::unique_lock<std::mutex> lk(mtx_);
