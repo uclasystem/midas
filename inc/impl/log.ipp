@@ -3,9 +3,9 @@
 namespace cachebank {
 
 /** LogSegment */
-inline LogSegment::LogSegment(int64_t rid, uint64_t addr)
-    : alive_bytes_(kMaxAliveBytes), region_id_(rid), start_addr_(addr),
-      pos_(addr), sealed_(false), destroyed_(false) {}
+inline LogSegment::LogSegment(LogAllocator *owner, int64_t rid, uint64_t addr)
+    : owner_(owner), alive_bytes_(kMaxAliveBytes), region_id_(rid),
+      start_addr_(addr), pos_(addr), sealed_(false), destroyed_(false) {}
 
 inline bool LogSegment::full() const noexcept {
   return sealed_ ||
@@ -35,7 +35,7 @@ inline float LogSegment::get_alive_ratio() const noexcept {
 /** SegmentList */
 inline void SegmentList::push_back(std::shared_ptr<LogSegment> segment) {
   std::unique_lock<std::mutex> ul_(lock_);
-  segments_.push_back(segment);
+  segments_.emplace_back(std::move(segment));
 }
 
 inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
@@ -48,12 +48,10 @@ inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
     auto segment = segments_.front();
     segments_.pop_front();
     retry++;
-    if (!segment->sealed()) { // put in-used segment back to list
-      segments_.push_back(segment);
-    } else if (segment->destroyed()) {
+    if (segment->destroyed()) {
       continue; // remove destroyed segment (this should never happen though)
     } else
-      return segment;
+      return std::move(segment);
   }
   return nullptr;
 }
@@ -113,7 +111,9 @@ inline void LogAllocator::count_alive(int val) {
 }
 
 inline void LogAllocator::thd_exit() {
-  seal_pcab();
+  if (pcab) { // now only segments_ holds the reference
+    pcab->owner_->stashed_pcabs_.push_back(pcab);
+  }
 
   if (access_cnt_) {
     total_access_cnt_ += access_cnt_;
@@ -124,11 +124,6 @@ inline void LogAllocator::thd_exit() {
     total_alive_cnt_ += alive_cnt_;
     alive_cnt_ = 0;
   }
-}
-
-inline void LogAllocator::seal_pcab() {
-  if (pcab.get())
-    pcab->seal();
 }
 
 /* A thread safe way to create a global allocator and get its reference. */

@@ -28,8 +28,11 @@ inline std::optional<ObjectPtr> LogSegment::alloc_small(size_t size) {
     return std::nullopt;
   }
   ObjectPtr obj_ptr;
-  if (obj_ptr.init_small(pos_, size) != RetCode::Succ)
+  if (obj_ptr.init_small(pos_, size) != RetCode::Succ) {
+    LOG(kError);
+    seal();
     return std::nullopt;
+  }
   pos_ += obj_size;
   return obj_ptr;
 }
@@ -88,7 +91,7 @@ inline std::shared_ptr<LogSegment> LogAllocator::allocSegment(bool overcommit) {
   VRange range = rmanager->GetRegion(rid);
 
   return std::make_shared<LogSegment>(
-      rid, reinterpret_cast<uint64_t>(range.stt_addr));
+      this, rid, reinterpret_cast<uint64_t>(range.stt_addr));
 }
 
 std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
@@ -97,11 +100,18 @@ std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
     return alloc_large(size, overcommit);
   }
 
-  if (LIKELY(pcab.get() != nullptr)) {
+  if (pcab && pcab->owner_ != this) {
+    pcab->owner_->stashed_pcabs_.push_back(pcab);
+    pcab.reset();
+  }
+  if (!pcab)
+    pcab = stashed_pcabs_.pop_front();
+  while (LIKELY(pcab.get() != nullptr)) {
     auto ret = pcab->alloc_small(size);
     if (ret)
       return ret;
-    pcab.reset();
+    assert(pcab->sealed());
+    pcab = stashed_pcabs_.pop_front();
   }
   // slowpath
   auto segment = allocSegment(overcommit);
@@ -125,7 +135,13 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   TransientPtr head_tptr, prev_tptr;
   size_t alloced_size = 0;
 
-  if (pcab) {
+  if (pcab && pcab->owner_ != this) {
+    pcab->owner_->stashed_pcabs_.push_back(pcab);
+    pcab.reset();
+  }
+  if (!pcab)
+    pcab = stashed_pcabs_.pop_front();
+  while (LIKELY(pcab.get() != nullptr)) {
     auto option = pcab->alloc_large(size, TransientPtr(), TransientPtr());
     if (option) {
       head_tptr = option->first;
@@ -133,7 +149,10 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
       // do not seal pcab at this time as allocation may not finish. Instead,
       // seal pcab at the end of allocation.
       assert(alloced_size > 0);
+      break;
     }
+    assert(pcab->sealed());
+    pcab = stashed_pcabs_.pop_front();
   }
   remaining_size -= alloced_size;
   if (remaining_size <= 0) { // common path.
@@ -183,10 +202,16 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
     goto failed;
 
   assert(!pcab || pcab->full());
-  if (pcab && pcab->full())
+  if (pcab && pcab->full()) {
     pcab->seal();
-  if (!alloced_segs.empty())
-    pcab = alloced_segs.back();
+    pcab.reset();
+  }
+  assert(!pcab);
+  if (!alloced_segs.empty()) {
+    auto seg = alloced_segs.back();
+    if (LIKELY(!seg->sealed()))
+      pcab = alloced_segs.back();
+  }
   for (auto &segment : alloced_segs)
     segments_.push_back(segment);
   return obj_ptr;

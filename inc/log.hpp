@@ -14,9 +14,11 @@
 
 namespace cachebank {
 
+class LogAllocator;
+
 class LogSegment {
 public:
-  LogSegment(int64_t rid, uint64_t addr);
+  LogSegment(LogAllocator *owner, int64_t rid, uint64_t addr);
   std::optional<ObjectPtr> alloc_small(size_t size);
   std::optional<std::pair<TransientPtr, size_t>>
   alloc_large(size_t size, const TransientPtr head_addr,
@@ -24,6 +26,7 @@ public:
   bool free(ObjectPtr &ptr);
   void seal() noexcept;
   void destroy() noexcept;
+
   uint32_t size() const noexcept;
   bool sealed() const noexcept;
   bool destroyed() const noexcept;
@@ -40,6 +43,7 @@ private:
   static_assert(kRegionSize % kLogSegmentSize == 0,
                 "Region size must equal to segment size");
 
+  LogAllocator *owner_;
   bool sealed_;
   bool destroyed_;
   int32_t alive_bytes_;
@@ -89,6 +93,7 @@ private:
 
   /** Allocation */
   SegmentList segments_;
+  SegmentList stashed_pcabs_;
 
   /** Counters */
   static std::atomic_int64_t total_access_cnt_;
@@ -97,8 +102,6 @@ private:
 
   friend class Evacuator;
   friend class LogSegment;
-
-  static inline void seal_pcab();
 
   /** Thread-local variables */
   // Per Core Allocation Buffer

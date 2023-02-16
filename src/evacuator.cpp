@@ -60,6 +60,10 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
     auto segment = segments.pop_front();
     if (!segment)
       continue;
+    if (!segment->sealed()) { // put in-used segment back to list
+      segments.push_back(segment);
+      continue;
+    }
     EvacState ret = scan_segment(segment.get(), true);
     if (ret == EvacState::Fault)
       continue;
@@ -114,6 +118,10 @@ int64_t Evacuator::serial_gc() {
     auto segment = segments.pop_front();
     if (!segment)
       continue;
+    if (!segment->sealed()) { // put in-used segment back to list
+      segments.push_back(segment);
+      continue;
+    }
     EvacState ret = scan_segment(segment.get(), true);
     if (ret == EvacState::Fault)
       continue;
