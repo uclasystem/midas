@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "sync_hashmap.hpp"
-#include "timer.hpp"
 #include "utils.hpp"
 #include "zipf.hpp"
 

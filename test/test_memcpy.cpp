@@ -5,23 +5,23 @@
 #include <random>
 
 #include "resilient_func.hpp"
-#include "timer.hpp"
+#include "time.hpp"
 
 constexpr static int kBufLens[] = {
-    1,  2,  3,  4,  5,  6,  7,   8,   9,   10,  11,   12,   13,  14,
+    1,  2,  3,  4,  5,  6,  7,  8,   9,   10,  11,  12,   13,   14,
     15, 16, 24, 32, 48, 64, 80, 128, 199, 256, 512, 1024, 2048, 4096};
 
 constexpr static int kPerfBufLen = 8;
 constexpr static int kNumRepeat = 5000000;
 
 void random_fill(char buf[], size_t len) {
-    static std::random_device rd;
-    static std::mt19937 mt(rd());
-    static std::uniform_int_distribution<int> dist('A', 'z');
+  static std::random_device rd;
+  static std::mt19937 mt(rd());
+  static std::uniform_int_distribution<int> dist('A', 'z');
 
-    for (uint32_t i = 0; i < len; i++) {
-      buf[i] = dist(mt);
-    }
+  for (uint32_t i = 0; i < len; i++) {
+    buf[i] = dist(mt);
+  }
 }
 
 bool is_same(const char *src, const char *dst, size_t len) {
@@ -72,23 +72,23 @@ void performance(int buf_len) {
 
   double t_memcpy, t_rmemcpy;
   {
-    auto stt = cachebank::timer::timer();
+    auto stt = cachebank::chrono_utils::now();
     for (int i = 0; i < kNumRepeat; i++) {
       memcpy(dsts[i], src, buf_len);
     }
-    auto end = cachebank::timer::timer();
-    t_memcpy = cachebank::timer::duration(stt, end);
+    auto end = cachebank::chrono_utils::now();
+    t_memcpy = cachebank::chrono_utils::duration(stt, end);
     std::cout << " memcpy takes " << std::setprecision(5) << t_memcpy << " s"
               << std::endl;
   }
 
   {
-    auto stt = cachebank::timer::timer();
+    auto stt = cachebank::chrono_utils::now();
     for (int i = 0; i < kNumRepeat; i++) {
       cachebank::rmemcpy(dsts[i], src, buf_len);
     }
-    auto end = cachebank::timer::timer();
-    t_rmemcpy = cachebank::timer::duration(stt, end);
+    auto end = cachebank::chrono_utils::now();
+    t_rmemcpy = cachebank::chrono_utils::duration(stt, end);
     std::cout << "rmemcpy takes " << std::setprecision(5) << t_rmemcpy << " s"
               << std::endl;
   }

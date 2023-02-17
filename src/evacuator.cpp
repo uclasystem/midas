@@ -13,7 +13,7 @@
 #include "logging.hpp"
 #include "object.hpp"
 #include "resource_manager.hpp"
-#include "timer.hpp"
+#include "time.hpp"
 #include "utils.hpp"
 
 namespace cachebank {
@@ -54,7 +54,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   std::atomic_int64_t nr_evaced = 0;
   auto &segments = allocator_->segments_;
 
-  auto stt = timer::timer();
+  auto stt = chrono_utils::now();
   while (rmanager->NumRegionAvail() < nr_target) {
     auto segment = segments.pop_front();
     if (!segment)
@@ -88,14 +88,14 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
     stash_list.push_back(segment);
     continue;
   }
-  auto end = timer::timer();
+  auto end = chrono_utils::now();
 
   auto nr_reclaimed = rmanager->NumRegionAvail() - nr_avail;
 
   if (nr_scanned)
     LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
                 << " evacuated, " << nr_reclaimed << " reclaimed ("
-                << timer::duration(stt, end) << "s).";
+                << chrono_utils::duration(stt, end) << "s).";
 
   return nr_reclaimed;
 }
@@ -111,7 +111,7 @@ int64_t Evacuator::serial_gc() {
   std::atomic_int64_t nr_evaced = 0;
   auto &segments = allocator_->segments_;
 
-  auto stt = timer::timer();
+  auto stt = chrono_utils::now();
   while (rmanager->NumRegionAvail() < nr_target) {
     auto segment = segments.pop_front();
     if (!segment)
@@ -144,14 +144,14 @@ int64_t Evacuator::serial_gc() {
     segments.push_back(segment);
     continue;
   }
-  auto end = timer::timer();
+  auto end = chrono_utils::now();
 
   auto nr_reclaimed = rmanager->NumRegionAvail() - nr_avail;
 
   if (nr_scanned)
     LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
                 << " evacuated, " << nr_reclaimed << " reclaimed ("
-                << timer::duration(stt, end) << "s).";
+                << chrono_utils::duration(stt, end) << "s).";
 
   return nr_reclaimed;
 }
