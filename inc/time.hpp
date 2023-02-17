@@ -18,7 +18,7 @@ private:
   static inline uint64_t rdtscp();
 
   static inline uint64_t cycles_to_us(uint64_t cycles) noexcept;
-  static inline uint64_t us_to_cycles(uint64_t cycles) noexcept;
+  static inline uint64_t us_to_cycles(uint64_t us) noexcept;
 };
 
 namespace chrono_utils {
