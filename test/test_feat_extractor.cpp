@@ -11,15 +11,17 @@
 #include <thread>
 #include <condition_variable>
 
+#include "time.hpp"
+#include "cache_manager.hpp"
 #include "sync_hashmap.hpp"
 #include "zipf.hpp"
 
 constexpr static int kFeatDim = 2048;
 constexpr static int kMD5Len = 32;
 
-constexpr static int kMissPenalty = 12; // ms
+constexpr static int kMissPenalty = 1; // ms
 constexpr static int kNrThd = 24;
-constexpr static int KPerThdLoad = 1000;
+constexpr static int KPerThdLoad = 10000;
 constexpr static int kNumBuckets = 1 << 20;
 
 constexpr static bool kSkewedDist = true; // false for uniform distribution
@@ -226,9 +228,13 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   }
 
   // Cache miss
+  auto stt = cachebank::Time::get_cycles_stt();
   perthd_cnts[req.tid].nr_miss++;
   fakeGPUBackend.serve_req();
   feat_map->set(md5, *req.feat);
+  auto end = cachebank::Time::get_cycles_end();
+  auto cpool = cachebank::CachePool::global_cache_pool();
+  cpool->record_miss(end - stt, sizeof(*req.feat));
   return true;
 }
 
