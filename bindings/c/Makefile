@@ -11,10 +11,11 @@ CFLAGS += -O2 -fPIC
 CC = gcc
 LD = gcc
 
-INC += -I../../inc -I./
+INC += -I../../inc -I./include
 INC += -I/mnt/ssd/yifan/tools/boost_1_79_0
 
-override LDFLAGS += -lrt -lpthread
+# override LDFLAGS += -static -static-libstdc++ -static-libgcc
+override LDFLAGS += -lrt -pthread
 # For stacktrace logging
 override LDFLAGS += -ldl
 
@@ -61,8 +62,6 @@ endif
 CP = cp
 inc_src = $(wildcard *.h)
 install:
-	mkdir -p include
-	$(CP) $(inc_src) include/
 	mkdir -p lib
 	$(CP) libmidas.a lib/
 
