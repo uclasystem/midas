@@ -8,15 +8,18 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+#include "cache_manager.h"
+
 typedef uint64_t ObjectPtr;
 
-extern ObjectPtr midas_alloc_soft(size_t size);
-extern bool midas_free_soft(ObjectPtr optr);
+extern ObjectPtr midas_alloc_soft(const CachePool pool, size_t size);
+extern bool midas_free_soft(const CachePool pool, ObjectPtr optr);
 
-extern bool midas_copy_from_soft(void *dest, const ObjectPtr src, size_t len,
+extern bool midas_copy_from_soft(const CachePool pool, void *dest,
+                                 const ObjectPtr src, size_t len,
                                  int64_t offset);
-extern bool midas_copy_to_soft(ObjectPtr dest, const void *src, size_t len,
-                               int64_t offset);
+extern bool midas_copy_to_soft(const CachePool pool, ObjectPtr dest,
+                               const void *src, size_t len, int64_t offset);
 
 extern bool midas_soft_ptr_null(const ObjectPtr optr);
 extern bool midas_soft_contains(const ObjectPtr optr, const uint64_t addr);
