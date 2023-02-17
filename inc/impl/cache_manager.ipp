@@ -1,8 +1,7 @@
 #pragma once
 
 namespace cachebank {
-inline CachePool::CachePool(std::string name)
-    : name_(name), hits_(0), misses_(0), miss_cycles_(0), miss_bytes_(0) {
+inline CachePool::CachePool(std::string name) : name_(name) {
   allocator_ = std::make_shared<LogAllocator>();
   evacuator_ = std::make_unique<Evacuator>(allocator_);
 }
@@ -21,9 +20,13 @@ inline CachePool *CachePool::global_cache_pool() {
   return cache_mgr->get_pool(CacheManager::default_pool_name);
 }
 
-inline void CachePool::record_miss(uint64_t cycles, uint64_t bytes) {
-  miss_cycles_ += cycles;
-  miss_bytes_ += bytes;
+inline void CachePool::inc_cache_hit() { stats.hits++; }
+
+inline void CachePool::inc_cache_miss() { stats.misses++; }
+
+inline void CachePool::record_miss_penalty(uint64_t cycles, uint64_t bytes) {
+  stats.miss_cycles += cycles;
+  stats.miss_bytes += bytes;
 }
 
 inline LogAllocator *CachePool::get_allocator() const noexcept {

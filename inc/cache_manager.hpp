@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -16,7 +17,9 @@ public:
   CachePool(std::string name);
   ~CachePool();
 
-  void record_miss(uint64_t cycles, uint64_t bytes);
+  void inc_cache_hit();
+  void inc_cache_miss();
+  void record_miss_penalty(uint64_t cycles, uint64_t bytes);
 
   inline LogAllocator *get_allocator() const noexcept;
   inline Evacuator *get_evacuator() const noexcept;
@@ -28,10 +31,12 @@ private:
   std::function<void(const ObjectPtr &)> construct_;
 
   // stats & counters
-  size_t hits_;
-  size_t misses_;
-  size_t miss_cycles_;
-  size_t miss_bytes_;
+  struct CacheStats {
+    std::atomic_uint_fast64_t hits{0};
+    std::atomic_uint_fast64_t misses{0};
+    std::atomic_uint_fast64_t miss_cycles{0};
+    std::atomic_uint_fast64_t miss_bytes{0};
+  } stats;
 
   std::shared_ptr<LogAllocator> allocator_;
   std::unique_ptr<Evacuator> evacuator_;

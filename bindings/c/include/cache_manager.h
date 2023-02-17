@@ -15,7 +15,9 @@ bool midas_get_cache_pool(const char name[], CachePool *pool);
 
 bool midas_get_global_cache_pool(CachePool *pool);
 
-void midas_record_miss(CachePool pool, uint64_t cycles, uint64_t bytes);
+void midas_inc_cache_hit(CachePool *pool);
+void midas_inc_cache_miss(CachePool *pool);
+void midas_record_miss_penalty(CachePool pool, uint64_t cycles, uint64_t bytes);
 
 #ifdef __cplusplus
 }

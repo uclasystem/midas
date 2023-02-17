@@ -23,8 +23,22 @@ bool midas_get_global_cache_pool(CachePool *pool) {
   return *pool != nullptr;
 }
 
-void midas_record_miss(CachePool pool, uint64_t cycles, uint64_t bytes) {
+void midas_inc_cache_hit(CachePool *pool) {
   auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
   if (pool_)
-    pool_->record_miss(cycles, bytes);
+    pool_->inc_cache_hit();
+}
+
+void midas_inc_cache_miss(CachePool *pool) {
+  auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
+  if (pool_)
+    pool_->inc_cache_hit();
+}
+
+void midas_record_miss_penalty(CachePool pool, uint64_t cycles,
+                               uint64_t bytes) {
+  auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
+  assert(pool_);
+  if (pool_)
+    pool_->record_miss_penalty(cycles, bytes);
 }
