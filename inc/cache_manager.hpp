@@ -17,6 +17,12 @@ public:
   CachePool(std::string name);
   ~CachePool();
 
+  using ConstructFunc = std::function<int(void *)>;
+  void set_construct_func(ConstructFunc callback);
+  ConstructFunc get_construct_func() const noexcept;
+  int construct(void *arg);
+
+  // Profiling
   void inc_cache_hit();
   void inc_cache_miss();
   void record_miss_penalty(uint64_t cycles, uint64_t bytes);
@@ -28,9 +34,9 @@ public:
 
 private:
   std::string name_;
-  std::function<void(const ObjectPtr &)> construct_;
+  ConstructFunc construct_;
 
-  // stats & counters
+  // Stats & Counters
   struct CacheStats {
     std::atomic_uint_fast64_t hits{0};
     std::atomic_uint_fast64_t misses{0};

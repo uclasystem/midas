@@ -1,7 +1,8 @@
 #pragma once
 
 namespace cachebank {
-inline CachePool::CachePool(std::string name) : name_(name) {
+inline CachePool::CachePool(std::string name)
+    : name_(name), construct_(nullptr) {
   allocator_ = std::make_shared<LogAllocator>();
   evacuator_ = std::make_unique<Evacuator>(allocator_);
 }
@@ -19,6 +20,20 @@ inline CachePool *CachePool::global_cache_pool() {
     return nullptr;
   return cache_mgr->get_pool(CacheManager::default_pool_name);
 }
+
+inline void CachePool::set_construct_func(ConstructFunc callback) {
+  if (construct_)
+    LOG(kWarning) << "Cache pool " << name_
+                  << " has already set its construct callback";
+  else
+    construct_ = callback;
+}
+
+inline CachePool::ConstructFunc CachePool::get_construct_func() const noexcept {
+  return construct_;
+}
+
+inline int CachePool::construct(void *arg) { return construct_(arg); };
 
 inline void CachePool::inc_cache_hit() { stats.hits++; }
 
