@@ -11,9 +11,14 @@ typedef void *CachePool;
 
 bool midas_create_cache_pool(const char name[]);
 bool midas_delete_cache_pool(const char name[]);
-bool midas_get_cache_pool(const char name[], CachePool *pool);
+CachePool midas_get_cache_pool(const char name[]);
+CachePool midas_get_global_cache_pool(void);
 
-bool midas_get_global_cache_pool(CachePool *pool);
+typedef int (*midas_construct_func_t)(void *arg);
+
+void midas_pool_set_construct_func(CachePool pool, midas_construct_func_t callback);
+bool midas_pool_get_construct_func(CachePool pool);
+int midas_pool_construct(CachePool pool, void *arg);
 
 void midas_inc_cache_hit(CachePool *pool);
 void midas_inc_cache_miss(CachePool *pool);
