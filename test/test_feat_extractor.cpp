@@ -176,7 +176,31 @@ private:
 
   std::shared_ptr<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>
       feat_map;
+
+  friend int construct_callback(void *arg);
 };
+
+struct ConstructArgs {
+  MD5Key *key;
+  FeatExtractor *extractor;
+  int tid;
+
+  Feature *ret;
+};
+
+int construct_callback(void *arg) {
+  auto args_ = reinterpret_cast<ConstructArgs *>(arg);
+  auto extractor = args_->extractor;
+  auto md5 = args_->key;
+  auto feat = args_->ret;
+  auto tid = args_->tid;
+
+  extractor->perthd_cnts[tid].nr_miss++;
+  extractor->fakeGPUBackend.serve_req();
+  extractor->feat_map->set(*md5, *feat);
+
+  return 0;
+}
 
 /** initialization & utils */
 FeatExtractor::FeatExtractor(const std::string &img_file_name,
@@ -186,6 +210,9 @@ FeatExtractor::FeatExtractor(const std::string &img_file_name,
       std::make_unique<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>();
   load_imgs(img_file_name);
   load_feats(feat_file_name);
+
+  auto cpool = cachebank::CachePool::global_cache_pool();
+  cpool->set_construct_func(construct_callback);
 
   auto nr_imgs = imgs.size();
   for (int i = 0; i < kNrThd; i++) {
@@ -219,22 +246,29 @@ void FeatExtractor::gen_load() {
 }
 
 bool FeatExtractor::serve_req(const FeatReq &req) {
+  auto cpool = cachebank::CachePool::global_cache_pool();
+
   MD5Key md5;
   md5_from_file(md5, req.filename);
   auto feat_opt = feat_map->get(md5);
   if (feat_opt) {
+    cpool->inc_cache_hit();
     perthd_cnts[req.tid].nr_hit++;
     return true;
   }
 
   // Cache miss
   auto stt = cachebank::Time::get_cycles_stt();
-  perthd_cnts[req.tid].nr_miss++;
-  fakeGPUBackend.serve_req();
-  feat_map->set(md5, *req.feat);
+  // perthd_cnts[req.tid].nr_miss++;
+  // fakeGPUBackend.serve_req();
+  // feat_map->set(md5, *req.feat);
+  ConstructArgs arg{
+      .key = &md5, .extractor = this, .tid = req.tid, .ret = req.feat};
+  assert(cpool->construct(&arg) == 0);
   auto end = cachebank::Time::get_cycles_end();
-  auto cpool = cachebank::CachePool::global_cache_pool();
-  cpool->record_miss(end - stt, sizeof(*req.feat));
+
+  cpool->inc_cache_miss();
+  cpool->record_miss_penalty(end - stt, sizeof(*req.feat));
   return true;
 }
 
