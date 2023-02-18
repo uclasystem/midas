@@ -1,3 +1,4 @@
+#include <condition_variable>
 #include <cstring>
 #include <fstream>
 #include <functional>
@@ -9,11 +10,10 @@
 #include <string>
 #include <string_view>
 #include <thread>
-#include <condition_variable>
 
-#include "time.hpp"
 #include "cache_manager.hpp"
 #include "sync_hashmap.hpp"
+#include "time.hpp"
 #include "zipf.hpp"
 
 constexpr static int kFeatDim = 2048;
@@ -32,7 +32,6 @@ const static std::string data_dir =
 
 float cache_ratio = 1.0;
 int cache_size = 420 * 1024 * 1024;
-
 
 struct MD5Key {
   char data[kMD5Len];
@@ -143,7 +142,6 @@ struct FeatReq {
   std::string filename;
   Feature *feat;
 };
-
 
 class FeatExtractor {
 public:
@@ -372,7 +370,6 @@ void FeatExtractor::report_hit_rate() {
             << " = " << 1.0 * nr_hit / (nr_hit + nr_miss) << std::endl;
 }
 
-
 int main(int argc, char *argv[]) {
   if (argc <= 1) {
     std::cout << "Usage: ./" << argv[0] << " <cache ratio>" << std::endl;
@@ -384,7 +381,8 @@ int main(int argc, char *argv[]) {
   if (mem_cfg_file.is_open()) {
     mem_cfg_file << std::to_string(
         static_cast<uint64_t>(cache_size * cache_ratio));
-    // auto str_cache_size = std::to_string(static_cast<int>(cache_size * cache_ratio));
+    // auto str_cache_size =
+    //     std::to_string(static_cast<int>(cache_size * cache_ratio));
     // mem_cfg_file.write(str_cache_size.c_str(), str_cache_size.size());
     mem_cfg_file.close();
   } else {
