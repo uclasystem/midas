@@ -3,6 +3,7 @@ Cache as a service
 
 ## Dependencies
 * gcc (>= 11)
+* g++ (>= 11)
 * Boost (>= 1.79.0)
 
 ## Compile
