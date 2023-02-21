@@ -12,6 +12,7 @@
 #include <thread>
 
 #include "cache_manager.hpp"
+#include "resource_manager.hpp"
 #include "sync_hashmap.hpp"
 #include "time.hpp"
 #include "zipf.hpp"
@@ -377,17 +378,8 @@ int main(int argc, char *argv[]) {
   }
   cache_ratio = std::stof(argv[1]);
 
-  std::ofstream mem_cfg_file("/mnt/ssd/yifan/code/cachebank/config/mem.config");
-  if (mem_cfg_file.is_open()) {
-    mem_cfg_file << std::to_string(
-        static_cast<uint64_t>(cache_size * cache_ratio));
-    // auto str_cache_size =
-    //     std::to_string(static_cast<int>(cache_size * cache_ratio));
-    // mem_cfg_file.write(str_cache_size.c_str(), str_cache_size.size());
-    mem_cfg_file.close();
-  } else {
-    std::cerr << "Failed to set cache size!" << std::endl;
-  }
+  cachebank::ResourceManager::global_manager()->UpdateLimit(cache_size *
+                                                            cache_ratio);
 
   FeatExtractor client(data_dir + "val_img_names.txt",
                        data_dir + "enb5_feat_vec.data");
