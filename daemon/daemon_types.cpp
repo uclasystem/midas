@@ -100,7 +100,7 @@ void Client::update_limit(uint64_t mem_limit) {
     return;
 
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
-  MemMsg mm{.size = static_cast<int64_t>(region_limit_)};
+  MemMsg mm{.size = region_limit_};
 
   CtrlMsg msg{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
   txqp.send(&msg, sizeof(msg));
@@ -224,6 +224,21 @@ int Daemon::do_free(const CtrlMsg &msg) {
   return 0;
 }
 
+int Daemon::do_update_limit_req(const CtrlMsg &msg) {
+  auto client_iter = clients_.find(msg.id);
+  if (client_iter == clients_.cend()) {
+    /* TODO: same as in do_disconnect */
+    LOG(kError) << "Client " << msg.id << " doesn't exist!";
+    return -1;
+  }
+
+  size_t upd_mem_limit = std::min(msg.mmsg.size, mem_limit_);
+  auto &client = client_iter->second;
+  client.update_limit(upd_mem_limit);
+
+  return 0;
+}
+
 void Daemon::monitor() {
   while (true) {
     uint64_t upd_mem_limit;
@@ -278,6 +293,9 @@ void Daemon::serve() {
       break;
     case FREE:
       do_free(msg);
+      break;
+    case UPDLIMIT_REQ:
+      do_update_limit_req(msg);
       break;
     default:
       LOG(kError) << "Recved unknown message: " << msg.op;

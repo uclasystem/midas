@@ -50,6 +50,8 @@ public:
   void FreeRegions(size_t size = kRegionSize) noexcept;
   inline VRange GetRegion(int64_t region_id) noexcept;
 
+  void UpdateLimit(size_t size) noexcept;
+
   uint64_t NumRegionInUse() const noexcept;
   uint64_t NumRegionLimit() const noexcept;
   int64_t NumRegionAvail() const noexcept;

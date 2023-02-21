@@ -13,6 +13,7 @@ enum CtrlOpCode {
   OVERCOMMIT,
   FREE,
   UPDLIMIT,
+  UPDLIMIT_REQ,
 };
 
 enum CtrlRetCode {
@@ -24,7 +25,7 @@ enum CtrlRetCode {
 
 struct MemMsg {
   int64_t region_id;
-  int64_t size;
+  uint64_t size;
 };
 
 struct CtrlMsg {

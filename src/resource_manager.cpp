@@ -149,7 +149,7 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
 inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
   assert(nr_to_reclaim > 0);
   CachePool::global_cache_pool()->get_evacuator()->signal_gc();
-  LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.", nr_to_reclaim);
+  LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.\n", nr_to_reclaim);
   while (NumRegionAvail() < 0)
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   auto nr_reclaimed = nr_to_reclaim;
@@ -159,6 +159,12 @@ inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
   mm.size = nr_reclaimed;
   CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
   rxqp_.send(&ack, sizeof(ack));
+}
+
+void ResourceManager::UpdateLimit(size_t size) noexcept {
+  CtrlMsg msg{
+      .id = id_, .op = CtrlOpCode::UPDLIMIT_REQ, .mmsg = {.size = size}};
+  txqp_.send(&msg, sizeof(msg));
 }
 
 int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
@@ -237,7 +243,7 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
     return -1;
   }
 
-  auto size = region_iter->second->Size();
+  size_t size = region_iter->second->Size();
   try {
     CtrlMsg msg{.id = id_,
                 .op = CtrlOpCode::FREE,

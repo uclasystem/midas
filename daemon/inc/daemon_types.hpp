@@ -66,6 +66,7 @@ private:
   int do_alloc(const CtrlMsg &msg);
   int do_overcommit(const CtrlMsg &msg);
   int do_free(const CtrlMsg &msg);
+  int do_update_limit_req(const CtrlMsg &msg);
 
   void monitor();
 
