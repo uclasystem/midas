@@ -51,7 +51,7 @@ void midas_inc_cache_hit(CachePool *pool) {
 void midas_inc_cache_miss(CachePool *pool) {
   auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
   if (pool_)
-    pool_->inc_cache_hit();
+    pool_->inc_cache_miss();
 }
 
 void midas_record_miss_penalty(CachePool pool, uint64_t cycles,
