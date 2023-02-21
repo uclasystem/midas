@@ -33,6 +33,8 @@ public:
   static CachePool *global_cache_pool();
 
 private:
+  void log_stats() const noexcept;
+
   std::string name_;
   ConstructFunc construct_;
 

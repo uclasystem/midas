@@ -37,7 +37,11 @@ inline int CachePool::construct(void *arg) { return construct_(arg); };
 
 inline void CachePool::inc_cache_hit() { stats.hits++; }
 
-inline void CachePool::inc_cache_miss() { stats.misses++; }
+inline void CachePool::inc_cache_miss() {
+  stats.misses++;
+  if (stats.misses % 10000 == 0)
+    log_stats();
+}
 
 inline void CachePool::record_miss_penalty(uint64_t cycles, uint64_t bytes) {
   stats.miss_cycles += cycles;
@@ -50,6 +54,13 @@ inline LogAllocator *CachePool::get_allocator() const noexcept {
 
 inline Evacuator *CachePool::get_evacuator() const noexcept {
   return evacuator_.get();
+}
+
+inline void CachePool::log_stats() const noexcept {
+  LOG(kError) << "CachePool " << name_ << ":\n\tHit ratio: "
+              << static_cast<float>(stats.hits) / (stats.hits + stats.misses)
+              << "\n\tMiss penalty: "
+              << static_cast<float>(stats.miss_cycles) / stats.miss_bytes;
 }
 
 inline CacheManager::CacheManager() { assert(create_pool()); }
