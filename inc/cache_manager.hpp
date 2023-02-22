@@ -44,6 +44,8 @@ private:
     std::atomic_uint_fast64_t misses{0};
     std::atomic_uint_fast64_t miss_cycles{0};
     std::atomic_uint_fast64_t miss_bytes{0};
+
+    void reset() noexcept;
   } stats;
 
   std::shared_ptr<LogAllocator> allocator_;
@@ -55,7 +57,7 @@ public:
   CacheManager();
   ~CacheManager();
 
-  bool create_pool(std::string name = default_pool_name);
+  bool create_pool(std::string name);
   bool delete_pool(std::string name);
   CachePool *get_pool(std::string name);
 

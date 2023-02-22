@@ -7,7 +7,9 @@ inline CachePool::CachePool(std::string name)
   evacuator_ = std::make_unique<Evacuator>(allocator_);
 }
 
-inline CachePool::~CachePool() {}
+inline CachePool::~CachePool() {
+  log_stats();
+}
 
 inline CachePool *CachePool::global_cache_pool() {
   auto cache_mgr = CacheManager::global_cache_manager();
@@ -16,7 +18,7 @@ inline CachePool *CachePool::global_cache_pool() {
   auto pool = cache_mgr->get_pool(CacheManager::default_pool_name);
   if (pool)
     return pool;
-  if (!cache_mgr->create_pool())
+  if (!cache_mgr->create_pool(CacheManager::default_pool_name))
     return nullptr;
   return cache_mgr->get_pool(CacheManager::default_pool_name);
 }
@@ -39,8 +41,10 @@ inline void CachePool::inc_cache_hit() { stats.hits++; }
 
 inline void CachePool::inc_cache_miss() {
   stats.misses++;
-  if (stats.misses % 10000 == 0)
+  if (stats.misses % 10000 == 0) {
     log_stats();
+    stats.reset();
+  }
 }
 
 inline void CachePool::record_miss_penalty(uint64_t cycles, uint64_t bytes) {
@@ -57,13 +61,20 @@ inline Evacuator *CachePool::get_evacuator() const noexcept {
 }
 
 inline void CachePool::log_stats() const noexcept {
-  LOG(kError) << "CachePool " << name_ << ":\n\tHit ratio: "
-              << static_cast<float>(stats.hits) / (stats.hits + stats.misses)
-              << "\n\tMiss penalty: "
-              << static_cast<float>(stats.miss_cycles) / stats.miss_bytes;
+  LOG_PRINTF(kError, "CachePool %s:\n\tHit ratio: %.4f\n\tMiss penalty: %.2f\n",
+             name_.c_str(),
+             static_cast<float>(stats.hits) / (stats.hits + stats.misses),
+             static_cast<float>(stats.miss_cycles) / stats.miss_bytes);
 }
 
-inline CacheManager::CacheManager() { assert(create_pool()); }
+inline void CachePool::CacheStats::reset() noexcept {
+  hits = 0;
+  misses = 0;
+  miss_cycles = 0;
+  miss_bytes = 0;
+}
+
+inline CacheManager::CacheManager() { assert(create_pool(default_pool_name)); }
 
 inline CacheManager::~CacheManager() { pools_.clear(); }
 
