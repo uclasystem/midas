@@ -188,7 +188,8 @@ inline uint32_t LargeObjectHdr::get_flags() const noexcept { return flags; }
 
 /** ObjectPtr */
 inline ObjectPtr::ObjectPtr()
-    : small_obj_(true), head_obj_(true), size_(0), deref_cnt_(0), obj_() {}
+    : small_obj_(true), head_obj_(true), victim_(false), size_(0),
+      deref_cnt_(0), obj_() {}
 
 inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
 
@@ -231,6 +232,12 @@ inline std::optional<size_t> ObjectPtr::large_data_size() {
 inline bool ObjectPtr::is_small_obj() const noexcept { return small_obj_; }
 
 inline bool ObjectPtr::is_head_obj() const noexcept { return head_obj_; }
+
+inline void ObjectPtr::set_victim(bool victim) noexcept {
+  victim_ = victim;
+}
+
+inline bool ObjectPtr::is_victim() const noexcept { return victim_; }
 
 inline bool ObjectPtr::contains(uint64_t addr) const noexcept {
   auto stt_addr = obj_.to_normal_address();

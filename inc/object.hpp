@@ -195,6 +195,9 @@ public:
 
   bool contains(uint64_t addr) const noexcept;
 
+  void set_victim(bool victim) noexcept;
+  bool is_victim() const noexcept;
+
   RetCode set_invalid() noexcept;
   RetCode is_valid() noexcept;
 
@@ -236,7 +239,8 @@ private:
 #pragma pack(push, 1)
   bool small_obj_ : 1;
   bool head_obj_ : 1;
-  uint32_t size_ : 30; // Support up to 2^30 = 1GB.
+  bool victim_: 1;
+  uint32_t size_ : 29; // Support up to 2^29 = 512MB.
   uint32_t deref_cnt_; // not in use for now.
   TransientPtr obj_;
 #pragma pack(pop)
