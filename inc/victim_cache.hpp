@@ -3,6 +3,7 @@
 #include <limits>
 #include <mutex>
 #include <numeric>
+#include <unordered_map>
 
 #include "object.hpp"
 
@@ -10,11 +11,13 @@ namespace cachebank {
 
 struct VCEntry {
 #pragma pack(push, 1)
-  ObjectPtr optr;
+  ObjectPtr *optr;
   void *construct_args;
   VCEntry *prev;
   VCEntry *next;
 #pragma pack(pop)
+  VCEntry();
+  VCEntry(ObjectPtr *optr_, void *construct_args_);
 };
 
 static_assert(sizeof(VCEntry) <=
@@ -27,9 +30,9 @@ public:
               size_t cnt_limit = std::numeric_limits<size_t>::max());
   ~VictimCache();
 
-  void push_back(VCEntry *entry);
+  bool push_back(ObjectPtr *optr_addr, void *construct_args);
   VCEntry *pop_front();
-  void remove(VCEntry *entry);
+  bool remove(ObjectPtr *optr_addr);
 
   size_t size() const noexcept;
   size_t count() const noexcept;
@@ -38,7 +41,9 @@ private:
   VCEntry *remove_locked(VCEntry *entry);
 
   std::mutex mtx_;
-  VCEntry *entries_;
+  VCEntry *entries_; // The LRU list
+  // optr_addr -> construct_args
+  std::unordered_map<ObjectPtr *, VCEntry *> map_;
 
   size_t size_limit_;
   size_t cnt_limit_;

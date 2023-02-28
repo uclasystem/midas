@@ -2,6 +2,7 @@
 #include <thread>
 #include <vector>
 
+#include "object.hpp"
 #include "victim_cache.hpp"
 
 static constexpr int kNumThds = 24;
@@ -11,13 +12,13 @@ int main(int argc, char *argv[]) {
   cachebank::VictimCache vc(10000, 10000);
 
   std::vector<std::thread> thds;
-  std::vector<cachebank::VCEntry *> entries[kNumThds];
+  std::vector<cachebank::ObjectPtr *> optrs[kNumThds];
   for (int i = 0; i < kNumThds; i++) {
     thds.emplace_back([&, tid = i] {
       for (int j = 0; j < kNumEntries; j++) {
-        auto entry = new cachebank::VCEntry();
-        entries[tid].push_back(entry);
-        vc.push_back(entry);
+        auto optr = new cachebank::ObjectPtr();
+        optrs[tid].push_back(optr);
+        vc.push_back(optr, nullptr);
       }
     });
   }
@@ -28,8 +29,8 @@ int main(int argc, char *argv[]) {
 
   for (int i = 0; i < kNumThds; i++) {
     thds.emplace_back([&, tid = i] {
-      for (auto entry : entries[tid]) {
-        vc.remove(entry);
+      for (auto optr : optrs[tid]) {
+        vc.remove(optr);
       }
     });
   }
