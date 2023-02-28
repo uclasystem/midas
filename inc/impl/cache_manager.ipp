@@ -3,6 +3,7 @@
 namespace cachebank {
 inline CachePool::CachePool(std::string name)
     : name_(name), construct_(nullptr) {
+  vcache_ = std::make_unique<VictimCache>(kVCacheSizeLimit, kVCacheCountLimit);
   allocator_ = std::make_shared<LogAllocator>(this);
   evacuator_ = std::make_unique<Evacuator>(this, allocator_);
 }
@@ -45,6 +46,20 @@ inline CachePool::ConstructFunc CachePool::get_construct_func() const noexcept {
 
 inline int CachePool::construct(void *arg) { return construct_(arg); };
 
+inline std::optional<ObjectPtr> CachePool::alloc(size_t size) {
+  return allocator_->alloc(size);
+}
+
+inline bool CachePool::alloc_to(size_t size, ObjectPtr *dst) {
+  return allocator_->alloc_to(size, dst);
+}
+
+inline bool CachePool::free(ObjectPtr &ptr) {
+  if (ptr.is_victim())
+    vcache_->remove(&ptr);
+  return allocator_->free(ptr);
+}
+
 inline void CachePool::inc_cache_hit() { stats.hits++; }
 
 inline void CachePool::inc_cache_miss() {
@@ -55,9 +70,15 @@ inline void CachePool::inc_cache_miss() {
   }
 }
 
+inline void CachePool::inc_cache_victim_hit() { stats.victim_hits++; }
+
 inline void CachePool::record_miss_penalty(uint64_t cycles, uint64_t bytes) {
   stats.miss_cycles += cycles;
   stats.miss_bytes += bytes;
+}
+
+inline VictimCache *CachePool::get_vcache() const noexcept {
+  return vcache_.get();
 }
 
 inline LogAllocator *CachePool::get_allocator() const noexcept {
@@ -80,6 +101,7 @@ inline void CachePool::CacheStats::reset() noexcept {
   misses = 0;
   miss_cycles = 0;
   miss_bytes = 0;
+  victim_hits = 0;
 }
 
 inline CacheManager::CacheManager() { assert(create_pool(default_pool_name)); }
