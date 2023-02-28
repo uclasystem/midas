@@ -59,7 +59,7 @@ inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
 inline bool SegmentList::empty() const noexcept { return segments_.empty(); }
 
 /** LogAllocator */
-inline LogAllocator::LogAllocator() {}
+inline LogAllocator::LogAllocator(CachePool *pool) : pool_(pool) {}
 
 inline std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
   return alloc_(size, false);
@@ -139,7 +139,7 @@ LogAllocator::global_allocator_shared_ptr() noexcept {
   if (UNLIKELY(allocator_.get() != nullptr))
     return allocator_;
 
-  allocator_ = std::make_unique<LogAllocator>();
+  allocator_ = std::make_unique<LogAllocator>(nullptr);
   return allocator_;
 }
 

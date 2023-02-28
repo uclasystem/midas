@@ -3,24 +3,32 @@
 namespace cachebank {
 inline CachePool::CachePool(std::string name)
     : name_(name), construct_(nullptr) {
-  allocator_ = std::make_shared<LogAllocator>();
-  evacuator_ = std::make_unique<Evacuator>(allocator_);
+  allocator_ = std::make_shared<LogAllocator>(this);
+  evacuator_ = std::make_unique<Evacuator>(this, allocator_);
 }
 
-inline CachePool::~CachePool() {
-  log_stats();
-}
+inline CachePool::~CachePool() { log_stats(); }
 
 inline CachePool *CachePool::global_cache_pool() {
+  static std::mutex mtx_;
+  static CachePool *pool_ = nullptr;
+  if (pool_)
+    return pool_;
+  std::unique_lock<std::mutex> ul(mtx_);
+  if (pool_)
+    return pool_;
+  ul.unlock();
   auto cache_mgr = CacheManager::global_cache_manager();
   if (!cache_mgr)
     return nullptr;
   auto pool = cache_mgr->get_pool(CacheManager::default_pool_name);
   if (pool)
     return pool;
-  if (!cache_mgr->create_pool(CacheManager::default_pool_name))
+  else if (!cache_mgr->create_pool(CacheManager::default_pool_name))
     return nullptr;
-  return cache_mgr->get_pool(CacheManager::default_pool_name);
+  ul.lock();
+  pool_ = cache_mgr->get_pool(CacheManager::default_pool_name);
+  return pool_;
 }
 
 inline void CachePool::set_construct_func(ConstructFunc callback) {

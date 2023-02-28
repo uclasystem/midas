@@ -7,8 +7,9 @@
 
 namespace cachebank {
 
-inline Evacuator::Evacuator(std::shared_ptr<LogAllocator> allocator)
-    : allocator_(allocator), terminated_(false) {
+inline Evacuator::Evacuator(CachePool *pool,
+                            std::shared_ptr<LogAllocator> allocator)
+    : pool_(pool), allocator_(allocator), terminated_(false) {
   init();
 }
 
@@ -21,19 +22,6 @@ inline Evacuator::~Evacuator() {
     gc_thd_->join();
     gc_thd_.reset();
   }
-}
-
-inline Evacuator *Evacuator::global_evacuator() {
-  static std::mutex mtx_;
-  static std::shared_ptr<Evacuator> evac_;
-  if (evac_)
-    return evac_.get();
-  std::unique_lock<std::mutex> ul(mtx_);
-  if (evac_)
-    return evac_.get();
-  evac_ =
-      std::make_shared<Evacuator>(LogAllocator::global_allocator_shared_ptr());
-  return evac_.get();
 }
 
 } // namespace cachebank

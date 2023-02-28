@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   threads.clear();
 
   cachebank::Evacuator evacuator(
-      cachebank::LogAllocator::global_allocator_shared_ptr());
+      nullptr, cachebank::LogAllocator::global_allocator_shared_ptr());
   evacuator.parallel_gc(kNumGCThds);
 
   bool kTestFree = false;

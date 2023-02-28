@@ -67,9 +67,11 @@ private:
   std::list<std::shared_ptr<LogSegment>> segments_;
 };
 
+class CachePool; // defined in cache_manager.hpp
+
 class LogAllocator {
 public:
-  LogAllocator();
+  LogAllocator(CachePool *pool);
   std::optional<ObjectPtr> alloc(size_t size);
   bool alloc_to(size_t size, ObjectPtr *dst);
   bool free(ObjectPtr &ptr);
@@ -92,6 +94,9 @@ private:
   std::optional<ObjectPtr> alloc_(size_t size, bool overcommit);
   std::optional<ObjectPtr> alloc_large(size_t size, bool overcommit);
   std::shared_ptr<LogSegment> allocSegment(bool overcommit = false);
+
+  /** Management */
+  CachePool *pool_;
 
   /** Allocation */
   SegmentList segments_;
