@@ -59,6 +59,8 @@ public:
   bool reclaim_trigger() const noexcept;
 
   static inline ResourceManager *global_manager() noexcept;
+  static inline std::shared_ptr<ResourceManager>
+  global_manager_shared_ptr() noexcept;
 
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;

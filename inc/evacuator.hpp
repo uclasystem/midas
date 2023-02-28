@@ -20,6 +20,8 @@ class LogAllocator; // defined in log.hpp
 
 class CachePool; // defined in cache_manager.hpp
 
+class ResourceManager; // defined in resource_manager.hpp
+
 class Evacuator {
 public:
   Evacuator(CachePool *pool, std::shared_ptr<LogAllocator> allocator);
@@ -44,6 +46,7 @@ private:
 
   CachePool *pool_;
   std::shared_ptr<LogAllocator> allocator_;
+  std::shared_ptr<ResourceManager> rmanager_;
 
   bool terminated_;
 

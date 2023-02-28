@@ -32,6 +32,7 @@ static inline int64_t get_nr_to_reclaim() {
 }
 
 void Evacuator::init() {
+  rmanager_ = ResourceManager::global_manager_shared_ptr();
   gc_thd_ = std::make_shared<std::thread>([&]() {
     while (!terminated_) {
       {
@@ -45,9 +46,8 @@ void Evacuator::init() {
 }
 
 int64_t Evacuator::gc(SegmentList &stash_list) {
-  auto rmanager = ResourceManager::global_manager();
   auto nr_target = get_nr_to_reclaim();
-  auto nr_avail = rmanager->NumRegionAvail();
+  auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
     return 0;
 
@@ -56,7 +56,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   auto &segments = allocator_->segments_;
 
   auto stt = chrono_utils::now();
-  while (rmanager->NumRegionAvail() < nr_target) {
+  while (rmanager_->NumRegionAvail() < nr_target) {
     auto segment = segments.pop_front();
     if (!segment)
       continue;
@@ -91,7 +91,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   }
   auto end = chrono_utils::now();
 
-  auto nr_reclaimed = rmanager->NumRegionAvail() - nr_avail;
+  auto nr_reclaimed = rmanager_->NumRegionAvail() - nr_avail;
 
   if (nr_scanned)
     LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
@@ -102,9 +102,8 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
 }
 
 int64_t Evacuator::serial_gc() {
-  auto rmanager = ResourceManager::global_manager();
   auto nr_target = get_nr_to_reclaim();
-  auto nr_avail = rmanager->NumRegionAvail();
+  auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
     return 0;
 
@@ -113,7 +112,7 @@ int64_t Evacuator::serial_gc() {
   auto &segments = allocator_->segments_;
 
   auto stt = chrono_utils::now();
-  while (rmanager->NumRegionAvail() < nr_target) {
+  while (rmanager_->NumRegionAvail() < nr_target) {
     auto segment = segments.pop_front();
     if (!segment)
       continue;
@@ -147,7 +146,7 @@ int64_t Evacuator::serial_gc() {
   }
   auto end = chrono_utils::now();
 
-  auto nr_reclaimed = rmanager->NumRegionAvail() - nr_avail;
+  auto nr_reclaimed = rmanager_->NumRegionAvail() - nr_avail;
 
   if (nr_scanned)
     LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
