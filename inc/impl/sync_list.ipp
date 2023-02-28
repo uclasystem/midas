@@ -97,7 +97,8 @@ SyncList<Tp, Alloc, Lock>::create_node(const Tp &v) {
 
 template <typename Tp, typename Alloc, typename Lock>
 void SyncList<Tp, Alloc, Lock>::delete_node(ListNode *node) {
-  node->obj.free();
+  // node->obj.free();
+  pool_->free(node->obj);
   delete node;
 }
 

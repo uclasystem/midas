@@ -8,6 +8,7 @@
 #include <thread>
 #include <vector>
 
+#include "cache_manager.hpp"
 #include "evacuator.hpp"
 #include "log.hpp"
 #include "logging.hpp"
@@ -34,7 +35,7 @@ void Evacuator::init() {
   gc_thd_ = std::make_shared<std::thread>([&]() {
     while (!terminated_) {
       {
-        std::unique_lock lk(gc_mtx_);
+        std::unique_lock<std::mutex> lk(gc_mtx_);
         gc_cv_.wait(lk, [this] { return terminated_ || get_nr_to_reclaim(); });
       }
       parallel_gc(8);
@@ -247,6 +248,8 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
           } else {
             if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
               goto faulted;
+            auto vcache = pool_->get_vcache();
+            vcache->push_back(obj_ptr.get_rref(), nullptr);
             nr_freed++;
           }
         } else
@@ -276,6 +279,8 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
                 LOG(kWarning);
                 // goto faulted;
               }
+              auto vcache = pool_->get_vcache();
+              vcache->push_back(obj_ptr.get_rref(), nullptr);
 
               nr_freed++;
             }

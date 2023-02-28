@@ -172,10 +172,10 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
   // Tp tmp_v = v;
   assert(sizeof(k) <= sizeof(Key));
   assert(sizeof(v) <= sizeof(Tp));
-  auto allocator = pool_->get_allocator();
+  // auto allocator = pool_->get_allocator();
 
   auto *new_node = new BucketNode();
-  if (!allocator->alloc_to(sizeof(Key) + sizeof(Tp), &new_node->pair) ||
+  if (!pool_->alloc_to(sizeof(Key) + sizeof(Tp), &new_node->pair) ||
       !new_node->pair.copy_from(&k, sizeof(Key)) ||
       !new_node->pair.copy_from(&v, sizeof(Tp1), sizeof(Key))) {
     delete new_node;
@@ -204,8 +204,10 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::delete_node(
     return nullptr;
   auto next = node->next;
 
-  // pool_->get_allocator()->free(node->pair);
-  node->pair.free();
+  // node->pair.free();
+  // if (node->pair.is_victim())
+  //   pool_->get_vcache()->remove(&node->pair);
+  pool_->free(node->pair);
   delete node;
 
   *prev_next = next;
