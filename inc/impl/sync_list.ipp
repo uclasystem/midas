@@ -31,6 +31,7 @@ bool SyncList<Tp, Alloc, Lock>::pop(Tp &v) {
   lock_.lock();
   if (!list_) {
     lock_.unlock();
+    pool_->inc_cache_miss();
     return false;
   }
   auto node = list_;
@@ -41,6 +42,7 @@ bool SyncList<Tp, Alloc, Lock>::pop(Tp &v) {
     delete_node(node);
     return false;
   }
+  pool_->inc_cache_hit();
   LogAllocator::count_access();
   return true;
 }

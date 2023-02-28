@@ -251,7 +251,6 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   md5_from_file(md5, req.filename);
   auto feat_opt = feat_map->get(md5);
   if (feat_opt) {
-    cpool->inc_cache_hit();
     perthd_cnts[req.tid].nr_hit++;
     return true;
   }
@@ -266,7 +265,6 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   assert(cpool->construct(&arg) == 0);
   auto end = cachebank::Time::get_cycles_end();
 
-  cpool->inc_cache_miss();
   cpool->record_miss_penalty(end - stt, sizeof(*req.feat));
   return true;
 }

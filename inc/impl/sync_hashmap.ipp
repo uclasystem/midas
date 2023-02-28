@@ -13,7 +13,9 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap() {
 
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
-SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap(CachePool *pool) : pool_(pool) {
+SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap(
+    CachePool *pool)
+    : pool_(pool) {
   memset(buckets_, 0, sizeof(buckets_));
 }
 
@@ -50,6 +52,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   }
   if (!found) {
     lock.unlock();
+    pool_->inc_cache_miss();
     return false;
   }
   assert(node);
@@ -59,6 +62,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
     return false;
   }
   lock.unlock();
+  pool_->inc_cache_hit();
   LogAllocator::count_access();
   return true;
 }
