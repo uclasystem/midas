@@ -42,16 +42,22 @@ int midas_pool_construct(CachePool pool, void *arg) {
   return pool_->construct(arg);
 }
 
-void midas_inc_cache_hit(CachePool *pool) {
+void midas_inc_cache_hit(CachePool pool) {
   auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
   if (pool_)
     pool_->inc_cache_hit();
 }
 
-void midas_inc_cache_miss(CachePool *pool) {
+void midas_inc_cache_miss(CachePool pool) {
   auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
   if (pool_)
     pool_->inc_cache_miss();
+}
+
+void midas_inc_cache_victim_hit(CachePool pool) {
+  auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
+  if (pool_)
+    pool_->inc_cache_victim_hit();
 }
 
 void midas_record_miss_penalty(CachePool pool, uint64_t cycles,
