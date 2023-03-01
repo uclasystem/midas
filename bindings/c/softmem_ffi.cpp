@@ -18,9 +18,10 @@ ObjectPtr midas_alloc_soft(const CachePool pool, size_t size) {
 
 bool midas_free_soft(const CachePool pool, ObjectPtr optr) {
   auto optr_ = reinterpret_cast<cachebank::ObjectPtr *>(optr);
-  auto ret = optr_->free();
+  auto pool_ = reinterpret_cast<cachebank::CachePool *>(pool);
+  auto ret = pool_->free(*optr_);
   delete optr_;
-  return ret == cachebank::RetCode::Succ;
+  return ret;
 }
 
 bool midas_copy_from_soft(const CachePool pool, void *dest, const ObjectPtr src,
