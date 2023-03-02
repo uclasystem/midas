@@ -90,20 +90,23 @@ inline Evacuator *CachePool::get_evacuator() const noexcept {
 }
 
 inline void CachePool::log_stats() const noexcept {
+  auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
+  auto miss_penalty = static_cast<float>(stats.miss_cycles) / stats.miss_bytes;
+  auto victim_hit_ratio = static_cast<float>(stats.hits + stats.victim_hits) /
+                          (stats.hits + stats.victim_hits + stats.misses);
+  auto victim_hits = stats.victim_hits.load();
+  auto perf_gain = victim_hits * miss_penalty;
   LOG_PRINTF(kError,
              "CachePool %s:\n"
              "\tCache hit ratio:  %.4f\n"
              "\t   miss penalty:  %.2f\n"
              "\tVictim hit ratio: %.4f\n"
              "\t       hit count: %lu\n"
+             "\t       perf gain: %.4f\n"
              "\t           count: %lu\n"
              "\t            size: %lu\n",
-             name_.c_str(),
-             static_cast<float>(stats.hits) / (stats.hits + stats.misses),
-             static_cast<float>(stats.miss_cycles) / stats.miss_bytes,
-             static_cast<float>(stats.hits + stats.victim_hits) /
-                 (stats.hits + stats.victim_hits + stats.misses),
-             stats.victim_hits.load(), vcache_->count(), vcache_->size());
+             name_.c_str(), hit_ratio, miss_penalty, victim_hit_ratio,
+             victim_hits, perf_gain, vcache_->count(), vcache_->size());
 }
 
 inline void CachePool::CacheStats::reset() noexcept {
