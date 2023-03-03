@@ -28,6 +28,9 @@ constexpr static int kNumBuckets = 1 << 20;
 constexpr static bool kSkewedDist = true; // false for uniform distribution
 constexpr static double kSkewness = 0.9;  // zipf
 
+constexpr static bool kSimulate = true;
+constexpr static int kSimuNumImgs = 1000 * 1000;
+
 const static std::string data_dir =
     "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/data/";
 const static std::string md5_filename = data_dir + "md5.txt";
@@ -35,7 +38,7 @@ const static std::string img_filename = data_dir + "val_img_names.txt";
 const static std::string feat_filename = data_dir + "enb5_feat_vec.data";
 
 float cache_ratio = 1.0;
-int cache_size = 420 * 1024 * 1024;
+size_t cache_size = (kSimulate ? kSimuNumImgs : 41620ull) * (80 + 8192);
 
 struct MD5Key {
   char data[kMD5Len];
@@ -143,6 +146,7 @@ private:
 
 struct FeatReq {
   int tid;
+  int rid;
   std::string filename;
   Feature *feat;
 };
@@ -152,17 +156,19 @@ public:
   FeatExtractor();
   ~FeatExtractor();
   int warmup_cache();
+  int simu_warmup_cache();
   void perf();
 
 private:
-  int load_imgs();
-  int load_feats();
+  size_t load_imgs();
+  size_t load_feats();
 
   void gen_load();
   bool serve_req(const FeatReq &img_req);
 
   FakeBackend fakeGPUBackend;
 
+  size_t nr_imgs;
   std::vector<std::string> imgs;
   char *raw_feats;
   std::vector<std::shared_ptr<Feature>> feats;
@@ -204,17 +210,16 @@ int construct_callback(void *arg) {
 }
 
 /** initialization & utils */
-FeatExtractor::FeatExtractor()
-    : raw_feats(nullptr) {
+FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
   feat_map =
       std::make_unique<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>();
   load_imgs();
   load_feats();
+  nr_imgs = kSimulate ? kSimuNumImgs : imgs.size();
 
   auto cpool = cachebank::CachePool::global_cache_pool();
   cpool->set_construct_func(construct_callback);
 
-  auto nr_imgs = imgs.size();
   for (int i = 0; i < kNrThd; i++) {
     std::random_device rd;
     gens[i] = std::make_shared<std::mt19937>(rd());
@@ -228,17 +233,19 @@ FeatExtractor::~FeatExtractor() {
 }
 
 void FeatExtractor::gen_load() {
+  cachebank::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
+  std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
+
   std::vector<std::thread> thds;
   for (int tid = 0; tid < kNrThd; tid++) {
-    const auto nr_imgs = imgs.size();
-    cachebank::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
-    std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
     reqs[tid].clear();
     for (int o = 0; o < KPerThdLoad; o++) {
-      auto id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
+      int id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
       id = nr_imgs - 1 - id;
-      FeatReq req{
-          .tid = tid, .filename = imgs.at(id), .feat = feats.at(id).get()};
+      FeatReq req{.tid = tid,
+                  .rid = id,
+                  .filename = imgs.at(id % imgs.size()),
+                  .feat = feats.at(id % feats.size()).get()};
       reqs[tid].push_back(req);
     }
   }
@@ -250,6 +257,12 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
 
   MD5Key md5;
   md5_from_file(md5, req.filename);
+  if (kSimulate) {
+    std::ostringstream oss;
+    oss << std::setw(32) << std::setfill('0') << req.rid;
+    std::string md5_str = oss.str();
+    md5_str.copy(md5.data, kMD5Len);
+  }
   auto feat_opt = feat_map->get(md5);
   if (feat_opt) {
     perthd_cnts[req.tid].nr_hit++;
@@ -270,7 +283,7 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   return true;
 }
 
-int FeatExtractor::load_imgs() {
+size_t FeatExtractor::load_imgs() {
   std::ifstream img_file(img_filename, std::ifstream::in);
   if (!img_file.good()) {
     std::cerr << "cannot open img_file " << img_filename << std::endl;
@@ -288,12 +301,13 @@ int FeatExtractor::load_imgs() {
   size_t nr_imgs = imgs.size();
   MD5Key md5;
   md5_from_file(md5, imgs[0]);
-  std::cout << nr_imgs << " " << imgs[0] << " " << md5.to_string() << std::endl;
+  std::cout << "Load " << nr_imgs << " images, MD5 of " << imgs[0] << ": "
+            << md5.to_string() << std::endl;
 
   return nr_imgs;
 }
 
-int FeatExtractor::load_feats() {
+size_t FeatExtractor::load_feats() {
   size_t nr_imgs = imgs.size();
   raw_feats = new char[nr_imgs * kFeatDim * sizeof(float)];
   size_t nr_feat_vecs = 0;
@@ -330,6 +344,31 @@ int FeatExtractor::warmup_cache() {
     // std::cout << imgs.at(i) << " " << md5 << std::endl;
     feat_map->set(md5, *feats[i]);
   }
+  std::cout << "Done warm up cache" << std::endl;
+  return 0;
+}
+
+int FeatExtractor::simu_warmup_cache() {
+  std::cout << "Warming up cache with synthetic data..." << std::endl;
+  std::vector<std::thread> thds;
+  for (int tid = 0; tid < kNrThd; tid++) {
+    thds.push_back(std::thread([&, tid = tid] {
+      const auto chunk = (nr_imgs + kNrThd - 1) / kNrThd;
+      auto stt = chunk * tid;
+      auto end = std::min(stt + chunk, nr_imgs);
+      for (int i = stt; i < end; i++) {
+        MD5Key md5;
+        std::ostringstream oss;
+        oss << std::setw(32) << std::setfill('0') << i;
+        std::string md5_str = oss.str();
+        md5_str.copy(md5.data, kMD5Len);
+
+        feat_map->set(md5, *feats[i % feats.size()]);
+      }
+    }));
+  }
+  for (auto &thd : thds)
+    thd.join();
   std::cout << "Done warm up cache" << std::endl;
   return 0;
 }
@@ -381,7 +420,10 @@ int main(int argc, char *argv[]) {
                                                             cache_ratio);
 
   FeatExtractor client;
-  client.warmup_cache();
+  if (kSimulate)
+    client.simu_warmup_cache();
+  else
+    client.warmup_cache();
   client.perf();
   std::cout << "Test passed!" << std::endl;
   return 0;
