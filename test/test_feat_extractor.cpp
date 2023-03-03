@@ -29,7 +29,10 @@ constexpr static bool kSkewedDist = true; // false for uniform distribution
 constexpr static double kSkewness = 0.9;  // zipf
 
 const static std::string data_dir =
-    "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/";
+    "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/data/";
+const static std::string md5_filename = data_dir + "md5.txt";
+const static std::string img_filename = data_dir + "val_img_names.txt";
+const static std::string feat_filename = data_dir + "enb5_feat_vec.data";
 
 float cache_ratio = 1.0;
 int cache_size = 420 * 1024 * 1024;
@@ -146,15 +149,14 @@ struct FeatReq {
 
 class FeatExtractor {
 public:
-  FeatExtractor(const std::string &img_file_name,
-                const std::string &feat_file_name);
+  FeatExtractor();
   ~FeatExtractor();
   int warmup_cache();
   void perf();
 
 private:
-  int load_imgs(const std::string &img_file_name);
-  int load_feats(const std::string &feat_file_name);
+  int load_imgs();
+  int load_feats();
 
   void gen_load();
   bool serve_req(const FeatReq &img_req);
@@ -202,13 +204,12 @@ int construct_callback(void *arg) {
 }
 
 /** initialization & utils */
-FeatExtractor::FeatExtractor(const std::string &img_file_name,
-                             const std::string &feat_file_name)
+FeatExtractor::FeatExtractor()
     : raw_feats(nullptr) {
   feat_map =
       std::make_unique<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>();
-  load_imgs(img_file_name);
-  load_feats(feat_file_name);
+  load_imgs();
+  load_feats();
 
   auto cpool = cachebank::CachePool::global_cache_pool();
   cpool->set_construct_func(construct_callback);
@@ -269,10 +270,10 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   return true;
 }
 
-int FeatExtractor::load_imgs(const std::string &img_file_name) {
-  std::ifstream img_file(img_file_name, std::ifstream::in);
+int FeatExtractor::load_imgs() {
+  std::ifstream img_file(img_filename, std::ifstream::in);
   if (!img_file.good()) {
-    std::cerr << "cannot open img_file " << img_file_name << std::endl;
+    std::cerr << "cannot open img_file " << img_filename << std::endl;
     return -1;
   }
 
@@ -292,12 +293,12 @@ int FeatExtractor::load_imgs(const std::string &img_file_name) {
   return nr_imgs;
 }
 
-int FeatExtractor::load_feats(const std::string &feat_file_name) {
+int FeatExtractor::load_feats() {
   size_t nr_imgs = imgs.size();
   raw_feats = new char[nr_imgs * kFeatDim * sizeof(float)];
   size_t nr_feat_vecs = 0;
 
-  std::ifstream feat_file(feat_file_name, std::ifstream::binary);
+  std::ifstream feat_file(feat_filename, std::ifstream::binary);
   if (feat_file.good()) {
     feat_file.read(raw_feats, nr_imgs * sizeof(float) * kFeatDim);
   }
@@ -314,7 +315,7 @@ int FeatExtractor::load_feats(const std::string &feat_file_name) {
 }
 
 int FeatExtractor::warmup_cache() {
-  std::ifstream md5_file(data_dir + "md5.txt");
+  std::ifstream md5_file(md5_filename);
 
   size_t nr_imgs = imgs.size();
   std::cout << nr_imgs << " " << feats.size() << std::endl;
@@ -379,8 +380,7 @@ int main(int argc, char *argv[]) {
   cachebank::ResourceManager::global_manager()->UpdateLimit(cache_size *
                                                             cache_ratio);
 
-  FeatExtractor client(data_dir + "val_img_names.txt",
-                       data_dir + "enb5_feat_vec.data");
+  FeatExtractor client;
   client.warmup_cache();
   client.perf();
   std::cout << "Test passed!" << std::endl;
