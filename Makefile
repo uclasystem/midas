@@ -69,10 +69,13 @@ test_victim_cache_obj = $(test_victim_cache_src:.cpp=.o)
 test_feat_extractor_src = test/test_feat_extractor.cpp
 test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
 
-.PHONY: all clean
+.PHONY: all bin lib daemon clean
 
-all: libmidas++.a \
-	bin/daemon_main bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
+all: bin lib daemon
+
+lib: lib/libmidas++.a
+
+bin: bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_log bin/test_large_alloc \
 	bin/test_sync_hashmap bin/test_hashmap_clear bin/test_sync_list \
 	bin/test_cache_manager bin/test_victim_cache \
@@ -80,6 +83,8 @@ all: libmidas++.a \
 	bin/test_sighandler \
 	bin/test_memcpy \
 	bin/test_feat_extractor
+
+daemon: bin/daemon_main
 
 # bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
 
@@ -137,7 +142,8 @@ bin/test_cache_manager: $(test_cache_manager_obj) $(lib_obj)
 bin/test_victim_cache: $(test_victim_cache_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
-libmidas++.a: $(lib_obj)
+lib/libmidas++.a: $(lib_obj)
+	mkdir -p lib
 	$(AR) rcs $@ $^
 
 bin/test_feat_extractor: $(test_feat_extractor_obj) $(lib_obj)
