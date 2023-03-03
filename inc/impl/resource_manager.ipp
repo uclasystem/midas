@@ -3,13 +3,14 @@
 namespace cachebank {
 
 static inline uint64_t get_unique_id() {
-  uint64_t pid = boost::interprocess::ipcdetail::get_current_process_id();
-  auto creation_time =
-      boost::interprocess::ipcdetail::get_current_process_creation_time();
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  static std::uniform_int_distribution<> distr(1, 1ull << 20);
 
-  // TODO: unique id should be the hash of pid and creation_time to avoid pid
-  // collision.
-  return pid;
+  uint64_t pid = boost::interprocess::ipcdetail::get_current_process_id();
+  uint64_t rand = distr(gen);
+
+  return (pid * 1'000'000'000'000ull) + rand;
 }
 
 inline VRange ResourceManager::GetRegion(int64_t region_id) noexcept {

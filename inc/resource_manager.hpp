@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <random>
 
 #include "qpair.hpp"
 #include "utils.hpp"
