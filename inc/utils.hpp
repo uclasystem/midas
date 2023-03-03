@@ -26,8 +26,12 @@ constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 /** Evacuator related */
 constexpr static float kAliveThreshHigh = 0.9;
 
+#ifndef LIKELY
 #define LIKELY(x) __builtin_expect((x), 1)
+#endif
+#ifndef UNLIKELY
 #define UNLIKELY(x) __builtin_expect((x), 0)
+#endif
 
 // align must be power of 2.
 #define round_up_to_align(val, align) (((val) + ((align)-1)) & ~((align)-1))
