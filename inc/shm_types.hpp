@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 
-namespace cachebank {
+namespace midas {
 
 enum CtrlOpCode {
   CONNECT,
@@ -53,4 +53,4 @@ static inline const std::string get_region_name(uint64_t pid, uint64_t rid) {
 }
 } // namespace utils
 
-} // namespace cachebank
+} // namespace midas

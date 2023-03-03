@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
 
   std::random_device rd;
   std::mt19937 gen(rd());
-  cachebank::zipf_table_distribution<> dist_zipf(kNumEles, kSkewness);
+  midas::zipf_table_distribution<> dist_zipf(kNumEles, kSkewness);
 
   std::vector<int> arr;
   for (int i = 0; i < kTolls; i++) {

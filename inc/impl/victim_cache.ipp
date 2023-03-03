@@ -1,6 +1,6 @@
 #pragma once
 
-namespace cachebank {
+namespace midas {
 inline VCEntry::VCEntry()
     : optr(nullptr), construct_args(nullptr), prev(nullptr), next(nullptr) {}
 
@@ -98,4 +98,4 @@ inline size_t VictimCache::size() const noexcept { return size_; }
 
 inline size_t VictimCache::count() const noexcept { return cnt_; }
 
-} // namespace cachebank
+} // namespace midas

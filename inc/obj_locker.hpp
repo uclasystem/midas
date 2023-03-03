@@ -6,7 +6,7 @@
 
 #include "transient_ptr.hpp"
 
-namespace cachebank {
+namespace midas {
 
 constexpr static uint32_t INV_LOCK_ID = -1;
 using LockID = uint32_t; // need to be the same as in object.hpp
@@ -31,6 +31,6 @@ private:
   std::mutex mtxes_[kNumMaps];
 };
 
-}; // namespace cachebank
+}; // namespace midas
 
 #include "impl/obj_locker.ipp"

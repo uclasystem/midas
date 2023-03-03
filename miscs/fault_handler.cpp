@@ -38,8 +38,8 @@ void *rmemcpy_stt_addr = reinterpret_cast<void *>(&rmemcpy);
 void *rmemcpy_end_addr = reinterpret_cast<void *>(&rmemcpy_end);
 
 bool in_volatile_range(uint64_t addr) {
-  return addr >= cachebank::kVolatileSttAddr &&
-         addr < cachebank::kVolatileEndAddr;
+  return addr >= midas::kVolatileSttAddr &&
+         addr < midas::kVolatileEndAddr;
 }
 
 static bool softfault_handler(siginfo_t *info, ucontext_t *ctx) {
@@ -165,7 +165,7 @@ public:
   // bool copy_to(void *dst, size_t size, int64_t offset = 0);
 
 private:
-  constexpr static uint64_t kInvPtr = cachebank::kVolatileSttAddr + 0x100200300;
+  constexpr static uint64_t kInvPtr = midas::kVolatileSttAddr + 0x100200300;
   int *ptr_;
 };
 

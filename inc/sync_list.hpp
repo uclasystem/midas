@@ -4,7 +4,7 @@
 #include "object.hpp"
 #include "cache_manager.hpp"
 
-namespace cachebank {
+namespace midas {
 
 template <typename Tp, typename Alloc = LogAllocator,
           typename Lock = std::mutex>
@@ -37,6 +37,6 @@ private:
   ListNode *list_;
   std::atomic_int32_t size_;
 };
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/sync_list.ipp"

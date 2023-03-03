@@ -1,6 +1,6 @@
 #include <cassert>
 
-namespace cachebank {
+namespace midas {
 static inline bool match_fp_prologue(uint64_t func_stt) {
   /**
    * X86-64 function frame pointer prologue:
@@ -35,4 +35,4 @@ inline bool ResilientFunc::contain(uint64_t fault_ip) {
   return stt_ip < fault_ip && fault_ip < end_ip;
 }
 
-} // namespace cachebank
+} // namespace midas

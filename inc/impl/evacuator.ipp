@@ -5,7 +5,7 @@
 #include <mutex>
 #include <thread>
 
-namespace cachebank {
+namespace midas {
 
 inline Evacuator::Evacuator(CachePool *pool,
                             std::shared_ptr<LogAllocator> allocator)
@@ -24,4 +24,4 @@ inline Evacuator::~Evacuator() {
   }
 }
 
-} // namespace cachebank
+} // namespace midas

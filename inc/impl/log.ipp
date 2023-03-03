@@ -1,6 +1,6 @@
 #pragma once
 
-namespace cachebank {
+namespace midas {
 
 /** LogSegment */
 inline LogSegment::LogSegment(LogAllocator *owner, int64_t rid, uint64_t addr)
@@ -151,4 +151,4 @@ static thread_local struct ThreadExiter {
   ~ThreadExiter() { LogAllocator::thd_exit(); }
 } exiter;
 
-} // namespace cachebank
+} // namespace midas

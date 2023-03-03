@@ -5,7 +5,7 @@
 
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 class ResilientFunc {
 public:
@@ -21,6 +21,6 @@ private:
 };
 
 DECL_RESILIENT_FUNC(bool, rmemcpy, void *dst, const void *src, size_t len);
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/resilient_func.ipp"

@@ -40,7 +40,7 @@ void correctness() {
     char *src = reinterpret_cast<char *>(malloc(len));
     char *dst = reinterpret_cast<char *>(malloc(len));
     random_fill(src, len);
-    auto ret = cachebank::rmemcpy(dst, src, len);
+    auto ret = midas::rmemcpy(dst, src, len);
     // memcpy(dst, src, len);
     // auto ret = 1;
     if (!is_same(src, dst, len)) {
@@ -72,23 +72,23 @@ void performance(int buf_len) {
 
   double t_memcpy, t_rmemcpy;
   {
-    auto stt = cachebank::chrono_utils::now();
+    auto stt = midas::chrono_utils::now();
     for (int i = 0; i < kNumRepeat; i++) {
       memcpy(dsts[i], src, buf_len);
     }
-    auto end = cachebank::chrono_utils::now();
-    t_memcpy = cachebank::chrono_utils::duration(stt, end);
+    auto end = midas::chrono_utils::now();
+    t_memcpy = midas::chrono_utils::duration(stt, end);
     std::cout << " memcpy takes " << std::setprecision(5) << t_memcpy << " s"
               << std::endl;
   }
 
   {
-    auto stt = cachebank::chrono_utils::now();
+    auto stt = midas::chrono_utils::now();
     for (int i = 0; i < kNumRepeat; i++) {
-      cachebank::rmemcpy(dsts[i], src, buf_len);
+      midas::rmemcpy(dsts[i], src, buf_len);
     }
-    auto end = cachebank::chrono_utils::now();
-    t_rmemcpy = cachebank::chrono_utils::duration(stt, end);
+    auto end = midas::chrono_utils::now();
+    t_rmemcpy = midas::chrono_utils::duration(stt, end);
     std::cout << "rmemcpy takes " << std::setprecision(5) << t_rmemcpy << " s"
               << std::endl;
   }

@@ -67,14 +67,14 @@ void gen_workload() {
 }
 
 int main(int argc, char *argv[]) {
-  auto *allocator = cachebank::LogAllocator::global_allocator();
+  auto *allocator = midas::LogAllocator::global_allocator();
 
   gen_workload();
 
   std::atomic_int nr_errs(0);
   std::atomic_int nr_eqs(0);
   std::atomic_int nr_neqs(0);
-  std::vector<std::shared_ptr<cachebank::ObjectPtr>> ptrs[kNumThds];
+  std::vector<std::shared_ptr<midas::ObjectPtr>> ptrs[kNumThds];
 
   std::vector<std::thread> threads;
   for (int tid = 0; tid < kNumThds; tid++) {
@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
 
         bool ret = false;
 
-        auto objptr = std::make_shared<cachebank::ObjectPtr>();
+        auto objptr = std::make_shared<midas::ObjectPtr>();
         ptrs[tid].push_back(objptr);
         if (!allocator->alloc_to(size, objptr.get()) ||
             !(ret = objptr->copy_from(obj->data, size))) {

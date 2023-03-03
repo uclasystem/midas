@@ -181,7 +181,7 @@ private:
   std::vector<FeatReq> reqs[kNrThd];
   std::shared_ptr<std::mt19937> gens[kNrThd];
 
-  std::shared_ptr<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>
+  std::shared_ptr<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>>
       feat_map;
 
   friend int construct_callback(void *arg);
@@ -212,12 +212,12 @@ int construct_callback(void *arg) {
 /** initialization & utils */
 FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
   feat_map =
-      std::make_unique<cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>>();
+      std::make_unique<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>>();
   load_imgs();
   load_feats();
   nr_imgs = kSimulate ? kSimuNumImgs : imgs.size();
 
-  auto cpool = cachebank::CachePool::global_cache_pool();
+  auto cpool = midas::CachePool::global_cache_pool();
   cpool->set_construct_func(construct_callback);
 
   for (int i = 0; i < kNrThd; i++) {
@@ -233,7 +233,7 @@ FeatExtractor::~FeatExtractor() {
 }
 
 void FeatExtractor::gen_load() {
-  cachebank::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
+  midas::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
   std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
 
   std::vector<std::thread> thds;
@@ -253,7 +253,7 @@ void FeatExtractor::gen_load() {
 }
 
 bool FeatExtractor::serve_req(const FeatReq &req) {
-  auto cpool = cachebank::CachePool::global_cache_pool();
+  auto cpool = midas::CachePool::global_cache_pool();
 
   MD5Key md5;
   md5_from_file(md5, req.filename);
@@ -270,14 +270,14 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   }
 
   // Cache miss
-  auto stt = cachebank::Time::get_cycles_stt();
+  auto stt = midas::Time::get_cycles_stt();
   // perthd_cnts[req.tid].nr_miss++;
   // fakeGPUBackend.serve_req();
   // feat_map->set(md5, *req.feat);
   ConstructArgs arg{
       .key = &md5, .extractor = this, .tid = req.tid, .ret = req.feat};
   assert(cpool->construct(&arg) == 0);
-  auto end = cachebank::Time::get_cycles_end();
+  auto end = midas::Time::get_cycles_end();
 
   cpool->record_miss_penalty(end - stt, sizeof(*req.feat));
   return true;
@@ -416,7 +416,7 @@ int main(int argc, char *argv[]) {
   }
   cache_ratio = std::stof(argv[1]);
 
-  cachebank::ResourceManager::global_manager()->UpdateLimit(cache_size *
+  midas::ResourceManager::global_manager()->UpdateLimit(cache_size *
                                                             cache_ratio);
 
   FeatExtractor client;

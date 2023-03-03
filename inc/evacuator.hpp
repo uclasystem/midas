@@ -10,7 +10,7 @@
 
 #include "object.hpp"
 
-namespace cachebank {
+namespace midas {
 
 enum class EvacState { Succ, Fail, Fault, DelayRelease };
 
@@ -55,6 +55,6 @@ private:
   std::mutex gc_mtx_;
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/evacuator.ipp"

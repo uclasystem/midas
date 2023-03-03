@@ -8,7 +8,7 @@
 #include "slab.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 static inline SlabHeader *slab_header(const void *ptr) noexcept {
   uint64_t addr = reinterpret_cast<uint64_t>(ptr);
@@ -113,6 +113,6 @@ void SlabAllocator::free(void *addr) {
 thread_local std::vector<std::shared_ptr<SlabRegion>>
     SlabAllocator::slab_regions[kNumSlabClasses];
 
-} // namespace cachebank
+} // namespace midas
 
 #endif // ENABLE_SLAB

@@ -1,4 +1,4 @@
-namespace cachebank {
+namespace midas {
 template <typename Tp, typename Alloc, typename Lock>
 SyncList<Tp, Alloc, Lock>::SyncList() : size_(0), list_(nullptr) {
   pool_ = CachePool::global_cache_pool();
@@ -104,4 +104,4 @@ void SyncList<Tp, Alloc, Lock>::delete_node(ListNode *node) {
   delete node;
 }
 
-} // namespace cachebank
+} // namespace midas

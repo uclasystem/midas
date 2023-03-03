@@ -10,7 +10,7 @@ void signalHandler(int signum) {
 int main(int argc, char *argv[]) {
   signal(SIGINT, signalHandler);
 
-  auto daemon = cachebank::Daemon::get_daemon();
+  auto daemon = midas::Daemon::get_daemon();
   daemon->serve();
 
   return 0;

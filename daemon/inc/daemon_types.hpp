@@ -11,7 +11,7 @@
 #include "shm_types.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 using SharedMemObj = boost::interprocess::shared_memory_object;
 using MsgQueue = boost::interprocess::message_queue;
@@ -80,6 +80,6 @@ private:
   constexpr static char kDaemonCfgFile[] = "config/mem.config";
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/daemon_types.ipp"

@@ -14,7 +14,7 @@
 #include "resource_manager.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 class SlabRegion;
 struct SlabHeader {
@@ -113,7 +113,7 @@ static inline constexpr uint32_t round_up_power_of_two(uint32_t a) {
 }
 } // namespace utils
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/slab.ipp"
 

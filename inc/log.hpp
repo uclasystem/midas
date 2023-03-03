@@ -12,7 +12,7 @@
 #include "transient_ptr.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 class LogAllocator;
 
@@ -118,6 +118,6 @@ private:
   static thread_local int32_t alive_cnt_;
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/log.ipp"

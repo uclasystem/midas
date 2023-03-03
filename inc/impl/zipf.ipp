@@ -1,6 +1,6 @@
 #pragma once
 
-namespace cachebank {
+namespace midas {
 
 template <class IntType, class RealType>
 inline zipf_table_distribution<IntType, RealType>::zipf_table_distribution(
@@ -44,4 +44,4 @@ zipf_table_distribution<IntType, RealType>::init(const IntType n,
   }
   return n;
 }
-} // namespace cachebank
+} // namespace midas

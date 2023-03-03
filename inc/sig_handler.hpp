@@ -10,7 +10,7 @@ extern "C" {
 #include "utils.hpp"
 #include "resilient_func.hpp"
 
-namespace cachebank {
+namespace midas {
 
 class SigHandler {
 public:
@@ -26,7 +26,7 @@ private:
 
   std::vector<ResilientFunc> funcs;
 };
-} // namespace cachebank
+} // namespace midas
 
 /** Implemented in stacktrace.cpp */
 extern "C" void print_callstack(siginfo_t *info, ucontext_t *ctx);

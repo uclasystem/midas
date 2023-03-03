@@ -122,7 +122,7 @@ void gen_workload() {
 
 int main(int argc, char *argv[]) {
   std::vector<std::thread> thds;
-  auto *list = new cachebank::SyncList<V>();
+  auto *list = new midas::SyncList<V>();
 
   std::atomic_int32_t nr_succ = 0;
   std::atomic_int32_t nr_fail = 0;

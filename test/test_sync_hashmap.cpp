@@ -164,10 +164,10 @@ void gen_workload() {
 }
 
 int main(int argc, char *argv[]) {
-  auto *rmanager = cachebank::ResourceManager::global_manager();
+  auto *rmanager = midas::ResourceManager::global_manager();
   std::vector<std::thread> thds;
 
-  auto *hashmap = new cachebank::SyncHashMap<kNBuckets, K, V>();
+  auto *hashmap = new midas::SyncHashMap<kNBuckets, K, V>();
   std::mutex std_map_lock;
   std::unordered_map<K, V> std_map;
 

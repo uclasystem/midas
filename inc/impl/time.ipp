@@ -1,6 +1,6 @@
 #pragma once
 
-namespace cachebank {
+namespace midas {
 inline uint64_t Time::get_us_stt() { return cycles_to_us(rdtsc()); }
 
 inline uint64_t Time::get_us_end() { return cycles_to_us(rdtscp()); }
@@ -43,4 +43,4 @@ inline double duration(const std::chrono::steady_clock::time_point &stt,
   return std::chrono::duration<double>(end - stt).count();
 }
 } // namespace chrono_utils
-} // namespace cachebank
+} // namespace midas

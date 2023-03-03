@@ -40,16 +40,16 @@ int main(int argc, char *argv[]) {
   std::vector<std::thread> threads;
 
   std::atomic_int nr_errs(0);
-  std::vector<std::shared_ptr<cachebank::ObjectPtr>> ptrs[kNumThds];
+  std::vector<std::shared_ptr<midas::ObjectPtr>> ptrs[kNumThds];
   std::vector<Object> objs[kNumThds];
 
   for (int tid = 0; tid < kNumThds; tid++) {
     threads.push_back(std::thread([&, tid = tid]() {
-      auto *allocator = cachebank::LogAllocator::global_allocator();
+      auto *allocator = midas::LogAllocator::global_allocator();
       for (int i = 0; i < kNumObjs; i++) {
         Object obj;
         obj.random_fill();
-        auto objptr = std::make_shared<cachebank::ObjectPtr>();
+        auto objptr = std::make_shared<midas::ObjectPtr>();
 
         if (!allocator->alloc_to(sizeof(Object), objptr.get()) ||
             !objptr->copy_from(&obj, sizeof(Object))) {
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
 
   bool stop_evac = false;
   std::thread evac_thd([&]() {
-    cachebank::Evacuator evacuator;
+    midas::Evacuator evacuator;
     while (!stop_evac) {
       evacuator.gc();
       std::this_thread::sleep_for(std::chrono::milliseconds(10));

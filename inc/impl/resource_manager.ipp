@@ -1,6 +1,6 @@
 #pragma once
 
-namespace cachebank {
+namespace midas {
 
 static inline uint64_t get_unique_id() {
   static std::random_device rd;
@@ -64,4 +64,4 @@ inline ResourceManager *ResourceManager::global_manager() noexcept {
   return global_manager_shared_ptr().get();
 }
 
-} // namespace cachebank
+} // namespace midas

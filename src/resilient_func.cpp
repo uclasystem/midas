@@ -5,7 +5,7 @@
 #include "resilient_func.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 // Must have len < 16 bytes. Manually unroll instructions for data < 16 bytes.
 FORCE_INLINE void rmemcpy_tiny(uint8_t *dst, const uint8_t *src, size_t len) {
@@ -127,4 +127,4 @@ bool rmemcpy(void *dst, const void *src, size_t len) {
 }
 DELIM_FUNC_IMPL(rmemcpy)
 
-} // namespace cachebank
+} // namespace midas

@@ -2,7 +2,7 @@
 
 #include <mutex>
 
-namespace cachebank {
+namespace midas {
 
 inline int64_t Client::new_region_id_() noexcept {
   static int64_t region_id = 0;
@@ -31,4 +31,4 @@ inline Daemon *Daemon::get_daemon() {
   return daemon_.get();
 }
 
-} // namespace cachebank
+} // namespace midas

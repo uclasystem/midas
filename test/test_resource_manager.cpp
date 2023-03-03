@@ -12,8 +12,8 @@ int main(int argc, char *argv[]) {
   std::vector<std::thread> thds;
   for (int tid = 0; tid < kNumThds; tid++) {
     thds.push_back(std::thread([]() {
-      cachebank::ResourceManager *rmanager =
-          cachebank::ResourceManager::global_manager();
+      midas::ResourceManager *rmanager =
+          midas::ResourceManager::global_manager();
 
       for (int i = 0; i < kNumRegions; i++) {
         rmanager->AllocRegion();

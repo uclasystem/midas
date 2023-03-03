@@ -5,7 +5,7 @@
 
 #include "logging.hpp"
 
-namespace cachebank {
+namespace midas {
 
 namespace utils {
 inline const std::string get_sq_name(std::string qpname, bool create) {
@@ -139,4 +139,4 @@ inline int QPair::try_recv(void *buffer, size_t buffer_size) {
 inline int QPair::timed_recv(void *buffer, size_t buffer_size, int timeout) {
   return _rq->timed_recv(buffer, buffer_size, timeout);
 }
-} // namespace cachebank
+} // namespace midas

@@ -3,7 +3,7 @@
 #include "logging.hpp"
 #include "resilient_func.hpp"
 
-namespace cachebank {
+namespace midas {
 
 inline TransientPtr::TransientPtr() : ptr_(0) {}
 
@@ -146,4 +146,4 @@ inline bool TransientPtr::assign_to_foreign_region(TransientPtr *dst) {
 inline uint64_t TransientPtr::to_normal_address() const noexcept {
   return ptr_;
 }
-} // namespace cachebank
+} // namespace midas

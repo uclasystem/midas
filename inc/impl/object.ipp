@@ -6,7 +6,7 @@
 #include "logging.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 /** Generic Object */
 inline MetaObjectHdr::MetaObjectHdr() : flags(0) {}
@@ -510,4 +510,4 @@ inline bool store_hdr(const T &hdr, ObjectPtr &optr) noexcept {
   return store_hdr(hdr, optr.obj_);
 }
 
-} // namespace cachebank
+} // namespace midas

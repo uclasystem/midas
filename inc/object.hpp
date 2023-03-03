@@ -7,7 +7,7 @@
 #include "transient_ptr.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 constexpr static uint32_t kSmallObjThreshold = kSmallObjSizeUnit << 10;
 
@@ -257,6 +257,6 @@ template <class T> bool store_hdr(const T &hdr, ObjectPtr &optr) noexcept;
 
 template <class T> bool load_hdr(T &hdr, TransientPtr &tptr) noexcept;
 template <class T> bool store_hdr(const T &hdr, TransientPtr &tptr) noexcept;
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/object.ipp"

@@ -2,7 +2,7 @@
 
 #ifdef ENABLE_SLAB
 
-namespace cachebank {
+namespace midas {
 inline uint32_t SlabAllocator::get_slab_idx(uint32_t size) noexcept {
   uint32_t rounded_size = utils::round_up_power_of_two(size);
   assert(rounded_size <= kMaxSlabSize);
@@ -34,6 +34,6 @@ inline SlabAllocator *SlabAllocator::global_allocator() {
   _allocator = std::make_unique<SlabAllocator>();
   return _allocator.get();
 }
-} // namespace cachebank
+} // namespace midas
 
 #endif // ENABLE_SLAB

@@ -27,7 +27,7 @@ template <> struct equal_to<FeatExt::MD5Key> {
 
 namespace FeatExt {
 constexpr static int kNumBuckets = 1 << 20;
-using SyncHashMap = cachebank::SyncHashMap<kNumBuckets, MD5Key, Feature>;
+using SyncHashMap = midas::SyncHashMap<kNumBuckets, MD5Key, Feature>;
 
 SyncHashMap *global_hashmap() {
   static std::mutex mtx_;

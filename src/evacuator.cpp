@@ -17,7 +17,7 @@
 #include "time.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 static inline int64_t get_nr_to_reclaim() {
   auto manager = ResourceManager::global_manager();
@@ -493,4 +493,4 @@ inline EvacState Evacuator::free_segment(LogSegment *segment) {
   return EvacState::Succ;
 }
 
-} // namespace cachebank
+} // namespace midas

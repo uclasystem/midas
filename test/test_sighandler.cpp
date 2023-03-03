@@ -12,17 +12,17 @@ constexpr static int kNumRepeat = 1000'000;
 constexpr static int kSize = 4096;
 
 void do_work() {
-  auto inv_addr = cachebank::kVolatileSttAddr + 0x100200300;
+  auto inv_addr = midas::kVolatileSttAddr + 0x100200300;
   uint8_t buf[kSize];
-  cachebank::TransientPtr tptr(inv_addr, kSize);
+  midas::TransientPtr tptr(inv_addr, kSize);
   int nr_failed = 0;
-  auto stt = cachebank::chrono_utils::now();
+  auto stt = midas::chrono_utils::now();
   for (int i = 0; i < kNumRepeat; i++) {
     nr_failed += !!tptr.copy_from(buf, kSize); // we expect false to be returned
     nr_failed += !!tptr.copy_to(buf, kSize);
   }
-  auto end = cachebank::chrono_utils::now();
-  auto dur = cachebank::chrono_utils::duration(stt, end);
+  auto end = midas::chrono_utils::now();
+  auto dur = midas::chrono_utils::duration(stt, end);
   if (!nr_failed)
     std::cout << "Test passed! Duration: " << dur
               << "s, tput: " << kNumRepeat * 2 / dur << " ops" << std::endl;
@@ -32,7 +32,7 @@ void do_work() {
 }
 
 int main() {
-  auto sig_handler = cachebank::SigHandler::global_sighandler();
+  auto sig_handler = midas::SigHandler::global_sighandler();
   sig_handler->init();
 
   std::vector<std::thread> thds;

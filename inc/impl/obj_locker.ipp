@@ -6,7 +6,7 @@
 
 #include "robinhood.h"
 
-namespace cachebank {
+namespace midas {
 
 inline std::optional<LockID> ObjLocker::try_lock(const TransientPtr &tptr) {
   return _try_lock(tptr.ptr_);
@@ -60,4 +60,4 @@ inline ObjLocker *ObjLocker::global_objlocker() noexcept {
   return locker_.get();
 }
 
-} // namespace cachebank
+} // namespace midas

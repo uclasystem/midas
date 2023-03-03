@@ -7,7 +7,7 @@
 
 #include "object.hpp"
 
-namespace cachebank {
+namespace midas {
 
 struct VCEntry {
 #pragma pack(push, 1)
@@ -51,6 +51,6 @@ private:
   size_t cnt_;
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/victim_cache.ipp"

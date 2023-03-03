@@ -5,7 +5,7 @@
 
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 struct Time {
 public:
   static inline uint64_t get_us_stt();
@@ -26,6 +26,6 @@ inline std::chrono::steady_clock::time_point now();
 inline double duration(const std::chrono::steady_clock::time_point &stt,
                        const std::chrono::steady_clock::time_point &end);
 } // namespace chrono_utils
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/time.ipp"

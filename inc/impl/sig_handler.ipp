@@ -1,10 +1,10 @@
 #include <memory>
 #include <mutex>
 
-namespace cachebank {
+namespace midas {
 static inline bool in_volatile_range(uint64_t addr) {
-  return addr >= cachebank::kVolatileSttAddr &&
-         addr < cachebank::kVolatileEndAddr;
+  return addr >= midas::kVolatileSttAddr &&
+         addr < midas::kVolatileEndAddr;
 }
 
 inline SigHandler *SigHandler::global_sighandler() {
@@ -19,4 +19,4 @@ inline SigHandler *SigHandler::global_sighandler() {
   return hdler_.get();
 }
 
-} // namespace cachebank
+} // namespace midas

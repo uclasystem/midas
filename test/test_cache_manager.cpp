@@ -15,9 +15,9 @@
 constexpr static int kNumPools = 100;
 
 int main() {
-  auto resource_manager = cachebank::ResourceManager::global_manager();
+  auto resource_manager = midas::ResourceManager::global_manager();
   std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // to establish connection
-  auto cache_manager = cachebank::CacheManager::global_cache_manager();
+  auto cache_manager = midas::CacheManager::global_cache_manager();
   for (int i = 0; i < kNumPools; i++) {
     std::string pool_name = "test" + std::to_string(i);
     cache_manager->create_pool(pool_name);

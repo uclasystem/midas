@@ -5,7 +5,7 @@
 
 // #define BOUND_CHECK
 
-namespace cachebank {
+namespace midas {
 
 class TransientPtr {
 public:
@@ -56,6 +56,6 @@ private:
 #endif          // BOUND_CHECK
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/transient_ptr.ipp"

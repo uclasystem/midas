@@ -1,6 +1,6 @@
 #pragma once
 
-namespace cachebank {
+namespace midas {
 inline CachePool::CachePool(std::string name)
     : name_(name), construct_(nullptr) {
   vcache_ = std::make_unique<VictimCache>(kVCacheSizeLimit, kVCacheCountLimit);
@@ -166,4 +166,4 @@ inline CacheManager *CacheManager::global_cache_manager() {
   return manager_.get();
 }
 
-} // namespace cachebank
+} // namespace midas

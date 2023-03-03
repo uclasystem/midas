@@ -8,7 +8,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace cachebank {
+namespace midas {
 
 enum LogVerbosity {
   kError = 0,
@@ -79,4 +79,4 @@ private:
     exit(-1);                                                                  \
   } while (0)
 
-} // namespace cachebank
+} // namespace midas

@@ -18,7 +18,7 @@
 #include "sig_handler.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 Region::Region(uint64_t pid, uint64_t region_id) noexcept
     : pid_(pid), region_id_(region_id) {
@@ -268,4 +268,4 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
   return size;
 }
 
-} // namespace cachebank
+} // namespace midas

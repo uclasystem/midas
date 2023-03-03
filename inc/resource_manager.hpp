@@ -14,7 +14,7 @@
 #include "utils.hpp"
 #include "shm_types.hpp"
 
-namespace cachebank {
+namespace midas {
 
 using SharedMemObj = boost::interprocess::shared_memory_object;
 using MsgQueue = boost::interprocess::message_queue;
@@ -86,6 +86,6 @@ private:
   bool stop_;
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/resource_manager.ipp"

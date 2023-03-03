@@ -1,6 +1,6 @@
 #pragma once
 
-namespace cachebank {
+namespace midas {
 
 class SlabAllocator;
 
@@ -245,4 +245,4 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::iterate_list(
   return true;
 }
 
-} // namespace cachebank
+} // namespace midas

@@ -2,7 +2,7 @@
 #include "logging.hpp"
 #include "obj_locker.hpp"
 
-namespace cachebank {
+namespace midas {
 LockID ObjectPtr::lock() {
   if (null())
     return INV_LOCK_ID;
@@ -278,4 +278,4 @@ RetCode ObjectPtr::move_large(ObjectPtr &src) noexcept {
   assert(remaining_len == 0);
   return RetCode::Succ;
 }
-} // namespace cachebank
+} // namespace midas

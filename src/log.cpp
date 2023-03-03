@@ -14,7 +14,7 @@
 #include "transient_ptr.hpp"
 #include "utils.hpp"
 
-namespace cachebank {
+namespace midas {
 
 using RetCode = ObjectPtr::RetCode;
 
@@ -238,4 +238,4 @@ thread_local int32_t LogAllocator::alive_cnt_ = 0;
 std::atomic_int64_t LogAllocator::total_access_cnt_{0};
 std::atomic_int64_t LogAllocator::total_alive_cnt_{0};
 
-} // namespace cachebank
+} // namespace midas

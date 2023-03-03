@@ -6,7 +6,7 @@
 #include <fstream>
 #include <thread>
 
-namespace cachebank {
+namespace midas {
 
 /** Client */
 Client::Client(uint64_t id_, uint64_t region_limit)
@@ -305,4 +305,4 @@ void Daemon::serve() {
   monitor_thd.join();
 }
 
-} // namespace cachebank
+} // namespace midas

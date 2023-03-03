@@ -12,7 +12,7 @@
 #include "object.hpp"
 #include "victim_cache.hpp"
 
-namespace cachebank {
+namespace midas {
 
 class CachePool {
 public:
@@ -95,6 +95,6 @@ private:
   std::unordered_map<std::string, std::unique_ptr<CachePool>> pools_;
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/cache_manager.ipp"

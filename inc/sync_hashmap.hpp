@@ -10,7 +10,7 @@
 #include "log.hpp"
 #include "object.hpp"
 
-namespace cachebank {
+namespace midas {
 
 template <size_t NBuckets, typename Key, typename Tp,
           typename Hash = std::hash<Key>, typename Pred = std::equal_to<Key>,
@@ -48,6 +48,6 @@ private:
   CachePool *pool_;
 };
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/sync_hashmap.ipp"

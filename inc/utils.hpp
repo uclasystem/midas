@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace cachebank {
+namespace midas {
 
 constexpr static uint32_t kCPUFreq = 2600;
 constexpr static uint32_t kNumCPUs = 128;
@@ -51,4 +51,4 @@ constexpr static float kAliveThreshHigh = 0.9;
 #define DELIM_FUNC_IMPL(func)                                                  \
   void func##_end() { asm volatile(".byte 0xcc, 0xcc, 0xcc, 0xcc"); }
 
-} // namespace cachebank
+} // namespace midas

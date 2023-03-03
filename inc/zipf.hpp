@@ -8,7 +8,7 @@
 #include <random>
 #include <vector>
 
-namespace cachebank {
+namespace midas {
 
 /**
  * Example usage:
@@ -54,6 +54,6 @@ private:
   /** Initialize the probability mass function */
   IntType init(const IntType n, const RealType q);
 };
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/zipf.ipp"

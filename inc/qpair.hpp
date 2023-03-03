@@ -11,7 +11,7 @@
 #include "utils.hpp"
 #include "shm_types.hpp"
 
-namespace cachebank {
+namespace midas {
 constexpr static uint32_t kDaemonQDepth = 1024;
 constexpr static uint32_t kClientQDepth = 128;
 constexpr static char kNameCtrlQ[] = "daemon_ctrl_mq";
@@ -80,6 +80,6 @@ private:
 };
 
 
-} // namespace cachebank
+} // namespace midas
 
 #include "impl/qpair.ipp"

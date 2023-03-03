@@ -113,20 +113,20 @@ void gen_workload() {
 }
 
 int main(int argc, char *argv[]) {
-  auto *rmanager = cachebank::ResourceManager::global_manager();
+  auto *rmanager = midas::ResourceManager::global_manager();
   std::vector<std::thread> thds;
 
   gen_workload();
   bool stop = false;
   std::thread evac_thd([&]() {
-    cachebank::Evacuator evacuator;
+    midas::Evacuator evacuator;
     while (!stop) {
       evacuator.gc();
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
   });
 
-  auto *hashmap = new cachebank::SyncHashMap<kNBuckets, K, V>();
+  auto *hashmap = new midas::SyncHashMap<kNBuckets, K, V>();
   std::unordered_map<K, V> std_maps[kNumMutatorThds];
 
   std::atomic_int32_t nr_succ = 0;

@@ -9,14 +9,14 @@ static constexpr int kNumThds = 24;
 static constexpr int kNumEntries = 20000;
 
 int main(int argc, char *argv[]) {
-  cachebank::VictimCache vc(10000, 10000);
+  midas::VictimCache vc(10000, 10000);
 
   std::vector<std::thread> thds;
-  std::vector<cachebank::ObjectPtr *> optrs[kNumThds];
+  std::vector<midas::ObjectPtr *> optrs[kNumThds];
   for (int i = 0; i < kNumThds; i++) {
     thds.emplace_back([&, tid = i] {
       for (int j = 0; j < kNumEntries; j++) {
-        auto optr = new cachebank::ObjectPtr();
+        auto optr = new midas::ObjectPtr();
         optrs[tid].push_back(optr);
         vc.push_back(optr, nullptr);
       }

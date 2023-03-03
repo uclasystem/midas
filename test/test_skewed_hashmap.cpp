@@ -80,9 +80,9 @@ struct Op {
   V val;
 };
 
-class CachebankTest {
+class MidasTest {
 private:
-  cachebank::SyncHashMap<kNBuckets, K, V> *hashmap;
+  midas::SyncHashMap<kNBuckets, K, V> *hashmap;
 
   std::vector<K> ks[kNumMutatorThds];
   std::vector<V> vs[kNumMutatorThds];
@@ -115,7 +115,7 @@ private:
       mts[i].reset(new std::mt19937(rd()));
     }
 
-    hashmap = new cachebank::SyncHashMap<kNBuckets, K, V>();
+    hashmap = new midas::SyncHashMap<kNBuckets, K, V>();
     stop = false;
 
     stats.reset();
@@ -157,7 +157,7 @@ private:
     std::vector<std::thread> thds;
     for (int tid = 0; tid < kNumMutatorThds; tid++) {
       thds.push_back(std::thread([&, tid = tid]() {
-        cachebank::zipf_table_distribution<> dist(kNumKVPairs, kZipfSkew);
+        midas::zipf_table_distribution<> dist(kNumKVPairs, kZipfSkew);
         // std::uniform_int_distribution<> dist(0, kNumKVPairs);
         zipf_idxes[tid].clear();
         for (int o = 0; o < kNumOps; o++) {
@@ -243,7 +243,7 @@ void signalHandler(int signum) {
 int main(int argc, char *argv[]) {
   signal(SIGINT, signalHandler);
 
-  CachebankTest test;
+  MidasTest test;
   test.init();
   for (int i = 0; i < 100; i++)
     test.run();

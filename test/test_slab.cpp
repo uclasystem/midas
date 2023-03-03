@@ -11,7 +11,7 @@ constexpr int kNumThds = 10;
 constexpr int kNumObjs = 1024;
 
 int main(int argc, char *argv[]) {
-  auto *allocator = cachebank::SlabAllocator::global_allocator();
+  auto *allocator = midas::SlabAllocator::global_allocator();
 
   std::random_device rd;
   std::mt19937 rand(rd());

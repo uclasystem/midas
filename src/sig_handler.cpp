@@ -13,7 +13,7 @@
 
 extern "C" void print_callstack(siginfo_t *info, ucontext_t *ctx);
 
-namespace cachebank {
+namespace midas {
 void SigHandler::init() {
   // register rmemcpy
   register_func(reinterpret_cast<uint64_t>(&rmemcpy),
@@ -91,4 +91,4 @@ void setup_sigsegv() {
 
 SigHandler::SigHandler() { setup_sigsegv(); }
 
-} // namespace cachebank
+} // namespace midas
