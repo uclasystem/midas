@@ -18,8 +18,8 @@ void do_work() {
   int nr_failed = 0;
   auto stt = cachebank::chrono_utils::now();
   for (int i = 0; i < kNumRepeat; i++) {
-    nr_failed += !tptr.copy_from(buf, kSize); // we expect false to be returned
-    nr_failed += !tptr.copy_to(buf, kSize);
+    nr_failed += !!tptr.copy_from(buf, kSize); // we expect false to be returned
+    nr_failed += !!tptr.copy_to(buf, kSize);
   }
   auto end = cachebank::chrono_utils::now();
   auto dur = cachebank::chrono_utils::duration(stt, end);
