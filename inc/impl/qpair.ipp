@@ -1,7 +1,7 @@
 #pragma once
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "logging.hpp"
 
@@ -21,12 +21,11 @@ inline const std::string get_ackq_name(std::string qpname, uint64_t id) {
 }
 } // namespace utils
 
-
 inline int QSingle::send(const void *buffer, size_t buffer_size) {
   try {
     _q->send(buffer, buffer_size, /* prio = */ 0);
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
     return -1;
   }
   return 0;
@@ -38,17 +37,16 @@ inline int QSingle::recv(void *buffer, size_t buffer_size) {
     size_t recvd_size;
     _q->receive(buffer, buffer_size, recvd_size, priority);
     if (recvd_size != buffer_size) {
-      LOG(kError) << "Q " << _name << " recv error: " << recvd_size
-                  << "!=" << buffer_size;
+      MIDAS_LOG(kError) << "Q " << _name << " recv error: " << recvd_size
+                        << "!=" << buffer_size;
       return -1;
     }
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
     return -1;
   }
   return 0;
 }
-
 
 inline int QSingle::try_recv(void *buffer, size_t buffer_size) {
   try {
@@ -57,12 +55,12 @@ inline int QSingle::try_recv(void *buffer, size_t buffer_size) {
     if (!_q->try_receive(buffer, buffer_size, recvd_size, priority))
       return -1;
     if (recvd_size != buffer_size) {
-      LOG(kError) << "Q " << _name << " recv error: " << recvd_size
-                  << "!=" << buffer_size;
+      MIDAS_LOG(kError) << "Q " << _name << " recv error: " << recvd_size
+                        << "!=" << buffer_size;
       return -1;
     }
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
     return -1;
   }
   return 0;
@@ -80,12 +78,12 @@ inline int QSingle::timed_recv(void *buffer, size_t buffer_size, int timeout) {
             ptime(second_clock::local_time() + seconds(timeout))))
       return -1;
     if (recvd_size != buffer_size) {
-      LOG(kError) << "Q " << _name << " recv error: " << recvd_size
-                  << "!=" << buffer_size;
+      MIDAS_LOG(kError) << "Q " << _name << " recv error: " << recvd_size
+                        << "!=" << buffer_size;
       return -1;
     }
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
     return -1;
   }
   return 0;
@@ -115,7 +113,7 @@ inline void QSingle::destroy() {
   try {
     MsgQueue::remove(_name.c_str());
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
   }
 }
 

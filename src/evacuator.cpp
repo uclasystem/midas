@@ -94,9 +94,9 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   auto nr_reclaimed = rmanager_->NumRegionAvail() - nr_avail;
 
   if (nr_scanned)
-    LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
-                << " evacuated, " << nr_reclaimed << " reclaimed ("
-                << chrono_utils::duration(stt, end) << "s).";
+    MIDAS_LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
+                      << " evacuated, " << nr_reclaimed << " reclaimed ("
+                      << chrono_utils::duration(stt, end) << "s).";
 
   return nr_reclaimed;
 }
@@ -134,7 +134,7 @@ int64_t Evacuator::serial_gc() {
     if (ret == EvacState::Fail)
       goto put_back;
     else if (ret == EvacState::DelayRelease) {
-      LOG(kWarning);
+      MIDAS_LOG(kWarning);
       segment->destroy();
     }
     // must have ret == EvacState::Succ or ret == EvacState::Fault now
@@ -149,9 +149,9 @@ int64_t Evacuator::serial_gc() {
   auto nr_reclaimed = rmanager_->NumRegionAvail() - nr_avail;
 
   if (nr_scanned)
-    LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
-                << " evacuated, " << nr_reclaimed << " reclaimed ("
-                << chrono_utils::duration(stt, end) << "s).";
+    MIDAS_LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
+                      << " evacuated, " << nr_reclaimed << " reclaimed ("
+                      << chrono_utils::duration(stt, end) << "s).";
 
   return nr_reclaimed;
 }
@@ -176,7 +176,7 @@ void Evacuator::parallel_gc(int nr_workers) {
     if (ret == EvacState::DelayRelease)
       segments.push_back(segment);
     else if (ret != EvacState::Succ) {
-      LOG(kError) << (int)ret;
+      MIDAS_LOG(kError) << (int)ret;
       segments.push_back(segment);
     }
   }
@@ -196,7 +196,7 @@ inline bool Evacuator::iterate_segment(LogSegment *segment, uint64_t &pos,
   if (ret == RetCode::Fail)
     return false;
   else if (ret == RetCode::Fault) {
-    LOG(kError) << "segment is unmapped under the hood";
+    MIDAS_LOG(kError) << "segment is unmapped under the hood";
     return false;
   }
   assert(ret == RetCode::Succ);
@@ -275,7 +275,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             } else {
               // This will free all segments belonging to the same object
               if (obj_ptr.free(/* locked = */ true) == RetCode::Fault) {
-                LOG(kWarning);
+                MIDAS_LOG(kWarning);
                 // goto faulted;
               }
               auto vcache = pool_->get_vcache();
@@ -296,7 +296,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
     continue;
   faulted:
     nr_failed++;
-    LOG(kError) << "segment is unmapped under the hood";
+    MIDAS_LOG(kError) << "segment is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
   }
@@ -304,13 +304,14 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
   assert(nr_failed == 0);
   if (deactivate) // meaning this is a scanning thread
     LogAllocator::count_alive(nr_present);
-  LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
-              << ", nr_large_objs: " << nr_large_objs
-              << ", nr_non_present: " << nr_non_present
-              << ", nr_deactivated: " << nr_deactivated
-              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed
-              << ", alive ratio: "
-              << static_cast<float>(segment->alive_bytes_) / kLogSegmentSize;
+  MIDAS_LOG(kDebug) << "nr_scanned_small_objs: " << nr_small_objs
+                    << ", nr_large_objs: " << nr_large_objs
+                    << ", nr_non_present: " << nr_non_present
+                    << ", nr_deactivated: " << nr_deactivated
+                    << ", nr_freed: " << nr_freed
+                    << ", nr_failed: " << nr_failed << ", alive ratio: "
+                    << static_cast<float>(segment->alive_bytes_) /
+                           kLogSegmentSize;
 
   if (nr_failed) {
     segment->destroy();
@@ -359,7 +360,7 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
         if (ret == RetCode::Succ) {
           nr_moved++;
         } else if (ret == RetCode::Fail) {
-          LOG(kError) << "Failed to move the object!";
+          MIDAS_LOG(kError) << "Failed to move the object!";
           nr_failed++;
         } else
           goto faulted;
@@ -369,7 +370,7 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
       if (!meta_hdr.is_continue()) { // the head segment of a large object.
         auto opt_data_size = obj_ptr.large_data_size();
         if (!opt_data_size) {
-          LOG(kWarning);
+          MIDAS_LOG(kWarning);
           nr_freed++;
           obj_ptr.unlock(lock_id);
           continue;
@@ -385,10 +386,10 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
           if (ret == RetCode::Succ) {
             nr_moved++;
           } else if (ret == RetCode::Fail) {
-            LOG(kError) << "Failed to move the object!";
+            MIDAS_LOG(kError) << "Failed to move the object!";
             nr_failed++;
           } else { // ret == RetCode::Fault
-            LOG(kWarning);
+            MIDAS_LOG(kWarning);
             // goto faulted;
           }
         } else
@@ -405,12 +406,13 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
     continue;
   faulted:
     nr_failed++;
-    LOG(kError) << "segment is unmapped under the hood";
+    MIDAS_LOG(kError) << "segment is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
   }
-  LOG(kDebug) << "nr_present: " << nr_present << ", nr_moved: " << nr_moved
-              << ", nr_freed: " << nr_freed << ", nr_failed: " << nr_failed;
+  MIDAS_LOG(kDebug) << "nr_present: " << nr_present
+                    << ", nr_moved: " << nr_moved << ", nr_freed: " << nr_freed
+                    << ", nr_failed: " << nr_failed;
 
   assert(nr_failed == 0);
   if (nr_failed) {
@@ -474,13 +476,13 @@ inline EvacState Evacuator::free_segment(LogSegment *segment) {
     continue;
   faulted:
     nr_failed++;
-    LOG(kError) << "segment is unmapped under the hood";
+    MIDAS_LOG(kError) << "segment is unmapped under the hood";
     obj_ptr.unlock(lock_id);
     break;
   }
-  LOG(kDebug) << "nr_freed: " << nr_freed
-              << ", nr_non_present: " << nr_non_present
-              << ", nr_failed: " << nr_failed;
+  MIDAS_LOG(kDebug) << "nr_freed: " << nr_freed
+                    << ", nr_non_present: " << nr_non_present
+                    << ", nr_failed: " << nr_failed;
 
   assert(nr_failed == 0);
   if (nr_failed) {

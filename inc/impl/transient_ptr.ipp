@@ -68,7 +68,7 @@ inline bool TransientPtr::copy_from(const void *src, size_t len,
     return false;
 #ifdef BOUND_CHECK
   if (offset + len > size_) {
-    LOG(kError);
+    MIDAS_LOG(kError);
     return false;
   }
 #endif // BOUND_CHECK
@@ -81,7 +81,7 @@ inline bool TransientPtr::copy_to(void *dst, size_t len, int64_t offset) {
     return false;
 #ifdef BOUND_CHECK
   if (offset + len > size_) {
-    LOG(kError);
+    MIDAS_LOG(kError);
     return false;
   }
 #endif // BOUND_CHECK
@@ -95,7 +95,7 @@ inline bool TransientPtr::copy_from(const TransientPtr &src, size_t len,
     return false;
 #ifdef BOUND_CHECK
   if (from_offset + len > src.size_ || to_offset + len > this->size_) {
-    LOG(kError);
+    MIDAS_LOG(kError);
     return false;
   }
 #endif // BOUND_CHECK
@@ -110,7 +110,7 @@ inline bool TransientPtr::copy_to(TransientPtr &dst, size_t len,
     return false;
 #ifdef BOUND_CHECK
   if (from_offset + len > dst.size_ || to_offset + len > this->size_) {
-    LOG(kError);
+    MIDAS_LOG(kError);
     return false;
   }
 #endif // BOUND_CHECK

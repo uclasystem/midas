@@ -21,7 +21,7 @@ uint32_t SlabRegion::init() {
   hdr->slab_id = this->slab_id;
   hdr->slab_size = this->slab_size;
   hdr->region = this;
-  // LOG(kDebug) << this;
+  // MIDAS_LOG(kDebug) << this;
   // init freelist
   uint32_t i;
   char *ptr = reinterpret_cast<char *>(stt_addr);
@@ -48,7 +48,7 @@ inline void SlabRegion::push(void *addr) {
   nr_freed++;
   ret_mtx->unlock();
 
-  // LOG(kDebug) << "push " << addr;
+  // MIDAS_LOG(kDebug) << "push " << addr;
 }
 
 inline void *SlabRegion::pop() {
@@ -81,10 +81,10 @@ void *SlabAllocator::_alloc(uint32_t size) {
   uint32_t slab_size = get_slab_size(idx);
   assert(idx < kNumSlabClasses);
 
-  // LOG(kDebug) << slab_size << " " << idx;
+  // MIDAS_LOG(kDebug) << slab_size << " " << idx;
 
   for (auto &region : slab_regions[idx]) {
-    // LOG(kDebug) << region.full();
+    // MIDAS_LOG(kDebug) << region.full();
     if (!region->full())
       return region->pop();
   }
@@ -106,7 +106,7 @@ void SlabAllocator::free(void *addr) {
   assert(reinterpret_cast<int64_t>(addr) > kVolatileSttAddr);
   SlabHeader *hdr = slab_header(addr);
   auto *region = hdr->region;
-  // LOG(kDebug) << region;
+  // MIDAS_LOG(kDebug) << region;
   region->push(addr);
 }
 

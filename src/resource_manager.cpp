@@ -71,13 +71,13 @@ int ResourceManager::connect(const std::string &daemon_name) noexcept {
       return -1;
     }
     if (msg.op == CtrlOpCode::CONNECT && msg.ret == CtrlRetCode::CONN_SUCC)
-      LOG(kInfo) << "Connection established.";
+      MIDAS_LOG(kInfo) << "Connection established.";
     else {
-      LOG(kError) << "Connection failed.";
+      MIDAS_LOG(kError) << "Connection failed.";
       abort();
     }
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
   }
 
   return 0;
@@ -95,13 +95,13 @@ int ResourceManager::disconnect() noexcept {
       return -1;
     }
     if (msg.op == CtrlOpCode::DISCONNECT && msg.ret == CtrlRetCode::CONN_SUCC)
-      LOG(kInfo) << "Connection destroyed.";
+      MIDAS_LOG(kInfo) << "Connection destroyed.";
     else {
-      LOG(kError) << "Disconnection failed.";
+      MIDAS_LOG(kError) << "Disconnection failed.";
       return -1;
     }
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
   }
 
   return 0;
@@ -109,7 +109,7 @@ int ResourceManager::disconnect() noexcept {
 
 void ResourceManager::pressure_handler() {
   stop_ = false;
-  LOG(kError) << "pressure handler thd is running...";
+  MIDAS_LOG(kError) << "pressure handler thd is running...";
 
   while (!stop_) {
     CtrlMsg msg;
@@ -118,13 +118,13 @@ void ResourceManager::pressure_handler() {
       continue;
     }
 
-    LOG(kInfo) << "PressureHandler recved msg " << msg.op;
+    MIDAS_LOG(kInfo) << "PressureHandler recved msg " << msg.op;
     switch (msg.op) {
     case UPDLIMIT:
       do_update_limit(msg);
       break;
     default:
-      LOG(kError) << "Recved unknown message: " << msg.op;
+      MIDAS_LOG(kError) << "Recved unknown message: " << msg.op;
     }
   }
 }
@@ -133,7 +133,7 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
   assert(msg.mmsg.size != 0);
 
   auto new_region_limit = msg.mmsg.size;
-  LOG(kError) << region_limit_ << " " << new_region_limit;
+  MIDAS_LOG(kError) << region_limit_ << " " << new_region_limit;
 
   if (new_region_limit >= region_limit_) {
     region_limit_ = new_region_limit;
@@ -149,7 +149,8 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
 inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
   assert(nr_to_reclaim > 0);
   CachePool::global_cache_pool()->get_evacuator()->signal_gc();
-  LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.\n", nr_to_reclaim);
+  MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.\n",
+                   nr_to_reclaim);
   while (NumRegionAvail() < 0)
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   auto nr_reclaimed = nr_to_reclaim;
@@ -183,7 +184,7 @@ retry:
   CtrlMsg ret_msg;
   int ret = txqp_.recv(&ret_msg, sizeof(ret_msg));
   if (ret) {
-    LOG(kError) << ": in recv msg, ret: " << ret;
+    MIDAS_LOG(kError) << ": in recv msg, ret: " << ret;
     return -1;
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
@@ -200,8 +201,8 @@ retry:
   assert(region->Size() == ret_msg.mmsg.size);
   assert((reinterpret_cast<uint64_t>(region->Addr()) & (~kRegionMask)) == 0);
 
-  LOG(kDebug) << "Allocated region: " << region->Addr() << " ["
-              << region->Size() << "]";
+  MIDAS_LOG(kDebug) << "Allocated region: " << region->Addr() << " ["
+                    << region->Size() << "]";
   return region_id;
 }
 
@@ -209,7 +210,7 @@ void ResourceManager::FreeRegion(int64_t rid) noexcept {
   std::unique_lock<std::mutex> lk(mtx_);
   int64_t freed_bytes = free_region(rid);
   if (freed_bytes == -1) {
-    LOG(kError) << "Failed to free region " << rid;
+    MIDAS_LOG(kError) << "Failed to free region " << rid;
     return;
   }
 }
@@ -222,7 +223,8 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
     auto region_iter = region_map_.begin();
     int64_t freed_bytes = free_region(region_iter->second->ID());
     if (freed_bytes == -1) {
-      LOG(kError) << "Failed to free region " << region_iter->second->ID();
+      MIDAS_LOG(kError) << "Failed to free region "
+                        << region_iter->second->ID();
       // continue;
       break;
     }
@@ -231,15 +233,15 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
     if (total_freed >= size)
       break;
   }
-  LOG(kInfo) << "Freed " << nr_freed_regions << " regions (" << total_freed
-             << "bytes)";
+  MIDAS_LOG(kInfo) << "Freed " << nr_freed_regions << " regions ("
+                   << total_freed << "bytes)";
 }
 
 /** This function is supposed to be called inside a locked section */
 inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
   auto region_iter = region_map_.find(region_id);
   if (region_iter == region_map_.cend()) {
-    LOG(kError) << "Invalid region_id " << region_id;
+    MIDAS_LOG(kError) << "Invalid region_id " << region_id;
     return -1;
   }
 
@@ -250,8 +252,8 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
                 .mmsg = {.region_id = region_id, .size = size}};
     txqp_.send(&msg, sizeof(msg));
 
-    LOG(kDebug) << "Free region " << region_id << " @ "
-                << region_iter->second->Addr();
+    MIDAS_LOG(kDebug) << "Free region " << region_id << " @ "
+                      << region_iter->second->Addr();
 
     CtrlMsg ack;
     unsigned prio;
@@ -260,11 +262,11 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
     if (ack.op != CtrlOpCode::FREE || ack.ret != CtrlRetCode::MEM_SUCC)
       return -1;
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
   }
 
   region_map_.erase(region_id);
-  LOG(kDebug) << "region_map size: " << region_map_.size();
+  MIDAS_LOG(kDebug) << "region_map size: " << region_map_.size();
   return size;
 }
 

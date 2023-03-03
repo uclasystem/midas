@@ -233,9 +233,7 @@ inline bool ObjectPtr::is_small_obj() const noexcept { return small_obj_; }
 
 inline bool ObjectPtr::is_head_obj() const noexcept { return head_obj_; }
 
-inline void ObjectPtr::set_victim(bool victim) noexcept {
-  victim_ = victim;
-}
+inline void ObjectPtr::set_victim(bool victim) noexcept { victim_ = victim; }
 
 inline bool ObjectPtr::is_victim() const noexcept { return victim_; }
 
@@ -390,7 +388,7 @@ inline ObjectPtr *ObjectPtr::get_rref() noexcept {
       return nullptr;
     return reinterpret_cast<ObjectPtr *>(hdr.get_rref());
   }
-  LOG(kError) << "impossible to reach here!";
+  MIDAS_LOG(kError) << "impossible to reach here!";
   return nullptr;
 }
 

@@ -34,8 +34,8 @@ inline CachePool *CachePool::global_cache_pool() {
 
 inline void CachePool::set_construct_func(ConstructFunc callback) {
   if (construct_)
-    LOG(kWarning) << "Cache pool " << name_
-                  << " has already set its construct callback";
+    MIDAS_LOG(kWarning) << "Cache pool " << name_
+                        << " has already set its construct callback";
   else
     construct_ = callback;
 }
@@ -96,17 +96,17 @@ inline void CachePool::log_stats() const noexcept {
                           (stats.hits + stats.victim_hits + stats.misses);
   auto victim_hits = stats.victim_hits.load();
   auto perf_gain = victim_hits * miss_penalty;
-  LOG_PRINTF(kError,
-             "CachePool %s:\n"
-             "\tCache hit ratio:  %.4f\n"
-             "\t   miss penalty:  %.2f\n"
-             "\tVictim hit ratio: %.4f\n"
-             "\t       hit count: %lu\n"
-             "\t       perf gain: %.4f\n"
-             "\t           count: %lu\n"
-             "\t            size: %lu\n",
-             name_.c_str(), hit_ratio, miss_penalty, victim_hit_ratio,
-             victim_hits, perf_gain, vcache_->count(), vcache_->size());
+  MIDAS_LOG_PRINTF(kError,
+                   "CachePool %s:\n"
+                   "\tCache hit ratio:  %.4f\n"
+                   "\t   miss penalty:  %.2f\n"
+                   "\tVictim hit ratio: %.4f\n"
+                   "\t       hit count: %lu\n"
+                   "\t       perf gain: %.4f\n"
+                   "\t           count: %lu\n"
+                   "\t            size: %lu\n",
+                   name_.c_str(), hit_ratio, miss_penalty, victim_hit_ratio,
+                   victim_hits, perf_gain, vcache_->count(), vcache_->size());
 }
 
 inline void CachePool::CacheStats::reset() noexcept {
@@ -124,11 +124,11 @@ inline CacheManager::~CacheManager() { pools_.clear(); }
 inline bool CacheManager::create_pool(std::string name) {
   std::unique_lock<std::mutex> ul(mtx_);
   if (pools_.find(name) != pools_.cend()) {
-    LOG(kError) << "CachePool " << name << " has already been created!";
+    MIDAS_LOG(kError) << "CachePool " << name << " has already been created!";
     return false;
   }
   auto pool = std::make_unique<CachePool>(name);
-  LOG(kInfo) << "Create cache pool " << name;
+  MIDAS_LOG(kInfo) << "Create cache pool " << name;
   pools_[name] = std::move(pool);
   return true;
 }
@@ -136,7 +136,7 @@ inline bool CacheManager::create_pool(std::string name) {
 inline bool CacheManager::delete_pool(std::string name) {
   std::unique_lock<std::mutex> ul(mtx_);
   if (pools_.find(name) == pools_.cend()) {
-    LOG(kError) << "CachePool " << name << " has already been deleted!";
+    MIDAS_LOG(kError) << "CachePool " << name << " has already been deleted!";
     return false;
   }
   pools_.erase(name);

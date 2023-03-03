@@ -185,7 +185,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::create_node(
   }
   // assert(!new_node->pair.null());
   if (new_node->pair.null()) {
-    LOG(kError) << "new node KV pair is freed!";
+    MIDAS_LOG(kError) << "new node KV pair is freed!";
     delete new_node;
     return nullptr;
   }

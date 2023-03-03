@@ -42,7 +42,8 @@ bool SigHandler::softfault_handler(siginfo_t *info, ucontext_t *ctx) {
 
   void *ip = (void *)ctx->uc_mcontext.gregs[REG_RIP];
   uint64_t *bp = (uint64_t *)ctx->uc_mcontext.gregs[REG_RBP];
-  LOG_PRINTF(kError, "fault @ %p, ip = %p, bp = %p\n", info->si_addr, ip, bp);
+  MIDAS_LOG_PRINTF(kError, "fault @ %p, ip = %p, bp = %p\n", info->si_addr, ip,
+                   bp);
   // return false;
 
   auto func = dispatcher(ctx->uc_mcontext.gregs[REG_RIP]);
@@ -60,10 +61,10 @@ bool SigHandler::softfault_handler(siginfo_t *info, ucontext_t *ctx) {
     ctx->uc_mcontext.gregs[REG_RAX] = 0; // return value
   }
 
-  LOG_PRINTF(kDebug, "return to ip = %p, rbp = %p, rsp = %p\n",
-             (void *)ctx->uc_mcontext.gregs[REG_RIP],
-             (void *)ctx->uc_mcontext.gregs[REG_RBP],
-             (void *)ctx->uc_mcontext.gregs[REG_RSP]);
+  MIDAS_LOG_PRINTF(kDebug, "return to ip = %p, rbp = %p, rsp = %p\n",
+                   (void *)ctx->uc_mcontext.gregs[REG_RIP],
+                   (void *)ctx->uc_mcontext.gregs[REG_RBP],
+                   (void *)ctx->uc_mcontext.gregs[REG_RSP]);
   return true;
 }
 
@@ -73,7 +74,7 @@ static inline bool softfault_handler(siginfo_t *info, ucontext_t *ptr) {
 
 static void signal_segv(int signum, siginfo_t *info, void *ptr) {
   ucontext_t *ctx = reinterpret_cast<ucontext_t *>(ptr);
-  LOG(kDebug) << "Segmentation Fault!";
+  MIDAS_LOG(kDebug) << "Segmentation Fault!";
   // print_callstack(info, ctx);
   if (softfault_handler(info, ctx))
     return;
@@ -86,7 +87,7 @@ void setup_sigsegv() {
   action.sa_sigaction = signal_segv;
   action.sa_flags = SA_SIGINFO;
   if (sigaction(SIGSEGV, &action, NULL) < 0)
-    LOG(kError) << "sigaction failed!";
+    MIDAS_LOG(kError) << "sigaction failed!";
 }
 
 SigHandler::SigHandler() { setup_sigsegv(); }

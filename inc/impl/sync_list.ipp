@@ -89,7 +89,7 @@ SyncList<Tp, Alloc, Lock>::create_node(const Tp &v) {
   }
   // assert(!node->obj.null());
   if (node->obj.null()) {
-    LOG(kError) << "new list node is freed!";
+    MIDAS_LOG(kError) << "new list node is freed!";
     delete node;
     return nullptr;
   }

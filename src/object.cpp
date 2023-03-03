@@ -47,11 +47,11 @@ bool ObjectPtr::copy_from_small(const void *src, size_t len, int64_t offset) {
   if (!null()) {
     MetaObjectHdr meta_hdr;
     if (!load_hdr(meta_hdr, *this)) {
-      LOG(kError);
+      MIDAS_LOG(kError);
       goto done;
     }
     if (!meta_hdr.is_present()) {
-      LOG(kError);
+      MIDAS_LOG(kError);
       goto done;
     }
     meta_hdr.inc_accessed();
@@ -229,7 +229,7 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
         remaining_len, optr.data_size_in_segment() - remaining_offset);
     if (!optr.obj_.copy_from(src_tptr, copy_len, 0,
                              sizeof(LargeObjectHdr) + remaining_offset)) {
-      LOG(kError);
+      MIDAS_LOG(kError);
       return RetCode::Fault;
     }
     remaining_offset = 0; // copy from the beginning for non-head parts

@@ -59,9 +59,10 @@ private:
   LogVerbosity _verbose;
 };
 
-#define LOG(verbose) Logger(__FILE__, __func__, __LINE__, (verbose), #verbose)
+#define MIDAS_LOG(verbose)                                                     \
+  Logger(__FILE__, __func__, __LINE__, (verbose), #verbose)
 
-#define LOG_PRINTF(verbose, ...)                                               \
+#define MIDAS_LOG_PRINTF(verbose, ...)                                         \
   do {                                                                         \
     if ((verbose) <= kGlobalVerbose) {                                         \
       fprintf(stderr, "[%s](%s:%d, in %s()): ", #verbose, __FILE__, __LINE__,  \
@@ -70,7 +71,7 @@ private:
     }                                                                          \
   } while (0)
 
-#define ABORT(...)                                                             \
+#define MIDAS_ABORT(...)                                                       \
   do {                                                                         \
     fprintf(stderr, "[Abort](%s:%d, in %s()): ", __FILE__, __LINE__,           \
             __func__);                                                         \

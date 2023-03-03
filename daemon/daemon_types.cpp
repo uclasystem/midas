@@ -58,8 +58,8 @@ void Client::alloc_region_(size_t size, bool overcommit) {
       mm.size = actual_size;
     } else {
       /* region has already existed */
-      LOG(kError) << "Client " << id << " has already allocated region "
-                  << region_id;
+      MIDAS_LOG(kError) << "Client " << id << " has already allocated region "
+                        << region_id;
 
       ret = CtrlRetCode::MEM_FAIL;
     }
@@ -86,7 +86,8 @@ void Client::free_region(int64_t region_id) {
     mm.size = actual_size;
   } else {
     /* Failed to find corresponding region */
-    LOG(kError) << "Client " << id << " doesn't have region " << region_id;
+    MIDAS_LOG(kError) << "Client " << id << " doesn't have region "
+                      << region_id;
     ret = CtrlRetCode::MEM_FAIL;
   }
 
@@ -137,7 +138,7 @@ Daemon::~Daemon() {
 int Daemon::do_connect(const CtrlMsg &msg) {
   try {
     if (clients_.find(msg.id) != clients_.cend()) {
-      LOG(kError) << "Client " << msg.id << " connected twice!";
+      MIDAS_LOG(kError) << "Client " << msg.id << " connected twice!";
       /* TODO: this might be some stale client. Probably we could try to
        * send the ack back */
       return -1;
@@ -150,9 +151,9 @@ int Daemon::do_connect(const CtrlMsg &msg) {
     auto &client = client_iter->second;
     client.connect();
     client.update_limit(mem_limit_); // init client-side mem_limit
-    LOG(kInfo) << "Client " << msg.id << " connected.";
+    MIDAS_LOG(kInfo) << "Client " << msg.id << " connected.";
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
   }
 
   return 0;
@@ -164,15 +165,15 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
     if (client_iter == clients_.cend()) {
       /* TODO: this might be some unregistered client. Probably we could try to
        * connect to it and send the ack back */
-      LOG(kError) << "Client " << msg.id << " doesn't exist!";
+      MIDAS_LOG(kError) << "Client " << msg.id << " doesn't exist!";
       return -1;
     }
     client_iter->second.disconnect();
 
     clients_.erase(msg.id);
-    LOG(kInfo) << "Client " << msg.id << " disconnected!";
+    MIDAS_LOG(kInfo) << "Client " << msg.id << " disconnected!";
   } catch (boost::interprocess::interprocess_exception &e) {
-    LOG(kError) << e.what();
+    MIDAS_LOG(kError) << e.what();
   }
 
   return 0;
@@ -183,7 +184,7 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
   auto client_iter = clients_.find(msg.id);
   if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
-    LOG(kError) << "Client " << msg.id << " doesn't exist!";
+    MIDAS_LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
   }
   auto &client = client_iter->second;
@@ -198,7 +199,7 @@ int Daemon::do_overcommit(const CtrlMsg &msg) {
   auto client_iter = clients_.find(msg.id);
   if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
-    LOG(kError) << "Client " << msg.id << " doesn't exist!";
+    MIDAS_LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
   }
   auto &client = client_iter->second;
@@ -212,7 +213,7 @@ int Daemon::do_free(const CtrlMsg &msg) {
   auto client_iter = clients_.find(msg.id);
   if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
-    LOG(kError) << "Client " << msg.id << " doesn't exist!";
+    MIDAS_LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
   }
 
@@ -228,7 +229,7 @@ int Daemon::do_update_limit_req(const CtrlMsg &msg) {
   auto client_iter = clients_.find(msg.id);
   if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
-    LOG(kError) << "Client " << msg.id << " doesn't exist!";
+    MIDAS_LOG(kError) << "Client " << msg.id << " doesn't exist!";
     return -1;
   }
 
@@ -244,14 +245,14 @@ void Daemon::monitor() {
     uint64_t upd_mem_limit;
     std::ifstream cfg(cfg_file_);
     if (!cfg.is_open()) {
-      LOG(kError) << "open " << cfg_file_ << " failed!";
+      MIDAS_LOG(kError) << "open " << cfg_file_ << " failed!";
       return;
     }
     cfg >> upd_mem_limit;
     cfg.close();
 
     if (mem_limit_ != upd_mem_limit) {
-      LOG(kError) << mem_limit_ << " != " << upd_mem_limit;
+      MIDAS_LOG(kError) << mem_limit_ << " != " << upd_mem_limit;
       mem_limit_ = upd_mem_limit;
       for (auto &[id, client] : clients_) {
         client.update_limit(mem_limit_);
@@ -263,7 +264,7 @@ void Daemon::monitor() {
 }
 
 void Daemon::serve() {
-  LOG(kInfo) << "Daemon starts listening...";
+  MIDAS_LOG(kInfo) << "Daemon starts listening...";
 
   std::thread monitor_thd([&]() { monitor(); });
   monitor_thd.detach();
@@ -277,7 +278,7 @@ void Daemon::serve() {
     if (recvd_size != sizeof(CtrlMsg)) {
       break;
     }
-    LOG(kDebug) << "Daemon recved msg " << msg.op;
+    MIDAS_LOG(kDebug) << "Daemon recved msg " << msg.op;
     switch (msg.op) {
     case CONNECT:
       do_connect(msg);
@@ -298,7 +299,7 @@ void Daemon::serve() {
       do_update_limit_req(msg);
       break;
     default:
-      LOG(kError) << "Recved unknown message: " << msg.op;
+      MIDAS_LOG(kError) << "Recved unknown message: " << msg.op;
     }
   }
 
