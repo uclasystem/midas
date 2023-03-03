@@ -22,8 +22,11 @@ inline ResilientFunc::ResilientFunc(uint64_t stt_ip_, uint64_t end_ip_)
     : stt_ip(stt_ip_), end_ip(end_ip_), fail_entry(0) {
   omitted_frame_pointer = !match_fp_prologue(stt_ip);
   if (omitted_frame_pointer) {
+    constexpr static uint8_t int3 = 0xcc;
     constexpr static uint8_t retq = 0xc3;
     fail_entry = end_ip + 4; // we insert 4 int3 instructions in func_delimiter
+    while (*(reinterpret_cast<uint8_t *>(fail_entry)) == int3)
+      fail_entry++;
     assert(*(reinterpret_cast<uint8_t *>(fail_entry)) == retq);
   }
 }
