@@ -36,15 +36,18 @@ dep = $(obj:.o=.d)
 
 .PHONY: all clean install
 
-all: libmidas.a \
-	libmidas.so \
-	test
+target = lib/libmidas.a \
+	 libmidas.so \
+	 test
 
-test: $(test_obj) libmidas.a
+all: $(target)
+
+test: $(test_obj) lib/libmidas.a
 	$(LD) -o $@ $^ $(LDFLAGS) -lstdc++
 
-libmidas.a: $(bindings_obj) $(lib_obj)
-	$(AR) rcs libmidas.a $^
+lib/libmidas.a: $(bindings_obj) $(lib_obj)
+	mkdir -p lib
+	$(AR) rcs $@ $^
 
 libmidas.so: $(bindings_obj) $(lib_obj)
 	$(LD) -o $@ $^ -shared $(LDFLAGS)
@@ -59,11 +62,5 @@ ifneq ($(MAKECMDGOALS),clean)
 -include $(dep)
 endif
 
-CP = cp
-inc_src = $(wildcard *.h)
-install:
-	mkdir -p lib
-	$(CP) libmidas.a lib/
-
 clean:
-	$(RM) $(dep) $(obj) test
+	$(RM) $(dep) $(obj) $(target)
