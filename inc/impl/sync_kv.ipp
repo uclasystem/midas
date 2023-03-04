@@ -104,7 +104,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
       // try to set in place
       if (!node->pair.null() &&
           node->pair.copy_from(&vn, sizeof(size_t), sizeof(size_t)) &&
-          node->pair.copy_from(v, vn, kn)) {
+          node->pair.copy_from(v, vn, kn + sizeof(size_t) * 2)) {
         lock.unlock();
         LogAllocator::count_access();
         return true;
