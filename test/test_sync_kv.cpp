@@ -14,6 +14,7 @@
 #define TEST_OBJECT 1
 #define TEST_LARGE 1
 
+constexpr static size_t kCacheSize = 1024ull * 1024 * 200;
 constexpr static int kNBuckets = (1 << 20);
 constexpr static int kNumInsertThds = 10;
 constexpr static int kNumRemoveThds = 10;
@@ -165,7 +166,7 @@ void gen_workload() {
 
 int main(int argc, char *argv[]) {
   auto *rmanager = midas::ResourceManager::global_manager();
-  rmanager->UpdateLimit(200ull * 1024 * 1024);
+  rmanager->UpdateLimit(kCacheSize);
 
   auto *kvstore = new midas::SyncKV<kNBuckets>();
   std::mutex std_map_lock;
@@ -211,17 +212,21 @@ int main(int argc, char *argv[]) {
       for (auto &pair : std_map) {
         const K &k = pair.first;
         V &v = pair.second;
-        V v2;
-        if (!kvstore->get(&k, sizeof(k), &v2, sizeof(v2))) {
+        size_t stored_vn = 0;
+        V *v2 = reinterpret_cast<V *>(kvstore->get(&k, sizeof(k), &stored_vn));
+        if (!v2) {
           nr_err++;
         } else {
           nr_succ++;
-          if (v == v2) {
+          assert(stored_vn == sizeof(V));
+          if (v == *v2) {
             nr_equal++;
           } else {
             nr_nequal++;
           }
         }
+        if (v2)
+          free(v2);
       }
     }));
   }
