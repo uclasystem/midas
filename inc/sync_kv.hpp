@@ -21,6 +21,7 @@ public:
   SyncKV();
   SyncKV(CachePool *pool);
 
+  void *get(const void *key, size_t klen, size_t *vlen);
   bool get(const void *key, size_t klen, void *value, size_t vlen);
   bool set(const void *key, size_t klen, const void *value, size_t vlen);
   bool remove(const void *key, size_t klen);
@@ -38,8 +39,8 @@ private:
   BNPtr create_node(uint64_t hash, const void *k, size_t kn, const void *v,
                     size_t vn);
   BNPtr delete_node(BNPtr *prev_next, BNPtr node);
-  bool iterate_list(uint64_t hash, const void *k, size_t kn, BNPtr *&prev_next,
-                    BNPtr &node);
+  bool iterate_list(uint64_t hash, const void *k, size_t kn, size_t *vn,
+                    BNPtr *&prev_next, BNPtr &node);
   BNPtr *find(void *k, size_t kn, bool remove = false);
   Lock locks_[NBuckets];
   BucketNode *buckets_[NBuckets];

@@ -14,6 +14,47 @@ SyncKV<NBuckets, Alloc, Lock>::SyncKV(CachePool *pool) : pool_(pool) {
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
+void *SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, size_t *vn) {
+  auto key_hash = robin_hood::hash_bytes(k, kn);
+  auto bucket_idx = key_hash % NBuckets;
+
+  auto &lock = locks_[bucket_idx];
+  lock.lock();
+
+  size_t stored_vn = 0;
+  auto prev_next = &buckets_[bucket_idx];
+  BNPtr node = buckets_[bucket_idx];
+  bool found = false;
+  while (node) {
+    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
+    if (found)
+      break;
+  }
+  if (!found) {
+    lock.unlock();
+    pool_->inc_cache_miss();
+    return nullptr;
+  }
+  assert(node);
+  void *stored_v = malloc(stored_vn);
+  if (node->pair.null() ||
+      !node->pair.copy_to(stored_v, stored_vn, kn + sizeof(size_t) * 2)) {
+    if (node->pair.is_victim())
+      pool_->inc_cache_victim_hit();
+    node = delete_node(prev_next, node);
+    lock.unlock();
+    free(stored_v);
+    return nullptr;
+  }
+  *vn = stored_vn;
+
+  lock.unlock();
+  pool_->inc_cache_hit();
+  LogAllocator::count_access();
+  return stored_v;
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, void *v,
                                         size_t vn) {
   auto key_hash = robin_hood::hash_bytes(k, kn);
@@ -22,11 +63,12 @@ bool SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, void *v,
   auto &lock = locks_[bucket_idx];
   lock.lock();
 
+  size_t stored_vn = 0;
   auto prev_next = &buckets_[bucket_idx];
   BNPtr node = buckets_[bucket_idx];
   bool found = false;
   while (node) {
-    found = iterate_list(key_hash, k, kn, prev_next, node);
+    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
     if (found)
       break;
   }
@@ -36,7 +78,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, void *v,
     return false;
   }
   assert(node);
-  if (node->pair.null() ||
+  if (vn > stored_vn || node->pair.null() ||
       !node->pair.copy_to(v, vn, kn + sizeof(size_t) * 2)) {
     if (node->pair.is_victim())
       pool_->inc_cache_victim_hit();
@@ -64,7 +106,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::remove(const void *k, size_t kn) {
   BNPtr node = buckets_[bucket_idx];
   bool found = false;
   while (node) {
-    found = iterate_list(key_hash, k, kn, prev_next, node);
+    found = iterate_list(key_hash, k, kn, nullptr, prev_next, node);
     if (found)
       break;
   }
@@ -89,20 +131,13 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
   auto &lock = locks_[bucket_idx];
   lock.lock();
 
+  size_t stored_vn = 0;
   auto prev_next = &buckets_[bucket_idx];
   auto node = buckets_[bucket_idx];
   while (node) {
-    auto found = iterate_list(key_hash, k, kn, prev_next, node);
+    auto found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
     if (found) {
-      size_t stored_vn = 0;
-      if (node->pair.null() ||
-          !node->pair.copy_to(&stored_vn, sizeof(size_t), sizeof(size_t)) ||
-          vn > stored_vn /* cannot fit in place */) {
-        node = delete_node(prev_next, node);
-        break;
-      }
-      // try to set in place
-      if (!node->pair.null() &&
+      if (vn <= stored_vn && !node->pair.null() && // try to set in place if fit
           node->pair.copy_from(&vn, sizeof(size_t), sizeof(size_t)) &&
           node->pair.copy_from(v, vn, kn + sizeof(size_t) * 2)) {
         lock.unlock();
@@ -188,36 +223,37 @@ SyncKV<NBuckets, Alloc, Lock>::delete_node(BNPtr *prev_next, BNPtr node) {
 template <size_t NBuckets, typename Alloc, typename Lock>
 inline bool
 SyncKV<NBuckets, Alloc, Lock>::iterate_list(uint64_t key_hash, const void *k,
-                                            size_t kn, BNPtr *&prev_next,
-                                            BNPtr &node) {
+                                            size_t kn, size_t *vn,
+                                            BNPtr *&prev_next, BNPtr &node) {
+  size_t stored_kn = 0;
+  void *stored_k = nullptr;
   if (key_hash != node->key_hash)
     goto notequal;
-  else {
-    size_t stored_kn = 0;
-    if (node->pair.null() || !node->pair.copy_to(&stored_kn, sizeof(size_t)))
-      goto faulted;
-    if (stored_kn != kn)
-      goto notequal;
-    void *stored_k = malloc(kn);
-    if (!node->pair.copy_to(stored_k, kn, sizeof(size_t) * 2)) {
-      free(stored_k);
-      goto faulted;
-    }
-    if (strncmp(reinterpret_cast<const char *>(k),
-                reinterpret_cast<const char *>(stored_k), kn) != 0) {
-      free(stored_k);
-      goto notequal;
-    }
-  }
+  if (node->pair.null() || !node->pair.copy_to(&stored_kn, sizeof(size_t)))
+    goto faulted;
+  if (stored_kn != kn)
+    goto notequal;
+  stored_k = malloc(kn);
+  if (!node->pair.copy_to(stored_k, kn, sizeof(size_t) * 2))
+    goto faulted;
+  if (strncmp(reinterpret_cast<const char *>(k),
+              reinterpret_cast<const char *>(stored_k), kn) != 0)
+    goto notequal;
+  if (vn && !node->pair.copy_to(vn, sizeof(size_t), sizeof(size_t)))
+    goto faulted;
   return true;
 
 faulted:
+  if (stored_k)
+    free(stored_k);
   if (node->pair.is_victim())
     pool_->inc_cache_victim_hit();
   // prev remains the same when current node is deleted.
   node = delete_node(prev_next, node);
   return false;
 notequal:
+  if (stored_k)
+    free(stored_k);
   prev_next = &(node->next);
   node = node->next;
   return false;
