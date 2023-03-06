@@ -100,13 +100,16 @@ inline void CachePool::log_stats() const noexcept {
                    "CachePool %s:\n"
                    "\tCache hit ratio:  %.4f\n"
                    "\t   miss penalty:  %.2f\n"
+                   "\t     hit counts:  %lu\n"
+                   "\t    miss counts:  %lu\n"
                    "\tVictim hit ratio: %.4f\n"
                    "\t       hit count: %lu\n"
                    "\t       perf gain: %.4f\n"
                    "\t           count: %lu\n"
                    "\t            size: %lu\n",
-                   name_.c_str(), hit_ratio, miss_penalty, victim_hit_ratio,
-                   victim_hits, perf_gain, vcache_->count(), vcache_->size());
+                   name_.c_str(), hit_ratio, miss_penalty, stats.hits.load(),
+                   stats.misses.load(), victim_hit_ratio, victim_hits,
+                   perf_gain, vcache_->count(), vcache_->size());
 }
 
 inline void CachePool::CacheStats::reset() noexcept {
