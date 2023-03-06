@@ -8,7 +8,7 @@ inline CachePool::CachePool(std::string name)
   evacuator_ = std::make_unique<Evacuator>(this, allocator_);
 }
 
-inline CachePool::~CachePool() { log_stats(); }
+inline CachePool::~CachePool() {}
 
 inline CachePool *CachePool::global_cache_pool() {
   static std::mutex mtx_;
@@ -62,13 +62,7 @@ inline bool CachePool::free(ObjectPtr &ptr) {
 
 inline void CachePool::inc_cache_hit() { stats.hits++; }
 
-inline void CachePool::inc_cache_miss() {
-  stats.misses++;
-  if (stats.misses % 10000 == 0) {
-    log_stats();
-    stats.reset();
-  }
-}
+inline void CachePool::inc_cache_miss() { stats.misses++; }
 
 inline void CachePool::inc_cache_victim_hit() { stats.victim_hits++; }
 
@@ -89,61 +83,16 @@ inline Evacuator *CachePool::get_evacuator() const noexcept {
   return evacuator_.get();
 }
 
-inline void CachePool::log_stats() const noexcept {
-  auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
-  auto miss_penalty = static_cast<float>(stats.miss_cycles) / stats.miss_bytes;
-  auto victim_hit_ratio = static_cast<float>(stats.hits + stats.victim_hits) /
-                          (stats.hits + stats.victim_hits + stats.misses);
-  auto victim_hits = stats.victim_hits.load();
-  auto perf_gain = victim_hits * miss_penalty;
-  MIDAS_LOG_PRINTF(kError,
-                   "CachePool %s:\n"
-                   "\tCache hit ratio:  %.4f\n"
-                   "\t   miss penalty:  %.2f\n"
-                   "\t     hit counts:  %lu\n"
-                   "\t    miss counts:  %lu\n"
-                   "\tVictim hit ratio: %.4f\n"
-                   "\t       hit count: %lu\n"
-                   "\t       perf gain: %.4f\n"
-                   "\t           count: %lu\n"
-                   "\t            size: %lu\n",
-                   name_.c_str(), hit_ratio, miss_penalty, stats.hits.load(),
-                   stats.misses.load(), victim_hit_ratio, victim_hits,
-                   perf_gain, vcache_->count(), vcache_->size());
+inline CacheManager::CacheManager() : terminated_(false) {
+  assert(create_pool(default_pool_name));
+  profiler_ = std::make_unique<std::thread>([&] { return profile_pools(); });
 }
 
-inline void CachePool::CacheStats::reset() noexcept {
-  hits = 0;
-  misses = 0;
-  miss_cycles = 0;
-  miss_bytes = 0;
-  victim_hits = 0;
-}
-
-inline CacheManager::CacheManager() { assert(create_pool(default_pool_name)); }
-
-inline CacheManager::~CacheManager() { pools_.clear(); }
-
-inline bool CacheManager::create_pool(std::string name) {
-  std::unique_lock<std::mutex> ul(mtx_);
-  if (pools_.find(name) != pools_.cend()) {
-    MIDAS_LOG(kError) << "CachePool " << name << " has already been created!";
-    return false;
-  }
-  auto pool = std::make_unique<CachePool>(name);
-  MIDAS_LOG(kInfo) << "Create cache pool " << name;
-  pools_[name] = std::move(pool);
-  return true;
-}
-
-inline bool CacheManager::delete_pool(std::string name) {
-  std::unique_lock<std::mutex> ul(mtx_);
-  if (pools_.find(name) == pools_.cend()) {
-    MIDAS_LOG(kError) << "CachePool " << name << " has already been deleted!";
-    return false;
-  }
-  pools_.erase(name);
-  return true;
+inline CacheManager::~CacheManager() {
+  terminated_ = true;
+  if (profiler_)
+    profiler_->join();
+  pools_.clear();
 }
 
 inline CachePool *CacheManager::get_pool(std::string name) {

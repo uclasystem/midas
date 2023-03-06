@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <thread>
 
 #include "evacuator.hpp"
 #include "log.hpp"
@@ -63,6 +64,7 @@ private:
     std::atomic_uint_fast64_t miss_cycles{0};
     std::atomic_uint_fast64_t miss_bytes{0};
     std::atomic_uint_fast64_t victim_hits{0};
+    uint64_t timestamp{0};
 
     void reset() noexcept;
   } stats;
@@ -70,6 +72,8 @@ private:
   std::unique_ptr<VictimCache> vcache_;
   std::shared_ptr<LogAllocator> allocator_;
   std::unique_ptr<Evacuator> evacuator_;
+
+  friend class CacheManager;
 
   static constexpr uint64_t kVCacheSizeLimit = 16 * 1024 * 1024; // 16 MB
   static constexpr uint64_t kVCacheCountLimit = 5000;
@@ -91,6 +95,10 @@ public:
   constexpr static char default_pool_name[] = "default";
 
 private:
+  bool terminated_;
+  void profile_pools();
+  std::unique_ptr<std::thread> profiler_;
+
   std::mutex mtx_;
   std::unordered_map<std::string, std::unique_ptr<CachePool>> pools_;
 };
