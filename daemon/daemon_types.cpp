@@ -1,10 +1,11 @@
+#include <chrono>
+#include <fstream>
+#include <thread>
+
 #include "inc/daemon_types.hpp"
 #include "logging.hpp"
 #include "shm_types.hpp"
 #include "utils.hpp"
-#include <chrono>
-#include <fstream>
-#include <thread>
 
 namespace midas {
 
@@ -42,11 +43,13 @@ void Client::alloc_region_(size_t size, bool overcommit) {
     int64_t region_id = new_region_id_();
     const auto rwmode = boost::interprocess::read_write;
     const std::string region_name = utils::get_region_name(id, region_id);
+    boost::interprocess::permissions perms;
+    perms.set_unrestricted();
 
     if (regions.find(region_id) == regions.cend()) {
       int64_t actual_size;
       auto region = std::make_shared<SharedMemObj>(
-          boost::interprocess::create_only, region_name.c_str(), rwmode);
+          boost::interprocess::create_only, region_name.c_str(), rwmode, perms);
       regions[region_id] = region;
       region_cnt_++;
 
@@ -125,9 +128,11 @@ Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
     : cfg_file_(cfg_file), ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
       mem_limit_(kRegionLimit * kRegionSize) {
   MsgQueue::remove(ctrlq_name_.c_str());
+  boost::interprocess::permissions perms;
+  perms.set_unrestricted();
   ctrlq_ = std::make_shared<MsgQueue>(boost::interprocess::create_only,
                                       ctrlq_name_.c_str(), kDaemonQDepth,
-                                      sizeof(CtrlMsg));
+                                      sizeof(CtrlMsg), perms);
 }
 
 Daemon::~Daemon() {

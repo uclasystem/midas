@@ -3,6 +3,7 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/permissions.hpp>
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
