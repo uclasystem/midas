@@ -4,6 +4,7 @@
 
 #include "inc/daemon_types.hpp"
 #include "logging.hpp"
+#include "qpair.hpp"
 #include "shm_types.hpp"
 #include "utils.hpp"
 
@@ -132,7 +133,7 @@ Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
   perms.set_unrestricted();
   ctrlq_ = std::make_shared<MsgQueue>(boost::interprocess::create_only,
                                       ctrlq_name_.c_str(), kDaemonQDepth,
-                                      sizeof(CtrlMsg), perms);
+                                      kMaxMsgSize, perms);
 }
 
 Daemon::~Daemon() {
