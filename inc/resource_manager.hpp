@@ -70,6 +70,7 @@ private:
 
   void pressure_handler();
   void do_update_limit(CtrlMsg &msg);
+  void do_profile_stats(CtrlMsg &msg);
   void do_reclaim(int64_t nr_to_reclaim);
 
   uint64_t region_limit_;

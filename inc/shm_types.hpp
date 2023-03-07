@@ -14,6 +14,7 @@ enum CtrlOpCode {
   FREE,
   UPDLIMIT,
   UPDLIMIT_REQ,
+  PROF_STATS,
 };
 
 enum CtrlRetCode {
@@ -34,6 +35,17 @@ struct CtrlMsg {
   CtrlRetCode ret;
   MemMsg mmsg;
 };
+
+struct StatsMsg {
+  // cache stats
+  uint64_t hits;
+  uint64_t misses;
+  double miss_penalty;
+  // victim cache stats
+  uint64_t vhits;
+};
+static_assert(sizeof(CtrlMsg) == sizeof(StatsMsg),
+              "CtrlMsg and StatsMsg have different size!");
 
 struct VRange {
   VRange() = default;

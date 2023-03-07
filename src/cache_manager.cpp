@@ -1,6 +1,7 @@
 #include <chrono>
 
 #include "cache_manager.hpp"
+#include "shm_types.hpp"
 #include "time.hpp"
 
 namespace midas {
@@ -35,17 +36,26 @@ inline void CachePool::CacheStats::reset() noexcept {
   victim_hits = 0;
 }
 
-void CacheManager::profile_pools() {
+StatsMsg CacheManager::profile_pools() {
+  StatsMsg stats{0};
   std::unique_lock<std::mutex> ul(mtx_);
   for (auto &[_, pool] : pools_) {
     uint64_t curr_ts = Time::get_us_stt();
     uint64_t prev_ts = pool->stats.timestamp;
-    if (pool->stats.hits)
+    if (pool->stats.hits) {
       pool->log_stats();
+      stats.hits = pool->stats.hits;
+      stats.misses = pool->stats.misses;
+      stats.miss_penalty =
+          static_cast<double>(pool->stats.miss_cycles) / pool->stats.miss_bytes;
+      stats.vhits = pool->stats.victim_hits;
+      // stats.vmisses = 0;
+    }
     pool->stats.reset();
     pool->stats.timestamp = curr_ts;
   }
   ul.unlock();
+  return stats;
 }
 
 bool CacheManager::create_pool(std::string name) {

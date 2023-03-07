@@ -123,6 +123,9 @@ void ResourceManager::pressure_handler() {
     case UPDLIMIT:
       do_update_limit(msg);
       break;
+    case PROF_STATS:
+      do_profile_stats(msg);
+      break;
     default:
       MIDAS_LOG(kError) << "Recved unknown message: " << msg.op;
     }
@@ -144,6 +147,12 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
     region_limit_ = new_region_limit;
     do_reclaim(nr_to_reclaim);
   }
+}
+
+void ResourceManager::do_profile_stats(CtrlMsg &msg) {
+  auto cache_manager = CacheManager::global_cache_manager();
+  StatsMsg stats = std::move(cache_manager->profile_pools());
+  rxqp_.send(&stats, sizeof(stats));
 }
 
 inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {

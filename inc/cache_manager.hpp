@@ -11,6 +11,7 @@
 #include "evacuator.hpp"
 #include "log.hpp"
 #include "object.hpp"
+#include "shm_types.hpp"
 #include "victim_cache.hpp"
 
 namespace midas {
@@ -96,11 +97,13 @@ public:
 
 private:
   bool terminated_;
-  void profile_pools();
+  StatsMsg profile_pools();
   std::unique_ptr<std::thread> profiler_;
 
   std::mutex mtx_;
   std::unordered_map<std::string, std::unique_ptr<CachePool>> pools_;
+
+  friend class ResourceManager;
 };
 
 } // namespace midas
