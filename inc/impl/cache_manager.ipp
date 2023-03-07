@@ -85,7 +85,13 @@ inline Evacuator *CachePool::get_evacuator() const noexcept {
 
 inline CacheManager::CacheManager() : terminated_(false) {
   assert(create_pool(default_pool_name));
-  profiler_ = std::make_unique<std::thread>([&] { return profile_pools(); });
+  profiler_ = std::make_unique<std::thread>([&] {
+    constexpr static uint64_t PROF_INTERVAL = 2; // about 2s
+    while (!terminated_) {
+      std::this_thread::sleep_for(std::chrono::seconds(PROF_INTERVAL));
+      profile_pools();
+    }
+  });
 }
 
 inline CacheManager::~CacheManager() {

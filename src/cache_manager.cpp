@@ -36,22 +36,16 @@ inline void CachePool::CacheStats::reset() noexcept {
 }
 
 void CacheManager::profile_pools() {
-  constexpr static uint64_t PROF_INTERVAL = 2 * 1000 * 1000; // about 2s
-  while (!terminated_) {
-    std::unique_lock<std::mutex> ul(mtx_);
-    for (auto &[_, pool] : pools_) {
-      uint64_t curr_ts = Time::get_us_stt();
-      uint64_t prev_ts = pool->stats.timestamp;
-      if (curr_ts - prev_ts > PROF_INTERVAL) {
-        if (pool->stats.hits)
-          pool->log_stats();
-        pool->stats.reset();
-        pool->stats.timestamp = curr_ts;
-      }
-    }
-    ul.unlock();
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+  std::unique_lock<std::mutex> ul(mtx_);
+  for (auto &[_, pool] : pools_) {
+    uint64_t curr_ts = Time::get_us_stt();
+    uint64_t prev_ts = pool->stats.timestamp;
+    if (pool->stats.hits)
+      pool->log_stats();
+    pool->stats.reset();
+    pool->stats.timestamp = curr_ts;
   }
+  ul.unlock();
 }
 
 bool CacheManager::create_pool(std::string name) {
