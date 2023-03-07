@@ -1,5 +1,7 @@
+#include <boost/interprocess/exceptions.hpp>
 #include <chrono>
 #include <fstream>
+#include <mutex>
 #include <thread>
 
 #include "inc/daemon_types.hpp"
@@ -13,12 +15,22 @@ namespace midas {
 /** Client */
 Client::Client(uint64_t id_, uint64_t region_limit)
     : status(ClientStatusCode::INIT), id(id_), region_cnt_(0),
-      region_limit_(region_limit),
+      region_limit_(region_limit), terminated_(false),
       cq(utils::get_ackq_name(kNameCtrlQ, id), false),
-      txqp(std::to_string(id), false) {}
+      txqp(std::to_string(id), false) {
+  profiler_ = std::make_shared<std::thread>([&]() {
+    while (!terminated_) {
+      std::this_thread::sleep_for(std::chrono::seconds(2));
+      profile_stats();
+    }
+  });
+}
 
 Client::~Client() {
   cq.destroy();
+  terminated_ = true;
+  if (profiler_)
+    profiler_->join();
   txqp.destroy();
   destroy();
 }
@@ -107,6 +119,7 @@ void Client::update_limit(uint64_t mem_limit) {
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
   MemMsg mm{.size = region_limit_};
 
+  std::unique_lock<std::mutex> ul(tx_mtx);
   CtrlMsg msg{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
   txqp.send(&msg, sizeof(msg));
 
@@ -115,6 +128,17 @@ void Client::update_limit(uint64_t mem_limit) {
 
   // assert(ack.ret == CtrlRetCode::MEM_SUCC);
   // TODO: parse ack and react correspondingly
+}
+
+void Client::profile_stats() {
+  std::unique_lock<std::mutex> ul(tx_mtx);
+  CtrlMsg msg{.op = CtrlOpCode::PROF_STATS};
+  txqp.send(&msg, sizeof(msg));
+  StatsMsg stats;
+  txqp.recv(&stats, sizeof(stats));
+  MIDAS_LOG(kError) << "Client " << id << " " << stats.hits << " "
+                    << stats.misses << " " << stats.miss_penalty << " "
+                    << stats.vhits;
 }
 
 void Client::destroy() {
