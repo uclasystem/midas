@@ -149,13 +149,13 @@ int Daemon::do_connect(const CtrlMsg &msg) {
       return -1;
     }
     // clients_[msg.id] = std::move(Client(msg.id));
-    clients_.insert(
-        std::make_pair(msg.id, Client(msg.id, mem_limit_ / kRegionSize)));
+    clients_.insert(std::make_pair(
+        msg.id, std::make_unique<Client>(msg.id, mem_limit_ / kRegionSize)));
     auto client_iter = clients_.find(msg.id);
     assert(client_iter != clients_.cend());
     auto &client = client_iter->second;
-    client.connect();
-    client.update_limit(mem_limit_); // init client-side mem_limit
+    client->connect();
+    client->update_limit(mem_limit_); // init client-side mem_limit
     MIDAS_LOG(kInfo) << "Client " << msg.id << " connected.";
   } catch (boost::interprocess::interprocess_exception &e) {
     MIDAS_LOG(kError) << e.what();
@@ -173,7 +173,7 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
       MIDAS_LOG(kError) << "Client " << msg.id << " doesn't exist!";
       return -1;
     }
-    client_iter->second.disconnect();
+    client_iter->second->disconnect();
 
     clients_.erase(msg.id);
     MIDAS_LOG(kInfo) << "Client " << msg.id << " disconnected!";
@@ -193,8 +193,8 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
     return -1;
   }
   auto &client = client_iter->second;
-  assert(msg.id == client.id);
-  client.alloc_region(msg.mmsg.size);
+  assert(msg.id == client->id);
+  client->alloc_region(msg.mmsg.size);
 
   return 0;
 }
@@ -208,8 +208,8 @@ int Daemon::do_overcommit(const CtrlMsg &msg) {
     return -1;
   }
   auto &client = client_iter->second;
-  assert(msg.id == client.id);
-  client.overcommit_region(msg.mmsg.size);
+  assert(msg.id == client->id);
+  client->overcommit_region(msg.mmsg.size);
 
   return 0;
 }
@@ -225,7 +225,7 @@ int Daemon::do_free(const CtrlMsg &msg) {
   uint64_t region_id = msg.mmsg.region_id;
   size_t region_size = msg.mmsg.size;
   auto &client = client_iter->second;
-  client.free_region(region_id);
+  client->free_region(region_id);
 
   return 0;
 }
@@ -240,7 +240,7 @@ int Daemon::do_update_limit_req(const CtrlMsg &msg) {
 
   size_t upd_mem_limit = std::min(msg.mmsg.size, mem_limit_);
   auto &client = client_iter->second;
-  client.update_limit(upd_mem_limit);
+  client->update_limit(upd_mem_limit);
 
   return 0;
 }
@@ -260,7 +260,7 @@ void Daemon::monitor() {
       MIDAS_LOG(kError) << mem_limit_ << " != " << upd_mem_limit;
       mem_limit_ = upd_mem_limit;
       for (auto &[id, client] : clients_) {
-        client.update_limit(mem_limit_);
+        client->update_limit(mem_limit_);
       }
     }
 

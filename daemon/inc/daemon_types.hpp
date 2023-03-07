@@ -73,7 +73,7 @@ private:
 
   const std::string ctrlq_name_;
   std::shared_ptr<MsgQueue> ctrlq_;
-  std::unordered_map<uint64_t, Client> clients_;
+  std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
 
   uint64_t mem_limit_;
   std::string cfg_file_;
