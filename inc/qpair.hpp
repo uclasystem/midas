@@ -32,7 +32,7 @@ public:
   // QSingle() = default;
   QSingle(std::string name, bool create, uint32_t qdepth = kClientQDepth,
           uint32_t msgsize = kMaxMsgSize)
-      : _qdepth(qdepth), _msgsize(msgsize), _name(name) {
+      : qdepth_(qdepth), msgsize_(msgsize), name_(name) {
     init(create);
   }
 
@@ -48,10 +48,10 @@ public:
   inline void destroy();
 
 private:
-  uint32_t _qdepth;
-  uint32_t _msgsize;
-  std::string _name;
-  std::shared_ptr<MsgQueue> _q;
+  uint32_t qdepth_;
+  uint32_t msgsize_;
+  std::string name_;
+  std::shared_ptr<MsgQueue> q_;
 };
 
 class QPair {
@@ -60,23 +60,23 @@ public:
   QPair(std::string qpname, bool create, uint32_t qdepth = kClientQDepth,
         uint32_t msgsize = kMaxMsgSize);
   QPair(std::shared_ptr<QSingle> sq, std::shared_ptr<QSingle> rq)
-      : _sq(sq), _rq(rq) {}
+      : sq_(sq), rq_(rq) {}
 
   inline int send(const void *buffer, size_t buffer_size);
   inline int recv(void *buffer, size_t buffer_size);
   inline int try_recv(void *buffer, size_t buffer_size);
   inline int timed_recv(void *buffer, size_t buffer_size, int timeout);
 
-  inline QSingle &SendQ() const noexcept { return *_sq; }
-  inline QSingle &RecvQ() const noexcept { return *_rq; }
+  inline QSingle &SendQ() const noexcept { return *sq_; }
+  inline QSingle &RecvQ() const noexcept { return *rq_; }
 
   /* destroy() will remove the shm file so it should be called only once
    * manually by the owner of the QP, usually in its destructor. */
   inline void destroy();
 
 private:
-  std::shared_ptr<QSingle> _sq;
-  std::shared_ptr<QSingle> _rq;
+  std::shared_ptr<QSingle> sq_;
+  std::shared_ptr<QSingle> rq_;
 };
 
 
