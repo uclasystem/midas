@@ -9,14 +9,14 @@ inline int64_t Client::new_region_id_() noexcept {
   return region_id++;
 }
 
-inline void Client::alloc_region(size_t size) {
-  return alloc_region_(size, false);
+inline bool Client::alloc_region() {
+  return alloc_region_(false);
 }
 
 /* for evacuator to temporarily overcommit memory during evacuation. It will
  * return more regions afterwards. */
-inline void Client::overcommit_region(size_t size) {
-  return alloc_region_(size, true);
+inline bool Client::overcommit_region() {
+  return alloc_region_(true);
 }
 
 inline Daemon *Daemon::get_daemon() {

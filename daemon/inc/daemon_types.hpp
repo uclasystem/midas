@@ -35,9 +35,9 @@ public:
 
   void connect();
   void disconnect();
-  void alloc_region(size_t size);
-  void overcommit_region(size_t size);
-  void free_region(int64_t region_id);
+  bool alloc_region();
+  bool overcommit_region();
+  bool free_region(int64_t region_id);
   void update_limit(uint64_t mem_limit);
   void profile_stats();
 
@@ -45,7 +45,7 @@ private:
   inline int64_t new_region_id_() noexcept;
   inline void destroy();
 
-  void alloc_region_(size_t size, bool overcommit);
+  bool alloc_region_(bool overcommit);
 
   bool terminated_;
   std::shared_ptr<std::thread> profiler_;

@@ -48,7 +48,7 @@ void Client::disconnect() {
 /** @overcommit: evacuator might request several overcommitted regions for
  *    temporary usages. It will soon return more regions back.
  */
-void Client::alloc_region_(size_t size, bool overcommit) {
+bool Client::alloc_region_(bool overcommit) {
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
   MemMsg mm;
 
@@ -66,7 +66,7 @@ void Client::alloc_region_(size_t size, bool overcommit) {
       regions[region_id] = region;
       region_cnt_++;
 
-      region->truncate(size);
+      region->truncate(kRegionSize);
       region->get_size(actual_size);
 
       ret = CtrlRetCode::MEM_SUCC;
@@ -83,9 +83,10 @@ void Client::alloc_region_(size_t size, bool overcommit) {
 
   CtrlMsg ret_msg{.op = CtrlOpCode::ALLOC, .ret = ret, .mmsg = mm};
   cq.send(&ret_msg, sizeof(ret_msg));
+  return ret == CtrlRetCode::MEM_SUCC;
 }
 
-void Client::free_region(int64_t region_id) {
+bool Client::free_region(int64_t region_id) {
   CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
   MemMsg mm;
   int64_t actual_size;
@@ -109,6 +110,7 @@ void Client::free_region(int64_t region_id) {
 
   CtrlMsg ack{.op = CtrlOpCode::FREE, .ret = ret, .mmsg = mm};
   cq.send(&ack, sizeof(ack));
+  return ret == CtrlRetCode::MEM_SUCC;
 }
 
 void Client::update_limit(uint64_t mem_limit) {
@@ -210,7 +212,7 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
 }
 
 int Daemon::do_alloc(const CtrlMsg &msg) {
-  assert(msg.mmsg.size != 0);
+  assert(msg.mmsg.size == kRegionSize);
   auto client_iter = clients_.find(msg.id);
   if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
@@ -219,13 +221,13 @@ int Daemon::do_alloc(const CtrlMsg &msg) {
   }
   auto &client = client_iter->second;
   assert(msg.id == client->id);
-  client->alloc_region(msg.mmsg.size);
+  client->alloc_region();
 
   return 0;
 }
 
 int Daemon::do_overcommit(const CtrlMsg &msg) {
-  assert(msg.mmsg.size != 0);
+  assert(msg.mmsg.size == kRegionSize);
   auto client_iter = clients_.find(msg.id);
   if (client_iter == clients_.cend()) {
     /* TODO: same as in do_disconnect */
@@ -234,7 +236,7 @@ int Daemon::do_overcommit(const CtrlMsg &msg) {
   }
   auto &client = client_iter->second;
   assert(msg.id == client->id);
-  client->overcommit_region(msg.mmsg.size);
+  client->overcommit_region();
 
   return 0;
 }
