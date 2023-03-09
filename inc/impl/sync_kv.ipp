@@ -15,10 +15,7 @@ SyncKV<NBuckets, Alloc, Lock>::SyncKV(CachePool *pool) : pool_(pool) {
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 void *SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, size_t *vn) {
-  auto key_hash =
-      kn == sizeof(uint64_t)
-          ? robin_hood::hash_int(*(reinterpret_cast<const uint64_t *>(k)))
-          : robin_hood::hash_bytes(k, kn);
+  auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
   auto &lock = locks_[bucket_idx];
@@ -60,10 +57,7 @@ void *SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, size_t *vn) {
 template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, void *v,
                                         size_t vn) {
-  auto key_hash =
-      kn == sizeof(uint64_t)
-          ? robin_hood::hash_int(*(reinterpret_cast<const uint64_t *>(k)))
-          : robin_hood::hash_bytes(k, kn);
+  auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
   auto &lock = locks_[bucket_idx];
@@ -100,10 +94,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, void *v,
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::remove(const void *k, size_t kn) {
-  auto key_hash =
-      kn == sizeof(uint64_t)
-          ? robin_hood::hash_int(*(reinterpret_cast<const uint64_t *>(k)))
-          : robin_hood::hash_bytes(k, kn);
+  auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
   auto &lock = locks_[bucket_idx];
@@ -132,10 +123,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::remove(const void *k, size_t kn) {
 template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
                                         size_t vn) {
-  auto key_hash =
-      kn == sizeof(uint64_t)
-          ? robin_hood::hash_int(*(reinterpret_cast<const uint64_t *>(k)))
-          : robin_hood::hash_bytes(k, kn);
+  auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
   auto &lock = locks_[bucket_idx];
@@ -189,6 +177,13 @@ template <size_t NBuckets, typename Alloc, typename Lock>
 using BNPtr = typename SyncKV<NBuckets, Alloc, Lock>::BucketNode *;
 
 /** Utility functions */
+template <size_t NBuckets, typename Alloc, typename Lock>
+inline uint64_t SyncKV<NBuckets, Alloc, Lock>::hash_(const void *k, size_t kn) {
+  return kn == sizeof(uint64_t)
+          ? robin_hood::hash_int(*(reinterpret_cast<const uint64_t *>(k)))
+          : robin_hood::hash_bytes(k, kn);
+}
+
 template <size_t NBuckets, typename Alloc, typename Lock>
 inline BNPtr<NBuckets, Alloc, Lock> SyncKV<NBuckets, Alloc, Lock>::create_node(
     uint64_t key_hash, const void *k, size_t kn, const void *v, size_t vn) {
