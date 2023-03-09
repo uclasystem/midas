@@ -108,7 +108,6 @@ int ResourceManager::disconnect() noexcept {
 }
 
 void ResourceManager::pressure_handler() {
-  stop_ = false;
   MIDAS_LOG(kError) << "pressure handler thd is running...";
 
   while (!stop_) {
@@ -118,7 +117,7 @@ void ResourceManager::pressure_handler() {
       continue;
     }
 
-    MIDAS_LOG(kInfo) << "PressureHandler recved msg " << msg.op;
+    MIDAS_LOG(kDebug) << "PressureHandler recved msg " << msg.op;
     switch (msg.op) {
     case UPDLIMIT:
       do_update_limit(msg);
