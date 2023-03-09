@@ -38,7 +38,7 @@ public:
   bool alloc_region();
   bool overcommit_region();
   bool free_region(int64_t region_id);
-  void update_limit(uint64_t mem_limit);
+  void update_limit(uint64_t region_limit);
   void profile_stats();
 
 private:

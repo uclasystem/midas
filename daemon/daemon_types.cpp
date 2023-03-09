@@ -113,22 +113,20 @@ bool Client::free_region(int64_t region_id) {
   return ret == CtrlRetCode::MEM_SUCC;
 }
 
-void Client::update_limit(uint64_t mem_limit) {
-  region_limit_ = mem_limit / kRegionSize;
-  if (region_cnt_ == region_limit_)
+void Client::update_limit(uint64_t region_limit) {
+  if (region_limit == region_limit_)
     return;
-
-  CtrlRetCode ret = CtrlRetCode::MEM_FAIL;
-  MemMsg mm{.size = region_limit_};
+  region_limit_ = region_limit;
 
   std::unique_lock<std::mutex> ul(tx_mtx);
-  CtrlMsg msg{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
+  CtrlMsg msg{.op = CtrlOpCode::UPDLIMIT,
+              .ret = CtrlRetCode::MEM_FAIL,
+              .mmsg{.size = region_limit_}};
   txqp.send(&msg, sizeof(msg));
-
   CtrlMsg ack;
   txqp.recv(&ack, sizeof(ack));
 
-  // assert(ack.ret == CtrlRetCode::MEM_SUCC);
+  assert(ack.ret == CtrlRetCode::MEM_SUCC);
   // TODO: parse ack and react correspondingly
 }
 
@@ -182,7 +180,7 @@ int Daemon::do_connect(const CtrlMsg &msg) {
     assert(client_iter != clients_.cend());
     auto &client = client_iter->second;
     client->connect();
-    client->update_limit(mem_limit_); // init client-side mem_limit
+    client->update_limit(mem_limit_ / kRegionSize); // init client-side mem_limit
     MIDAS_LOG(kInfo) << "Client " << msg.id << " connected.";
   } catch (boost::interprocess::interprocess_exception &e) {
     MIDAS_LOG(kError) << e.what();
@@ -267,7 +265,7 @@ int Daemon::do_update_limit_req(const CtrlMsg &msg) {
 
   size_t upd_mem_limit = std::min(msg.mmsg.size, mem_limit_);
   auto &client = client_iter->second;
-  client->update_limit(upd_mem_limit);
+  client->update_limit(upd_mem_limit / kRegionSize);
 
   return 0;
 }
@@ -287,7 +285,7 @@ void Daemon::monitor() {
       MIDAS_LOG(kError) << mem_limit_ << " != " << upd_mem_limit;
       mem_limit_ = upd_mem_limit;
       for (auto &[id, client] : clients_) {
-        client->update_limit(mem_limit_);
+        client->update_limit(mem_limit_ / kRegionSize);
       }
     }
 
