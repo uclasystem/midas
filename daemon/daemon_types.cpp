@@ -96,6 +96,7 @@ bool Client::free_region(int64_t region_id) {
     /* Successfully find the region to be freed */
     region_iter->second->get_size(actual_size);
     regions.erase(region_id);
+    SharedMemObj::remove(utils::get_region_name(id, region_id).c_str());
     region_cnt_--;
 
     ret = CtrlRetCode::MEM_SUCC;
