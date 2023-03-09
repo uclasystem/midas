@@ -25,6 +25,15 @@ enum class ClientStatusCode {
   DISCONNECTED,
 };
 
+struct CacheStats {
+  uint64_t hits{0};
+  uint64_t misses{0};
+  double penalty{0.};
+  uint64_t vhits{0};
+  uint64_t vcache_size{0};
+  double perf_gain{0.};
+};
+
 class Client {
 public:
   Client(uint64_t id_, uint64_t region_limit = -1ull);
@@ -38,8 +47,8 @@ public:
   bool alloc_region();
   bool overcommit_region();
   bool free_region(int64_t region_id);
-  void update_limit(uint64_t region_limit);
-  void profile_stats();
+  void update_limit(uint64_t mem_limit);
+  bool profile_stats();
 
 private:
   inline int64_t new_region_id_() noexcept;
@@ -47,15 +56,17 @@ private:
 
   bool alloc_region_(bool overcommit);
 
-  bool terminated_;
-  std::shared_ptr<std::thread> profiler_;
   std::mutex tx_mtx;
   QSingle cq; // per-client completion queue for the ctrl queue
   QPair txqp;
   std::unordered_map<int64_t, std::shared_ptr<SharedMemObj>> regions;
 
+  CacheStats stats;
+
   uint64_t region_cnt_;
   uint64_t region_limit_;
+
+  friend class Daemon;
 };
 
 class Daemon {
@@ -75,13 +86,22 @@ private:
   int do_free(const CtrlMsg &msg);
   int do_update_limit_req(const CtrlMsg &msg);
 
+  void rebalancer();
   void monitor();
+
+  bool terminated_;
+  std::shared_ptr<std::thread> profiler_;
+  std::shared_ptr<std::thread> monitor_;
 
   const std::string ctrlq_name_;
   std::shared_ptr<MsgQueue> ctrlq_;
+  std::mutex mtx_;
   std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
 
+  uint64_t region_cnt_;
+  uint64_t region_limit_;
   uint64_t mem_limit_;
+  // For simluation
   std::string cfg_file_;
   constexpr static uint64_t kRegionLimit = (1ull << 30) / kRegionSize; // 1GB
   constexpr static char kDaemonCfgFile[] = "config/mem.config";
