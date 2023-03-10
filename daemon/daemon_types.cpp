@@ -332,6 +332,7 @@ void Daemon::rebalancer() {
       bool alive = client->profile_stats();
       if (!alive) {
         dead_clients.emplace_back(client->id);
+        continue;
       }
       auto perf_gain = client->stats.perf_gain;
       if (perf_gain < 1.0)
