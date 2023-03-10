@@ -37,6 +37,7 @@ private:
   using BNPtr = BucketNode *;
 
   static inline uint64_t hash_(const void *key, size_t klen);
+  void *get_(const void *key, size_t klen, void *value, size_t *vlen);
   BNPtr create_node(uint64_t hash, const void *k, size_t kn, const void *v,
                     size_t vn);
   BNPtr delete_node(BNPtr *prev_next, BNPtr node);

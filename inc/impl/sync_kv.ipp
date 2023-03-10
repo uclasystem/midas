@@ -13,82 +13,26 @@ SyncKV<NBuckets, Alloc, Lock>::SyncKV(CachePool *pool) : pool_(pool) {
   memset(buckets_, 0, sizeof(buckets_));
 }
 
+/** Storage layout in soft memory:
+ *    | KeyLen (8B) | ValueLen (8B) | Key (`KeyLen`B) | Value (`ValueLen`B) |
+ */
+
+/** Base Interfaces */
 template <size_t NBuckets, typename Alloc, typename Lock>
 void *SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, size_t *vn) {
-  auto key_hash = hash_(k, kn);
-  auto bucket_idx = key_hash % NBuckets;
-
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
-
-  size_t stored_vn = 0;
-  auto prev_next = &buckets_[bucket_idx];
-  BNPtr node = buckets_[bucket_idx];
-  bool found = false;
-  while (node) {
-    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
-    if (found)
-      break;
-  }
-  if (!found) {
-    lock.unlock();
-    pool_->inc_cache_miss();
-    return nullptr;
-  }
-  assert(node);
-  void *stored_v = malloc(stored_vn);
-  if (node->pair.null() ||
-      !node->pair.copy_to(stored_v, stored_vn, kn + sizeof(size_t) * 2)) {
-    if (node->pair.is_victim())
-      pool_->inc_cache_victim_hit();
-    node = delete_node(prev_next, node);
-    lock.unlock();
-    free(stored_v);
-    return nullptr;
-  }
-  *vn = stored_vn;
-
-  lock.unlock();
-  pool_->inc_cache_hit();
-  LogAllocator::count_access();
-  return stored_v;
+  return get_(k, kn, nullptr, vn);
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, void *v,
                                         size_t vn) {
-  auto key_hash = hash_(k, kn);
-  auto bucket_idx = key_hash % NBuckets;
-
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
-
+  if (!v)
+    return false;
   size_t stored_vn = 0;
-  auto prev_next = &buckets_[bucket_idx];
-  BNPtr node = buckets_[bucket_idx];
-  bool found = false;
-  while (node) {
-    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
-    if (found)
-      break;
-  }
-  if (!found) {
-    lock.unlock();
-    pool_->inc_cache_miss();
+  if (get_(k, kn, v, &stored_vn) == nullptr)
     return false;
-  }
-  assert(node);
-  if (vn > stored_vn || node->pair.null() ||
-      !node->pair.copy_to(v, vn, kn + sizeof(size_t) * 2)) {
-    if (node->pair.is_victim())
-      pool_->inc_cache_victim_hit();
-    node = delete_node(prev_next, node);
-    lock.unlock();
+  if (stored_vn < vn) // value size check
     return false;
-  }
-  lock.unlock();
-  pool_->inc_cache_hit();
-  LogAllocator::count_access();
   return true;
 }
 
@@ -171,6 +115,48 @@ bool SyncKV<NBuckets, Alloc, Lock>::clear() {
     lock.unlock();
   }
   return true;
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
+void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
+                                          size_t *vn) {
+  auto key_hash = hash_(k, kn);
+  auto bucket_idx = key_hash % NBuckets;
+
+  auto &lock = locks_[bucket_idx];
+  lock.lock();
+
+  size_t stored_vn = 0;
+  auto prev_next = &buckets_[bucket_idx];
+  BNPtr node = buckets_[bucket_idx];
+  bool found = false;
+  while (node) {
+    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
+    if (found)
+      break;
+  }
+  if (!found) {
+    lock.unlock();
+    pool_->inc_cache_miss();
+    return nullptr;
+  }
+  assert(node);
+  void *stored_v = v ? v : malloc(stored_vn);
+  if (node->pair.null() ||
+      !node->pair.copy_to(stored_v, stored_vn, kn + sizeof(size_t) * 2)) {
+    if (node->pair.is_victim())
+      pool_->inc_cache_victim_hit();
+    node = delete_node(prev_next, node);
+    lock.unlock();
+    return nullptr;
+  }
+  lock.unlock();
+  if (vn)
+    *vn = stored_vn;
+
+  pool_->inc_cache_hit();
+  LogAllocator::count_access();
+  return stored_v;
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
