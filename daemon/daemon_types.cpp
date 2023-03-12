@@ -4,6 +4,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <future>
 
 #include "inc/daemon_types.hpp"
 #include "logging.hpp"
@@ -326,26 +327,33 @@ void Daemon::monitor() {
 void Daemon::rebalancer() {
   while (!terminated_) {
     std::this_thread::sleep_for(std::chrono::seconds(kProfInterval));
+    std::mutex dead_clients_mtx;
     std::vector<uint64_t> dead_clients;
+    std::vector<std::future<void>> futures;
     std::unique_lock<std::mutex> ul(mtx_);
     for (auto &[_, client] : clients_) {
-      bool alive = client->profile_stats();
-      if (!alive) {
-        dead_clients.emplace_back(client->id);
-        continue;
-      }
-      auto perf_gain = client->stats.perf_gain;
-      if (perf_gain < 1.0)
-        continue;
-      if (perf_gain < 500.0) {
-        client->update_limit(std::max(client->region_limit_ - 4, 100ul));
-      } else if (perf_gain > 4000.0) {
-        client->update_limit((client->region_limit_ + 4));
-      }
+      auto future = std::async(std::launch::async, [&, &client = client] {
+        bool alive = client->profile_stats();
+        if (!alive) {
+          std::unique_lock<std::mutex> ul(dead_clients_mtx);
+          dead_clients.emplace_back(client->id);
+          return;
+        }
+        auto perf_gain = client->stats.perf_gain;
+        if (perf_gain < 1.0)
+          return;
+        if (perf_gain < 500.0) {
+          client->update_limit(std::max(client->region_limit_ - 4, 100ul));
+        } else if (perf_gain > 4000.0) {
+          client->update_limit((client->region_limit_ + 4));
+        }
+      });
+      futures.emplace_back(std::move(future));
     }
-    for (const auto &cid : dead_clients) {
+    for (auto &f : futures)
+      f.get();
+    for (const auto &cid : dead_clients)
       clients_.erase(cid);
-    }
     dead_clients.clear();
   }
 }
