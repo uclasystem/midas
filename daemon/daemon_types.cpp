@@ -161,8 +161,7 @@ void Client::destroy() {
 /** Daemon */
 Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
     : cfg_file_(cfg_file), ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
-      region_cnt_(0), region_limit_(kRegionLimit),
-      mem_limit_(kRegionLimit * kRegionSize), terminated_(false) {
+      region_cnt_(0), region_limit_(kMaxRegions), terminated_(false) {
   MsgQueue::remove(ctrlq_name_.c_str());
   boost::interprocess::permissions perms;
   perms.set_unrestricted();
@@ -194,10 +193,9 @@ int Daemon::do_connect(const CtrlMsg &msg) {
       return -1;
     }
     ul.unlock();
-    auto client =
-        std::make_unique<Client>(msg.id, mem_limit_ / kRegionSize);
+    auto client = std::make_unique<Client>(msg.id, kInitRegions);
     client->connect();
-    client->update_limit(mem_limit_ / kRegionSize); // init client-side mem_limit
+    region_cnt_ += kInitRegions;
     MIDAS_LOG(kInfo) << "Client " << msg.id << " connected.";
     ul.lock();
     clients_.insert(std::make_pair(msg.id, std::move(client)));
@@ -221,6 +219,7 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
     }
     auto client = std::move(client_iter->second);
     clients_.erase(msg.id);
+    region_cnt_ -= client->region_cnt_;
     ul.unlock();
     client->disconnect();
     MIDAS_LOG(kInfo) << "Client " << msg.id << " disconnected!";
@@ -293,7 +292,9 @@ int Daemon::do_update_limit_req(const CtrlMsg &msg) {
   ul.unlock();
   size_t upd_mem_limit = std::min(msg.mmsg.size, mem_limit_);
   auto &client = client_iter->second;
+  region_cnt_ -= client->region_limit_;
   client->update_limit(upd_mem_limit / kRegionSize);
+  region_cnt_ += client->region_limit_;
 
   return 0;
 }
@@ -335,6 +336,7 @@ void Daemon::rebalancer() {
       auto future = std::async(std::launch::async, [&, &client = client] {
         bool alive = client->profile_stats();
         if (!alive) {
+          region_cnt_ -= client->region_limit_;
           std::unique_lock<std::mutex> ul(dead_clients_mtx);
           dead_clients.emplace_back(client->id);
           return;
