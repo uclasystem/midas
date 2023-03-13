@@ -38,7 +38,10 @@ constexpr static uint32_t kProfInterval = 2; // in seconds
 // align must be power of 2.
 #define round_up_to_align(val, align) (((val) + ((align)-1)) & ~((align)-1))
 #define round_to_align(val, align) ((val) & ~((align)-1))
-#define ptr_offset(ptr, offset) (reinterpret_cast<char *>(ptr) + (offset))
+#define ptr_offset(ptr, offset)                                                \
+  reinterpret_cast<decltype(ptr)>(reinterpret_cast<size_t>(ptr) + (offset))
+#define offset_ptrs(ptr1, ptr2)                                                \
+  (reinterpret_cast<size_t>(ptr2) - reinterpret_cast<size_t>(ptr1))
 
 #ifdef DEBUG
 #define FORCE_INLINE inline
