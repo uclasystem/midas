@@ -101,7 +101,6 @@ private:
 
   std::atomic_uint_fast64_t region_cnt_;
   uint64_t region_limit_;
-  uint64_t mem_limit_;
   // For simluation
   std::string cfg_file_;
   constexpr static uint64_t kInitRegions = (100ull << 20) / kRegionSize; // 100MB

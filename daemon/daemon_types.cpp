@@ -290,34 +290,36 @@ int Daemon::do_update_limit_req(const CtrlMsg &msg) {
     return -1;
   }
   ul.unlock();
-  size_t upd_mem_limit = std::min(msg.mmsg.size, mem_limit_);
+  size_t upd_region_lim = std::min(msg.mmsg.size / kRegionSize, region_limit_);
   auto &client = client_iter->second;
-  region_cnt_ -= client->region_limit_;
-  client->update_limit(upd_mem_limit / kRegionSize);
-  region_cnt_ += client->region_limit_;
+  if (upd_region_lim != client->region_limit_) {
+    region_cnt_ -= client->region_limit_;
+    client->update_limit(upd_region_lim);
+    region_cnt_ += client->region_limit_;
+  }
 
   return 0;
 }
 
 void Daemon::monitor() {
   while (!terminated_) {
-    uint64_t upd_mem_limit;
     std::ifstream cfg(cfg_file_);
     if (!cfg.is_open()) {
       MIDAS_LOG(kError) << "open " << cfg_file_ << " failed!";
       return;
     }
+
+    uint64_t upd_mem_limit;
     cfg >> upd_mem_limit;
     cfg.close();
-
-    if (mem_limit_ != upd_mem_limit) {
-      MIDAS_LOG(kError) << mem_limit_ << " != " << upd_mem_limit;
-      mem_limit_ = upd_mem_limit;
-      region_limit_ = mem_limit_ / kRegionSize;
+    uint64_t upd_region_limit = upd_mem_limit / kRegionSize;
+    if (region_limit_ != upd_region_limit) {
+      MIDAS_LOG(kError) << region_limit_ << " != " << upd_region_limit;
+      region_limit_ = upd_region_limit;
       // TODO: update limit of each client
       // std::unique_lock<std::mutex> ul(mtx_);
       // for (auto &[_, client] : clients_) {
-      //   client->update_limit(mem_limit_);
+      //   client->update_limit(region_limit_);
       // }
     }
 
