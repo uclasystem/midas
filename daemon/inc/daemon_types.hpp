@@ -3,13 +3,14 @@
 #include <atomic>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/mapped_region.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/permissions.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <condition_variable>
 #include <cstdint>
-#include <unordered_map>
-#include <utility>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
+#include <utility>
 
 #include "qpair.hpp"
 #include "shm_types.hpp"
@@ -90,12 +91,30 @@ private:
   int do_free(const CtrlMsg &msg);
   int do_update_limit_req(const CtrlMsg &msg);
 
-  void rebalancer();
+  void charge(int64_t nr_regions);
+  void uncharge(int64_t nr_regions);
+
   void monitor();
+  void profiler();
+  void rebalancer();
+
+  void on_mem_shrink();
+  void on_mem_expand();
+  void on_mem_rebalance();
+
+  enum class MemStatus {
+    NORMAL,
+    NEED_SHRINK,
+    NEED_EXPAND,
+    NEED_REBALANCE
+  } status_;
+  std::mutex rbl_mtx_;
+  std::condition_variable rbl_cv_;
 
   bool terminated_;
-  std::shared_ptr<std::thread> profiler_;
   std::shared_ptr<std::thread> monitor_;
+  std::shared_ptr<std::thread> profiler_;
+  std::shared_ptr<std::thread> rebalancer_;
 
   const std::string ctrlq_name_;
   std::shared_ptr<MsgQueue> ctrlq_;

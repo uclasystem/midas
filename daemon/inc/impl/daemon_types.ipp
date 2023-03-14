@@ -1,7 +1,5 @@
 #pragma once
 
-#include <mutex>
-
 namespace midas {
 
 inline int64_t Client::new_region_id_() noexcept {
