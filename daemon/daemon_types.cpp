@@ -15,13 +15,16 @@
 namespace midas {
 
 /** Client */
-Client::Client(uint64_t id_, uint64_t region_limit)
-    : status(ClientStatusCode::INIT), id(id_), region_cnt_(0),
+Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
+    : daemon_(daemon), status(ClientStatusCode::INIT), id(id_), region_cnt_(0),
       region_limit_(region_limit),
       cq(utils::get_ackq_name(kNameCtrlQ, id), false),
-      txqp(std::to_string(id), false) {}
+      txqp(std::to_string(id), false) {
+  daemon_->region_cnt_ += region_limit_;
+}
 
 Client::~Client() {
+  daemon_->region_cnt_ -= region_limit_;
   cq.destroy();
   txqp.destroy();
   destroy();
@@ -109,6 +112,7 @@ bool Client::free_region(int64_t region_id) {
 void Client::update_limit(uint64_t region_limit) {
   if (region_limit == region_limit_)
     return;
+  daemon_->region_cnt_ += region_limit - region_limit_;
   region_limit_ = region_limit;
 
   std::unique_lock<std::mutex> ul(tx_mtx);
@@ -193,9 +197,8 @@ int Daemon::do_connect(const CtrlMsg &msg) {
       return -1;
     }
     ul.unlock();
-    auto client = std::make_unique<Client>(msg.id, kInitRegions);
+    auto client = std::make_unique<Client>(this, msg.id, kInitRegions);
     client->connect();
-    region_cnt_ += kInitRegions;
     MIDAS_LOG(kInfo) << "Client " << msg.id << " connected.";
     ul.lock();
     clients_.insert(std::make_pair(msg.id, std::move(client)));
@@ -219,7 +222,6 @@ int Daemon::do_disconnect(const CtrlMsg &msg) {
     }
     auto client = std::move(client_iter->second);
     clients_.erase(msg.id);
-    region_cnt_ -= client->region_cnt_;
     ul.unlock();
     client->disconnect();
     MIDAS_LOG(kInfo) << "Client " << msg.id << " disconnected!";
@@ -293,9 +295,7 @@ int Daemon::do_update_limit_req(const CtrlMsg &msg) {
   size_t upd_region_lim = std::min(msg.mmsg.size / kRegionSize, region_limit_);
   auto &client = client_iter->second;
   if (upd_region_lim != client->region_limit_) {
-    region_cnt_ -= client->region_limit_;
     client->update_limit(upd_region_lim);
-    region_cnt_ += client->region_limit_;
   }
 
   return 0;
@@ -338,7 +338,6 @@ void Daemon::rebalancer() {
       auto future = std::async(std::launch::async, [&, &client = client] {
         bool alive = client->profile_stats();
         if (!alive) {
-          region_cnt_ -= client->region_limit_;
           std::unique_lock<std::mutex> ul(dead_clients_mtx);
           dead_clients.emplace_back(client->id);
           return;
