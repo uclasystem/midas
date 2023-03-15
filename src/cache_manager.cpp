@@ -7,7 +7,10 @@
 namespace midas {
 inline void CachePool::log_stats() const noexcept {
   auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
-  auto miss_penalty = static_cast<float>(stats.miss_cycles) / stats.miss_bytes;
+  auto miss_penalty =
+      stats.miss_bytes
+          ? (static_cast<float>(stats.miss_cycles) / stats.miss_bytes)
+          : 0.0;
   auto victim_hit_ratio = static_cast<float>(stats.hits + stats.victim_hits) /
                           (stats.hits + stats.victim_hits + stats.misses);
   auto victim_hits = stats.victim_hits.load();
@@ -46,8 +49,10 @@ StatsMsg CacheManager::profile_pools() {
       pool->log_stats();
       stats.hits = pool->stats.hits;
       stats.misses = pool->stats.misses;
-      stats.miss_penalty =
-          static_cast<double>(pool->stats.miss_cycles) / pool->stats.miss_bytes;
+      stats.miss_penalty = pool->stats.miss_bytes
+                               ? (static_cast<double>(pool->stats.miss_cycles) /
+                                  pool->stats.miss_bytes)
+                               : 0.0;
       stats.vhits = pool->stats.victim_hits;
       // stats.vmisses = 0;
     }
