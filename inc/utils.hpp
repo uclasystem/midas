@@ -42,7 +42,7 @@ constexpr static float KProfWDecay = 0.3;
 #define ptr_offset(ptr, offset)                                                \
   reinterpret_cast<decltype(ptr)>(reinterpret_cast<size_t>(ptr) + (offset))
 #define offset_ptrs(ptr1, ptr2)                                                \
-  (reinterpret_cast<size_t>(ptr2) - reinterpret_cast<size_t>(ptr1))
+  (reinterpret_cast<size_t>(ptr1) - reinterpret_cast<size_t>(ptr2))
 
 #ifdef DEBUG
 #define FORCE_INLINE inline

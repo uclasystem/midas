@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <utility>
@@ -14,6 +15,11 @@
 
 namespace midas {
 
+namespace ordered_set {
+using Value = std::pair<void *, size_t>; // value buffer and its length
+using ValueWithScore = std::pair<Value, double>; // value and its score
+}
+
 template <size_t NBuckets, typename Alloc = LogAllocator,
           typename Lock = std::mutex>
 class SyncKV {
@@ -21,12 +27,25 @@ public:
   SyncKV();
   SyncKV(CachePool *pool);
 
+  /** Basic Interfaces */
   void *get(const void *key, size_t klen, size_t *vlen);
   bool get(const void *key, size_t klen, void *value, size_t vlen);
   bool set(const void *key, size_t klen, const void *value, size_t vlen);
   bool remove(const void *key, size_t klen);
   bool clear();
   // std::vector<Pair> get_all_pairs();
+  /** Ordered Set Interfaces */
+  enum class UpdateType { // mimicing Redis-plus-plus
+    EXIST,
+    NOT_EXIST,
+    ALWAYS
+  };
+  bool zadd(const void *key, size_t klen, const void *value, size_t vlen,
+            double score, UpdateType type);
+  bool zrange(const void *key, size_t klen, int64_t start, int64_t end,
+              std::back_insert_iterator<std::vector<ordered_set::Value>> bi);
+  bool zrevrange(const void *key, size_t klen, int64_t start, int64_t end,
+                 std::back_insert_iterator<std::vector<ordered_set::Value>> bi);
 
 private:
   struct BucketNode {

@@ -159,15 +159,211 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   return stored_v;
 }
 
+/** Ordered Set */
+/** Value Format:
+ *    | NumEle (8B) | Len<V1> (8B) | Score<V1> (8B) | V1 (Len<V1>) | ...
+ *      | Len<Vn> (8B) | Score<Vn> (8B) | Vn (Len<Vn>) |
+ */
+namespace ordered_set {
+struct OSetEle {
+  size_t len;
+  double score;
+  char data[]; // value
+
+  static inline size_t total_size(size_t vn) { return sizeof(OSetEle) + vn; }
+
+  inline void init(const void *v, size_t vn, double score) {
+    this->len = total_size(vn);
+    this->score = score;
+    std::memcpy(data, v, vn);
+  };
+};
+static_assert(sizeof(OSetEle) == sizeof(size_t) + sizeof(double),
+              "OSetEle is not corretly aligned!");
+
+struct OSet {
+  size_t num_ele;
+  OSetEle data[]; // value array
+};
+static_assert(sizeof(OSet) == sizeof(size_t), "OSet is not corretly aligned!");
+
+static inline OSetEle *oset_iter(OSet *oset, size_t oset_len, OSetEle *pos) {
+  if (!pos || offset_ptrs(pos, oset) >= oset_len)
+    return nullptr;
+  size_t vn = pos->len;
+  auto next = ptr_offset(pos, vn);
+  return next;
+}
+
+static inline OSet *oset_init(const void *v, size_t vn, double score) {
+  // allocate NumEle (size_t) and buffer for the single element
+  OSet *oset = reinterpret_cast<OSet *>(
+      malloc(sizeof(size_t) + OSetEle::total_size(vn)));
+  if (!oset)
+    return nullptr;
+  oset->num_ele = 1;
+  auto e = reinterpret_cast<OSetEle *>(oset->data);
+  e->init(v, vn, score);
+  return oset;
+}
+
+static inline OSetEle *oset_search(OSet *oset, size_t oset_len, const void *v,
+                                   size_t vn) {
+  assert(oset->num_ele > 0);
+
+  bool found = false;
+  OSetEle *iter = oset->data;
+  while (iter) {
+    if (iter->len == vn && std::memcmp(iter->data, v, vn) == 0) {
+      found = true;
+      break;
+    }
+    iter = oset_iter(oset, oset_len, iter);
+  }
+  if (found)
+    return iter;
+  return nullptr;
+}
+
+/** Insert an element @v into ordered set. v must not in the set before. */
+static inline bool oset_insert(OSet *&oset_, size_t &oset_len_, const void *v,
+                               size_t vn, double score) {
+  constexpr static bool DUP_CHECK = false;
+  OSet *oset = oset_;
+  size_t oset_len = oset_len_;
+  OSetEle *oset_end = reinterpret_cast<OSetEle *>(ptr_offset(oset, oset_len));
+  size_t num_ele = *reinterpret_cast<size_t *>(oset);
+  assert(num_ele > 0);
+  auto data = ptr_offset(oset, sizeof(size_t));
+
+  OSetEle *iter = oset->data;
+  while (iter < oset_end) {
+    if (DUP_CHECK && iter->len == vn && std::memcmp(iter->data, v, vn) == 0) {
+      return false;
+    }
+    if (iter->score > score) {
+      break;
+    }
+    iter = oset_iter(oset, oset_len, iter);
+  }
+  size_t new_oset_len = oset_len + OSetEle::total_size(vn);
+  OSet *new_oset = reinterpret_cast<OSet *>(malloc(new_oset_len));
+  if (!new_oset)
+    return false;
+  new_oset->num_ele = oset->num_ele + 1;
+  size_t offset = offset_ptrs(iter, oset->data);
+  size_t remaining_size = oset_len - sizeof(size_t) - offset;
+  if (offset)
+    std::memcpy(new_oset->data, oset->data, offset);
+  auto new_data = new_oset->data;
+  auto e = reinterpret_cast<OSetEle *>(ptr_offset(new_data, offset));
+  e->init(v, vn, score);
+  if (remaining_size)
+    std::memcpy(ptr_offset(new_data, offset + OSetEle::total_size(vn)),
+                ptr_offset(data, offset), remaining_size);
+
+  // update oset
+  free(oset);
+  oset_ = new_oset;
+  oset_len_ = new_oset_len;
+  return true;
+}
+} // namespace ordered_set
+
+/** insert a value into the ordered set by its timestamp */
 template <size_t NBuckets, typename Alloc, typename Lock>
-using BNPtr = typename SyncKV<NBuckets, Alloc, Lock>::BucketNode *;
+bool SyncKV<NBuckets, Alloc, Lock>::zadd(const void *k, size_t kn,
+                                         const void *v, size_t vn, double score,
+                                         UpdateType type) {
+  size_t oset_len = 0;
+  auto oset =
+      reinterpret_cast<ordered_set::OSet *>(get_(k, kn, nullptr, &oset_len));
+  if (!oset) {
+    if (type == UpdateType::EXIST)
+      return false;
+    else if (type == UpdateType::NOT_EXIST) {
+      oset = ordered_set::oset_init(v, vn, score);
+      if (!oset)
+        return false;
+      auto oset_len = sizeof(size_t) + ordered_set::OSetEle::total_size(vn);
+      return set(k, kn, oset, oset_len);
+    } else {
+      MIDAS_ABORT("Not implemented yet!");
+    }
+  }
+
+  auto *pos = ordered_set::oset_search(oset, oset_len, v, vn);
+  bool found = pos != nullptr;
+
+  if (type == UpdateType::EXIST) {
+    if (!found)
+      goto failed;
+    pos->init(v, vn, score); // must have pos->len == vn
+    bool ret = set(k, kn, oset, oset_len);
+    return ret;
+  } else if (type == UpdateType::NOT_EXIST) {
+    if (found)
+      goto failed;
+    bool ret = ordered_set::oset_insert(oset, oset_len, v, vn, score);
+    if (!ret)
+      goto failed;
+    ret = set(k, kn, oset, oset_len);
+    free(oset);
+    return ret;
+  }
+
+failed:
+  if (oset)
+    free(oset);
+  return false;
+}
+
+/** Fetch range [start, end] */
+template <size_t NBuckets, typename Alloc, typename Lock>
+bool SyncKV<NBuckets, Alloc, Lock>::zrange(
+    const void *key, size_t klen, int64_t start, int64_t end,
+    std::back_insert_iterator<std::vector<ordered_set::Value>> bi) {
+  size_t oset_len;
+  auto oset = reinterpret_cast<ordered_set::OSet *>(
+      get_(key, klen, nullptr, &oset_len));
+  if (!oset)
+    return false;
+  if (start < 0 || end > oset->num_ele)
+    return false;
+  auto iter = oset->data;
+  for (size_t i = 0; i < start; i++)
+    iter = ordered_set::oset_iter(oset, oset_len, iter);
+  for (size_t i = start; i <= end; i++) {
+    auto len = iter->len - sizeof(ordered_set::OSetEle);
+    auto data = malloc(len);
+    std::memcpy(data, iter->data, len);
+    bi = std::make_pair(data, len);
+    iter = ordered_set::oset_iter(oset, oset_len, iter);
+  }
+  return true;
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
+bool SyncKV<NBuckets, Alloc, Lock>::zrevrange(
+    const void *key, size_t klen, int64_t start, int64_t end,
+    std::back_insert_iterator<std::vector<ordered_set::Value>> bi) {
+  std::vector<ordered_set::Value> values;
+  if (!zrange(key, klen, start, end, std::back_inserter(values)))
+    return false;
+  for (auto iter = values.rbegin(); iter != values.rend(); ++iter)
+    bi = *iter;
+  return true;
+}
 
 /** Utility functions */
 template <size_t NBuckets, typename Alloc, typename Lock>
+using BNPtr = typename SyncKV<NBuckets, Alloc, Lock>::BucketNode *;
+
+template <size_t NBuckets, typename Alloc, typename Lock>
 inline uint64_t SyncKV<NBuckets, Alloc, Lock>::hash_(const void *k, size_t kn) {
   return kn == sizeof(uint64_t)
-          ? robin_hood::hash_int(*(reinterpret_cast<const uint64_t *>(k)))
-          : robin_hood::hash_bytes(k, kn);
+             ? robin_hood::hash_int(*(reinterpret_cast<const uint64_t *>(k)))
+             : robin_hood::hash_bytes(k, kn);
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
@@ -232,6 +428,8 @@ SyncKV<NBuckets, Alloc, Lock>::iterate_list(uint64_t key_hash, const void *k,
     goto notequal;
   if (vn && !node->pair.copy_to(vn, sizeof(size_t), sizeof(size_t)))
     goto faulted;
+  if (stored_k)
+    free(stored_k);
   return true;
 
 faulted:
