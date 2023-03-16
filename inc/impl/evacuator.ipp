@@ -13,7 +13,10 @@ inline Evacuator::Evacuator(CachePool *pool,
   init();
 }
 
-inline void Evacuator::signal_gc() { gc_cv_.notify_all(); }
+inline void Evacuator::signal_gc() {
+  std::unique_lock<std::mutex> ul(gc_mtx_);
+  gc_cv_.notify_all();
+}
 
 inline Evacuator::~Evacuator() {
   terminated_ = true;
