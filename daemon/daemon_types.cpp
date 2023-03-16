@@ -20,6 +20,8 @@ constexpr static bool kEnableRebalancer = true;
 /** Profiler related */
 constexpr static uint32_t kProfInterval = 5; // in seconds
 constexpr static float KProfWDecay = 0.3;
+/** Rebalancer related */
+constexpr static float kExpandTresh = 0.5;
 
 /** Client */
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
@@ -402,6 +404,10 @@ void Daemon::profiler() {
       std::unique_lock<std::mutex> ul(rbl_mtx_);
       status_ = MemStatus::NEED_REBALANCE;
       rbl_cv_.notify_one();
+    } else if (region_cnt_ > region_limit_) {
+      std::unique_lock<std::mutex> ul(rbl_mtx_);
+      status_ = MemStatus::NEED_SHRINK;
+      rbl_cv_.notify_one();
     }
   }
 }
@@ -456,7 +462,7 @@ void Daemon::on_mem_shrink() {
       MIDAS_LOG_PRINTF(kInfo, "Reclaimed client %lu %ld regions, %lu -> %lu\n",
                        client->id, nr_reclaimed, old_limit, new_limit);
     }
-    if (nr_to_reclaim <= 0)
+    if (region_cnt_ <= region_limit_)
       break;
     double total_gain = 0.0;
     for (auto client : active_clients)
@@ -483,41 +489,52 @@ void Daemon::on_mem_shrink() {
 }
 
 void Daemon::on_mem_expand() {
+  bool expanded = false;
   int64_t nr_to_grant = region_limit_ - region_cnt_;
-  while (nr_to_grant > 0) {
-    double nr_grant_ratio = static_cast<double>(nr_to_grant) / region_limit_;
+  if (nr_to_grant <= 0)
+    return;
+  double nr_grant_ratio = static_cast<double>(nr_to_grant) / region_limit_;
 
-    std::vector<Client *> active_clients;
-    std::unique_lock<std::mutex> ul(mtx_);
-    for (auto &[_, client] : clients_) {
-      if (client->stats.perf_gain > kPerfZeroThresh)
-        active_clients.emplace_back(client.get());
-    }
-    ul.unlock();
-    if (active_clients.empty())
-      return;
-    double total_gain = 0.0;
-    for (auto client : active_clients)
-      total_gain += client->stats.perf_gain;
-    for (auto client : active_clients) {
-      auto gain = client->stats.perf_gain;
-      auto old_limit = client->region_limit_;
-      int64_t nr_granted = std::min<int64_t>(
-          std::ceil(gain / total_gain * nr_to_grant), nr_to_grant);
-      auto new_limit = old_limit + nr_granted;
-      client->update_limit(new_limit);
-      nr_to_grant -= nr_granted;
-      MIDAS_LOG_PRINTF(kInfo, "Grant client %lu %ld regions, %lu -> %lu\n",
-                       client->id, nr_granted, old_limit, new_limit);
-    }
-  }
-  MIDAS_LOG(kInfo) << "Memory expansion done! Total regions: " << region_cnt_
-                   << "/" << region_limit_;
+  std::vector<Client *> active_clients;
   std::unique_lock<std::mutex> ul(mtx_);
   for (auto &[_, client] : clients_) {
-    MIDAS_LOG(kInfo) << "Client " << client->id
-                     << " regions: " << client->region_cnt_ << "/"
-                     << client->region_limit_;
+    if (client->stats.perf_gain > kPerfZeroThresh)
+      active_clients.emplace_back(client.get());
+  }
+  ul.unlock();
+  if (active_clients.empty())
+    return;
+  double total_gain = 0.0;
+  for (auto client : active_clients) {
+    if (client->region_cnt_ < client->region_limit_ * kExpandTresh)
+      continue;
+    total_gain += client->stats.perf_gain;
+  }
+  for (auto client : active_clients) {
+    if (client->region_cnt_ < client->region_limit_ * kExpandTresh)
+      continue;
+    auto gain = client->stats.perf_gain;
+    auto old_limit = client->region_limit_;
+    int64_t nr_granted = std::min<int64_t>(
+        std::min<int64_t>(std::ceil(gain / total_gain * nr_to_grant),
+                          std::ceil(old_limit * (1 - kExpandTresh))),
+        nr_to_grant);
+    auto new_limit = old_limit + nr_granted;
+    client->update_limit(new_limit);
+    nr_to_grant -= nr_granted;
+    expanded = true;
+    MIDAS_LOG_PRINTF(kInfo, "Grant client %lu %ld regions, %lu -> %lu\n",
+                     client->id, nr_granted, old_limit, new_limit);
+  }
+  if (expanded) {
+    MIDAS_LOG(kInfo) << "Memory expansion done! Total regions: " << region_cnt_
+                     << "/" << region_limit_;
+    std::unique_lock<std::mutex> ul(mtx_);
+    for (auto &[_, client] : clients_) {
+      MIDAS_LOG(kInfo) << "Client " << client->id
+                       << " regions: " << client->region_cnt_ << "/"
+                       << client->region_limit_;
+    }
   }
 }
 
@@ -539,7 +556,8 @@ void Daemon::on_mem_rebalance() {
   while (!clients.empty()) {
     winner = clients.back();
     clients.pop_back();
-    if (winner->stats.perf_gain > kPerfZeroThresh)
+    if (winner->stats.perf_gain > kPerfZeroThresh ||
+        winner->region_cnt_ >= winner->region_limit_ * kExpandTresh)
       break;
   }
   if (!winner)
