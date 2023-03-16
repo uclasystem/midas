@@ -25,9 +25,6 @@ constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
 constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 /** Evacuator related */
 constexpr static float kAliveThreshHigh = 0.9;
-/** Profiler related */
-constexpr static uint32_t kProfInterval = 5; // in seconds
-constexpr static float KProfWDecay = 0.3;
 
 #ifndef LIKELY
 #define LIKELY(x) __builtin_expect((x), 1)

@@ -15,6 +15,11 @@
 
 namespace midas {
 constexpr static float kPerfZeroThresh = 0.1;
+constexpr static bool kEnableProfiler = true;
+constexpr static bool kEnableRebalancer = true;
+/** Profiler related */
+constexpr static uint32_t kProfInterval = 5; // in seconds
+constexpr static float KProfWDecay = 0.3;
 
 /** Client */
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
@@ -33,7 +38,9 @@ Client::~Client() {
 }
 
 void Client::connect() {
-  CtrlMsg ack{.op = CtrlOpCode::CONNECT, .ret = CtrlRetCode::CONN_SUCC};
+  CtrlMsg ack{.op = CtrlOpCode::CONNECT,
+              .ret = CtrlRetCode::CONN_SUCC,
+              .mmsg{.size = region_limit_ * kRegionSize}};
   cq.send(&ack, sizeof(ack));
 }
 
@@ -168,7 +175,8 @@ void Client::destroy() {
 Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
     : cfg_file_(cfg_file), ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
       region_cnt_(0), region_limit_(kMaxRegions), terminated_(false),
-      status_(MemStatus::NORMAL) {
+      status_(MemStatus::NORMAL), monitor_(nullptr), profiler_(nullptr),
+      rebalancer_(nullptr) {
   MsgQueue::remove(ctrlq_name_.c_str());
   boost::interprocess::permissions perms;
   perms.set_unrestricted();
@@ -177,8 +185,10 @@ Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
                                       kMaxMsgSize, perms);
 
   monitor_ = std::make_shared<std::thread>([&] { monitor(); });
-  profiler_ = std::make_shared<std::thread>([&] { profiler(); });
-  rebalancer_ = std::make_shared<std::thread>([&] { rebalancer(); });
+  if (kEnableProfiler)
+    profiler_ = std::make_shared<std::thread>([&] { profiler(); });
+  if (kEnableRebalancer)
+    rebalancer_ = std::make_shared<std::thread>([&] { rebalancer(); });
 }
 
 Daemon::~Daemon() {
@@ -302,7 +312,7 @@ int Daemon::do_update_limit_req(const CtrlMsg &msg) {
     return -1;
   }
   ul.unlock();
-  size_t upd_region_lim = std::min(msg.mmsg.size / kRegionSize, region_limit_);
+  auto upd_region_lim = std::min(msg.mmsg.size / kRegionSize, region_limit_);
   auto &client = client_iter->second;
   if (upd_region_lim != client->region_limit_) {
     client->update_limit(upd_region_lim);
@@ -381,6 +391,7 @@ void Daemon::profiler() {
     for (const auto &cid : dead_clients)
       clients_.erase(cid);
     dead_clients.clear();
+    ul.unlock();
 
     // invoke rebalancer
     if (region_cnt_ < region_limit_ && nr_active_clients > 0) {
@@ -491,7 +502,8 @@ void Daemon::on_mem_expand() {
     for (auto client : active_clients) {
       auto gain = client->stats.perf_gain;
       auto old_limit = client->region_limit_;
-      int64_t nr_granted = std::floor(gain / total_gain * nr_to_grant);
+      int64_t nr_granted = std::min<int64_t>(
+          std::ceil(gain / total_gain * nr_to_grant), nr_to_grant);
       auto new_limit = old_limit + nr_granted;
       client->update_limit(new_limit);
       nr_to_grant -= nr_granted;
