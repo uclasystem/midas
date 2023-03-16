@@ -72,10 +72,10 @@ inline int QSingle::timed_recv(void *buffer, size_t buffer_size, int timeout) {
     using namespace boost::gregorian;
 
     unsigned priority;
-    size_t recvd_size;
+    size_t recvd_size = 0;
     if (!q_->timed_receive(
             buffer, buffer_size, recvd_size, priority,
-            ptime(second_clock::local_time() + seconds(timeout))))
+            second_clock::universal_time() + seconds(timeout)))
       return -1;
     if (recvd_size != buffer_size) {
       MIDAS_LOG(kError) << "Q " << name_ << " recv error: " << recvd_size
