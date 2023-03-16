@@ -19,6 +19,7 @@
 #include "utils.hpp"
 
 namespace midas {
+constexpr static int kDisconnTimeout = 3; // seconds
 
 Region::Region(uint64_t pid, uint64_t region_id) noexcept
     : pid_(pid), region_id_(region_id) {
@@ -76,6 +77,7 @@ int ResourceManager::connect(const std::string &daemon_name) noexcept {
       MIDAS_LOG(kError) << "Connection failed.";
       abort();
     }
+    region_limit_ = msg.mmsg.size / kRegionSize;
   } catch (boost::interprocess::interprocess_exception &e) {
     MIDAS_LOG(kError) << e.what();
   }
@@ -90,10 +92,9 @@ int ResourceManager::disconnect() noexcept {
     CtrlMsg msg{.id = id_, .op = CtrlOpCode::DISCONNECT};
 
     txqp_.send(&msg, sizeof(CtrlMsg));
-    int ret = txqp_.recv(&msg, sizeof(CtrlMsg));
-    if (ret) {
+    int ret = txqp_.timed_recv(&msg, sizeof(CtrlMsg), kDisconnTimeout);
+    if (ret)
       return -1;
-    }
     if (msg.op == CtrlOpCode::DISCONNECT && msg.ret == CtrlRetCode::CONN_SUCC)
       MIDAS_LOG(kInfo) << "Connection destroyed.";
     else {
