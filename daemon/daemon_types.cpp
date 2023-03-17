@@ -21,7 +21,7 @@ constexpr static bool kEnableRebalancer = true;
 constexpr static uint32_t kProfInterval = 5; // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
-constexpr static float kExpandTresh = 0.5;
+constexpr static float kExpandThresh = 0.5;
 
 /** Client */
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
@@ -506,18 +506,18 @@ void Daemon::on_mem_expand() {
     return;
   double total_gain = 0.0;
   for (auto client : active_clients) {
-    if (client->region_cnt_ < client->region_limit_ * kExpandTresh)
+    if (client->region_cnt_ < client->region_limit_ * kExpandThresh)
       continue;
     total_gain += client->stats.perf_gain;
   }
   for (auto client : active_clients) {
-    if (client->region_cnt_ < client->region_limit_ * kExpandTresh)
+    if (client->region_cnt_ < client->region_limit_ * kExpandThresh)
       continue;
     auto gain = client->stats.perf_gain;
     auto old_limit = client->region_limit_;
     int64_t nr_granted = std::min<int64_t>(
         std::min<int64_t>(std::ceil(gain / total_gain * nr_to_grant),
-                          std::ceil(old_limit * (1 - kExpandTresh))),
+                          std::ceil(old_limit * (1 - kExpandThresh))),
         nr_to_grant);
     auto new_limit = old_limit + nr_granted;
     client->update_limit(new_limit);
@@ -557,7 +557,7 @@ void Daemon::on_mem_rebalance() {
     winner = clients.back();
     clients.pop_back();
     if (winner->stats.perf_gain > kPerfZeroThresh ||
-        winner->region_cnt_ >= winner->region_limit_ * kExpandTresh)
+        winner->region_cnt_ >= winner->region_limit_ * kExpandThresh)
       break;
   }
   if (!winner)
