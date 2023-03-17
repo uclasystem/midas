@@ -510,6 +510,8 @@ void Daemon::on_mem_expand() {
       continue;
     total_gain += client->stats.perf_gain;
   }
+  if (total_gain < kPerfZeroThresh)
+    return;
   for (auto client : active_clients) {
     if (client->region_cnt_ < client->region_limit_ * kExpandThresh)
       continue;
