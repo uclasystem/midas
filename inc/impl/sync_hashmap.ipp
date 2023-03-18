@@ -51,7 +51,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   if (!found) {
     lock.unlock();
     pool_->inc_cache_miss();
-    return false;
+    goto failed;
   }
   assert(node);
   if (node->pair.null() || !node->pair.copy_to(&v, sizeof(Tp), sizeof(Key))) {
@@ -59,12 +59,27 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
       pool_->inc_cache_victim_hit();
     node = delete_node(prev_next, node);
     lock.unlock();
-    return false;
+    goto failed;
   }
   lock.unlock();
   pool_->inc_cache_hit();
   LogAllocator::count_access();
   return true;
+failed:
+  if (kEnableConstruct && pool_->get_construct_func()) {
+    struct {
+      const Key *kp;
+      Tp *vp;
+    } args = {&k, &v};
+    auto stt = Time::get_cycles_stt();
+    auto ret = pool_->construct(&args);
+    if (ret)
+      set(k, v);
+    auto end = Time::get_cycles_end();
+    pool_->record_miss_penalty(end - stt, sizeof(v));
+    return ret == 0; // ret == 0 means successfully re-constructed
+  }
+  return false;
 }
 
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
