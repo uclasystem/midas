@@ -23,8 +23,8 @@ static inline int64_t get_nr_to_reclaim(ResourceManager *manager) {
   float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
                       (manager->NumRegionLimit() + 1);
   uint64_t nr_to_reclaim = 0;
-  if (manager->NumRegionLimit() - manager->NumRegionAvail() >= 1)
-    nr_to_reclaim = std::max(manager->NumRegionLimit() / 1000, 1ul);
+  if (avail_ratio < 0.01 || manager->NumRegionAvail() <= 1)
+    nr_to_reclaim = std::max(manager->NumRegionLimit() / 100, 2ul);
   else
     nr_to_reclaim = 0;
   return nr_to_reclaim;
@@ -248,7 +248,9 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
               goto faulted;
             auto vcache = pool_->get_vcache();
-            vcache->push_back(obj_ptr.get_rref(), nullptr);
+            assert(obj_ptr.get_rref());
+            if (obj_ptr.get_rref())
+              vcache->push_back(obj_ptr.get_rref(), nullptr);
             nr_freed++;
           }
         } else
@@ -279,7 +281,9 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
                 // goto faulted;
               }
               auto vcache = pool_->get_vcache();
-              vcache->push_back(obj_ptr.get_rref(), nullptr);
+              assert(obj_ptr.get_rref());
+              if (obj_ptr.get_rref())
+                vcache->push_back(obj_ptr.get_rref(), nullptr);
 
               nr_freed++;
             }
