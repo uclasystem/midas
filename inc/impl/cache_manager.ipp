@@ -88,17 +88,6 @@ inline ResourceManager *CachePool::get_rmanager() const noexcept {
   return rmanager_.get();
 }
 
-inline CacheManager::CacheManager() : terminated_(false), profiler_(nullptr) {
-  assert(create_pool(default_pool_name));
-  // profiler_ = std::make_unique<std::thread>([&] {
-  //   constexpr static uint64_t PROF_INTERVAL = 2; // about 2s
-  //   while (!terminated_) {
-  //     std::this_thread::sleep_for(std::chrono::seconds(PROF_INTERVAL));
-  //     profile_pools();
-  //   }
-  // });
-}
-
 inline CacheManager::~CacheManager() {
   terminated_ = true;
   if (profiler_)
