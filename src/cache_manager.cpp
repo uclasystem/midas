@@ -5,7 +5,11 @@
 #include "time.hpp"
 
 namespace midas {
-inline void CachePool::log_stats() const noexcept {
+inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
+  if (stats.hits == 0)
+    return;
+  auto curr_ts = Time::get_us_stt();
+  stats.timestamp = curr_ts;
   auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
   auto miss_penalty =
       stats.miss_bytes
@@ -15,6 +19,14 @@ inline void CachePool::log_stats() const noexcept {
                           (stats.hits + stats.victim_hits + stats.misses);
   auto victim_hits = stats.victim_hits.load();
   auto perf_gain = victim_hits * miss_penalty;
+
+  if (msg) {
+    msg->hits = stats.hits;
+    msg->misses = stats.misses;
+    msg->miss_penalty = miss_penalty;
+    msg->vhits = victim_hits;
+  }
+
   MIDAS_LOG_PRINTF(kError,
                    "CachePool %s:\n"
                    "\tCache hit ratio:  %.4f\n"
@@ -46,15 +58,7 @@ StatsMsg CacheManager::profile_pools() {
     uint64_t curr_ts = Time::get_us_stt();
     uint64_t prev_ts = pool->stats.timestamp;
     if (pool->stats.hits) {
-      pool->log_stats();
-      stats.hits = pool->stats.hits;
-      stats.misses = pool->stats.misses;
-      stats.miss_penalty = pool->stats.miss_bytes
-                               ? (static_cast<double>(pool->stats.miss_cycles) /
-                                  pool->stats.miss_bytes)
-                               : 0.0;
-      stats.vhits = pool->stats.victim_hits;
-      // stats.vmisses = 0;
+      pool->profile_stats(&stats);
     }
     pool->stats.reset();
     pool->stats.timestamp = curr_ts;

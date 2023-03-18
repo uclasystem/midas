@@ -43,6 +43,7 @@ public:
   void inc_cache_miss();
   void inc_cache_victim_hit();
   void record_miss_penalty(uint64_t cycles, uint64_t bytes);
+  void profile_stats(StatsMsg *msg = nullptr) noexcept;
 
   inline VictimCache *get_vcache() const noexcept;
   inline LogAllocator *get_allocator() const noexcept;
@@ -51,8 +52,6 @@ public:
   static inline CachePool *global_cache_pool();
 
 private:
-  void log_stats() const noexcept;
-
   std::string name_;
   ConstructFunc construct_;
   PreevictFunc preevict_;
