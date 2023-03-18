@@ -22,6 +22,9 @@ public:
   CachePool(std::string name);
   ~CachePool();
 
+  // Config
+  void update_limit(size_t limit_in_bytes);
+
   // Callback Functions
   using ConstructFunc = std::function<int(void *)>;
   void set_construct_func(ConstructFunc callback);

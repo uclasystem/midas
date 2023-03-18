@@ -12,7 +12,6 @@
 #include <thread>
 
 #include "cache_manager.hpp"
-#include "resource_manager.hpp"
 #include "sync_hashmap.hpp"
 #include "time.hpp"
 #include "zipf.hpp"
@@ -22,7 +21,7 @@ constexpr static int kMD5Len = 32;
 
 constexpr static int kMissPenalty = 1; // ms
 constexpr static int kNrThd = 24;
-constexpr static int KPerThdLoad = 10000;
+constexpr static int KPerThdLoad = 100000;
 constexpr static int kNumBuckets = 1 << 20;
 
 constexpr static bool kSkewedDist = true; // false for uniform distribution
@@ -415,9 +414,7 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
   cache_ratio = std::stof(argv[1]);
-
-  midas::ResourceManager::global_manager()->UpdateLimit(cache_size *
-                                                            cache_ratio);
+  midas::CachePool::global_cache_pool()->update_limit(cache_size * cache_ratio);
 
   FeatExtractor client;
   if (kSimulate)
