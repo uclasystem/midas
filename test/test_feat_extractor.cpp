@@ -107,7 +107,7 @@ public:
     for (auto &thd : processor_thds)
       thd.join();
   }
-  void serve_req() {
+  Feature *serve_req() {
     int req_id = 0;
     {
       std::unique_lock<std::mutex> plk(_p_mtx);
@@ -116,6 +116,8 @@ public:
     _p_cv.notify_all();
     while (_processed_req_id.load() < req_id)
       std::this_thread::sleep_for(std::chrono::microseconds(100));
+    auto ret = new Feature();
+    return ret;
   }
 
 private:
@@ -164,6 +166,8 @@ private:
 
   void gen_load();
   bool serve_req(const FeatReq &img_req);
+  // To re-construct cache-miss objects
+  int construct_callback(void *arg);
 
   FakeBackend fakeGPUBackend;
 
@@ -180,33 +184,13 @@ private:
   std::vector<FeatReq> reqs[kNrThd];
   std::shared_ptr<std::mt19937> gens[kNrThd];
 
-  std::shared_ptr<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>>
-      feat_map;
-
-  friend int construct_callback(void *arg);
+  std::shared_ptr<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>> feat_map;
 };
 
 struct ConstructArgs {
   MD5Key *key;
-  FeatExtractor *extractor;
-  int tid;
-
   Feature *ret;
 };
-
-int construct_callback(void *arg) {
-  auto args_ = reinterpret_cast<ConstructArgs *>(arg);
-  auto extractor = args_->extractor;
-  auto md5 = args_->key;
-  auto feat = args_->ret;
-  auto tid = args_->tid;
-
-  extractor->perthd_cnts[tid].nr_miss++;
-  extractor->fakeGPUBackend.serve_req();
-  extractor->feat_map->set(*md5, *feat);
-
-  return 0;
-}
 
 /** initialization & utils */
 FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
@@ -217,7 +201,8 @@ FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
   nr_imgs = kSimulate ? kSimuNumImgs : imgs.size();
 
   auto cpool = midas::CachePool::global_cache_pool();
-  cpool->set_construct_func(construct_callback);
+  cpool->set_construct_func(
+      [&](void *args) { return construct_callback(args); });
 
   for (int i = 0; i < kNrThd; i++) {
     std::random_device rd;
@@ -229,6 +214,21 @@ FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
 FeatExtractor::~FeatExtractor() {
   if (raw_feats)
     delete[] raw_feats;
+}
+
+int FeatExtractor::construct_callback(void *arg) {
+  auto args_ = reinterpret_cast<ConstructArgs *>(arg);
+  // auto extractor = args_->extractor;
+  auto md5 = args_->key;
+  auto feat_buf = args_->ret;
+  // auto tid = args_->tid;
+
+  // extractor->perthd_cnts[tid].nr_miss++;
+  auto feat = std::unique_ptr<Feature>(fakeGPUBackend.serve_req());
+  if (feat_buf)
+    std::memcpy(feat_buf, feat.get(), sizeof(Feature));
+
+  return 0;
 }
 
 void FeatExtractor::gen_load() {
@@ -270,12 +270,12 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
 
   // Cache miss
   auto stt = midas::Time::get_cycles_stt();
-  // perthd_cnts[req.tid].nr_miss++;
-  // fakeGPUBackend.serve_req();
-  // feat_map->set(md5, *req.feat);
-  ConstructArgs arg{
-      .key = &md5, .extractor = this, .tid = req.tid, .ret = req.feat};
+  perthd_cnts[req.tid].nr_miss++;
+  ConstructArgs arg{.key = &md5,
+                    // .extractor = this, .tid = req.tid,
+                    .ret = req.feat};
   assert(cpool->construct(&arg) == 0);
+  feat_map->set(md5, req.feat);
   auto end = midas::Time::get_cycles_end();
 
   cpool->record_miss_penalty(end - stt, sizeof(*req.feat));
