@@ -148,6 +148,8 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
       pool_->inc_cache_victim_hit();
     node = delete_node(prev_next, node);
     lock.unlock();
+    if (!v) // stored_v is newly allocated
+      free(stored_v);
     return nullptr;
   }
   lock.unlock();
