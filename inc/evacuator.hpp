@@ -24,7 +24,8 @@ class ResourceManager; // defined in resource_manager.hpp
 
 class Evacuator {
 public:
-  Evacuator(CachePool *pool, std::shared_ptr<LogAllocator> allocator);
+  Evacuator(CachePool *pool, std::shared_ptr<ResourceManager> rmanager,
+            std::shared_ptr<LogAllocator> allocator);
   ~Evacuator();
   void signal_gc();
   int64_t serial_gc();

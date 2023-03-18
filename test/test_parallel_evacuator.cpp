@@ -10,6 +10,7 @@
 #include "evacuator.hpp"
 #include "log.hpp"
 #include "object.hpp"
+#include "resource_manager.hpp"
 
 constexpr int kNumGCThds = 3;
 constexpr int kNumThds = 10;
@@ -75,7 +76,8 @@ int main(int argc, char *argv[]) {
   threads.clear();
 
   midas::Evacuator evacuator(
-      nullptr, midas::LogAllocator::global_allocator_shared_ptr());
+      nullptr, midas::ResourceManager::global_manager_shared_ptr(),
+      midas::LogAllocator::global_allocator_shared_ptr());
   evacuator.parallel_gc(kNumGCThds);
 
   bool kTestFree = false;

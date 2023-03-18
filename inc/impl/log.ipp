@@ -59,7 +59,9 @@ inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
 inline bool SegmentList::empty() const noexcept { return segments_.empty(); }
 
 /** LogAllocator */
-inline LogAllocator::LogAllocator(CachePool *pool) : pool_(pool) {}
+inline LogAllocator::LogAllocator(CachePool *pool) : pool_(pool) {
+  assert(pool_);
+}
 
 inline std::optional<ObjectPtr> LogAllocator::alloc(size_t size) {
   return alloc_(size, false);

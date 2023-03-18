@@ -11,6 +11,7 @@
 #include "evacuator.hpp"
 #include "log.hpp"
 #include "object.hpp"
+#include "resource_manager.hpp"
 #include "shm_types.hpp"
 #include "victim_cache.hpp"
 
@@ -46,6 +47,7 @@ public:
   void profile_stats(StatsMsg *msg = nullptr) noexcept;
 
   inline VictimCache *get_vcache() const noexcept;
+  inline ResourceManager *get_rmanager() const noexcept;
   inline LogAllocator *get_allocator() const noexcept;
   inline Evacuator *get_evacuator() const noexcept;
 
@@ -70,10 +72,12 @@ private:
   } stats;
 
   std::unique_ptr<VictimCache> vcache_;
+  std::shared_ptr<ResourceManager> rmanager_;
   std::shared_ptr<LogAllocator> allocator_;
   std::unique_ptr<Evacuator> evacuator_;
 
   friend class CacheManager;
+  friend class ResourceManager;
 
   static constexpr uint64_t kVCacheSizeLimit = 16 * 1024 * 1024; // 16 MB
   static constexpr uint64_t kVCacheCountLimit = 5000;

@@ -43,23 +43,6 @@ inline bool ResourceManager::reclaim_trigger() const noexcept {
   return false;
 }
 
-/* A thread safe way to create a global manager and get its reference. */
-inline std::shared_ptr<ResourceManager>
-ResourceManager::global_manager_shared_ptr() noexcept {
-  static std::mutex mtx_;
-  static std::shared_ptr<ResourceManager> _rmanager(nullptr);
-
-  if (LIKELY(_rmanager.get() != nullptr))
-    return _rmanager;
-
-  std::unique_lock<std::mutex> lk(mtx_);
-  if (UNLIKELY(_rmanager.get() != nullptr))
-    return _rmanager;
-
-  _rmanager = std::make_unique<ResourceManager>();
-  return _rmanager;
-}
-
 inline ResourceManager *ResourceManager::global_manager() noexcept {
   return global_manager_shared_ptr().get();
 }

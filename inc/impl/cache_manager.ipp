@@ -5,7 +5,8 @@ inline CachePool::CachePool(std::string name)
     : name_(name), construct_(nullptr) {
   vcache_ = std::make_unique<VictimCache>(kVCacheSizeLimit, kVCacheCountLimit);
   allocator_ = std::make_shared<LogAllocator>(this);
-  evacuator_ = std::make_unique<Evacuator>(this, allocator_);
+  rmanager_ = std::make_shared<ResourceManager>(this);
+  evacuator_ = std::make_unique<Evacuator>(this, rmanager_, allocator_);
 }
 
 inline CachePool::~CachePool() {}
@@ -81,6 +82,10 @@ inline LogAllocator *CachePool::get_allocator() const noexcept {
 
 inline Evacuator *CachePool::get_evacuator() const noexcept {
   return evacuator_.get();
+}
+
+inline ResourceManager *CachePool::get_rmanager() const noexcept {
+  return rmanager_.get();
 }
 
 inline CacheManager::CacheManager() : terminated_(false), profiler_(nullptr) {

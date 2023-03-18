@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 
+#include "cache_manager.hpp"
 #include "evacuator.hpp"
 #include "log.hpp"
 #include "logging.hpp"
@@ -75,7 +76,7 @@ inline bool LogSegment::free(ObjectPtr &ptr) {
 }
 
 void LogSegment::destroy() noexcept {
-  auto *rmanager = ResourceManager::global_manager();
+  auto *rmanager = owner_->pool_->get_rmanager();
   rmanager->FreeRegion(region_id_);
   alive_bytes_ = kMaxAliveBytes;
   destroyed_ = true;
@@ -84,7 +85,7 @@ void LogSegment::destroy() noexcept {
 /** LogAllocator */
 // alloc a new segment
 inline std::shared_ptr<LogSegment> LogAllocator::allocSegment(bool overcommit) {
-  auto *rmanager = ResourceManager::global_manager();
+  auto *rmanager = pool_->get_rmanager();
   int rid = rmanager->AllocRegion(overcommit);
   if (rid == -1)
     return nullptr;

@@ -15,7 +15,6 @@
 #include "qpair.hpp"
 #include "resource_manager.hpp"
 #include "shm_types.hpp"
-#include "sig_handler.hpp"
 #include "utils.hpp"
 
 namespace midas {
@@ -37,18 +36,19 @@ Region::~Region() noexcept {
   SharedMemObj::remove(utils::get_region_name(pid_, region_id_).c_str());
 }
 
-ResourceManager::ResourceManager(const std::string &daemon_name) noexcept
-    : region_limit_(0), id_(get_unique_id()),
+ResourceManager::ResourceManager(CachePool *cpool,
+                                 const std::string &daemon_name) noexcept
+    : cpool_(cpool), region_limit_(0), id_(get_unique_id()),
       txqp_(std::make_shared<QSingle>(utils::get_sq_name(daemon_name, false),
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
                                       true)),
       rxqp_(std::to_string(id_), true), stop_(false) {
   handler_thd_ = std::make_shared<std::thread>([&]() { pressure_handler(); });
+  if (!cpool_)
+    cpool_ = CachePool::global_cache_pool();
+  assert(cpool_);
   connect(daemon_name);
-
-  auto sig_handler = SigHandler::global_sighandler();
-  sig_handler->init();
 }
 
 ResourceManager::~ResourceManager() noexcept {
@@ -58,6 +58,11 @@ ResourceManager::~ResourceManager() noexcept {
   disconnect();
   rxqp_.destroy();
   txqp_.RecvQ().destroy();
+}
+
+std::shared_ptr<ResourceManager>
+ResourceManager::global_manager_shared_ptr() noexcept {
+  return CachePool::global_cache_pool()->rmanager_;
 }
 
 int ResourceManager::connect(const std::string &daemon_name) noexcept {
@@ -150,14 +155,14 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
 }
 
 void ResourceManager::do_profile_stats(CtrlMsg &msg) {
-  auto cache_manager = CacheManager::global_cache_manager();
-  StatsMsg stats = std::move(cache_manager->profile_pools());
+  StatsMsg stats{0};
+  cpool_->profile_stats(&stats);
   rxqp_.send(&stats, sizeof(stats));
 }
 
 inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
   assert(nr_to_reclaim > 0);
-  CachePool::global_cache_pool()->get_evacuator()->signal_gc();
+  cpool_->get_evacuator()->signal_gc();
   MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.\n",
                    nr_to_reclaim);
   while (NumRegionAvail() < 0)
@@ -179,9 +184,8 @@ void ResourceManager::UpdateLimit(size_t size) noexcept {
 
 int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
 retry:
-  if (!overcommit && reclaim_trigger()) {
-    CachePool::global_cache_pool()->get_evacuator()->signal_gc();
-  }
+  if (!overcommit && reclaim_trigger())
+    cpool_->get_evacuator()->signal_gc();
 
   std::unique_lock<std::mutex> lk(mtx_);
   CtrlMsg msg{.id = id_,

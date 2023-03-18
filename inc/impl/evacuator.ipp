@@ -8,8 +8,10 @@
 namespace midas {
 
 inline Evacuator::Evacuator(CachePool *pool,
+                            std::shared_ptr<ResourceManager> rmanager,
                             std::shared_ptr<LogAllocator> allocator)
-    : pool_(pool), allocator_(allocator), terminated_(false) {
+    : pool_(pool), rmanager_(rmanager), allocator_(allocator),
+      terminated_(false) {
   init();
 }
 

@@ -9,7 +9,6 @@ inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
   if (stats.hits == 0)
     return;
   auto curr_ts = Time::get_us_stt();
-  stats.timestamp = curr_ts;
   auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
   auto miss_penalty =
       stats.miss_bytes
@@ -27,7 +26,7 @@ inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
     msg->vhits = victim_hits;
   }
 
-  MIDAS_LOG_PRINTF(kError,
+  MIDAS_LOG_PRINTF(kInfo,
                    "CachePool %s:\n"
                    "\tCache hit ratio:  %.4f\n"
                    "\t   miss penalty:  %.2f\n"
@@ -41,6 +40,9 @@ inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
                    name_.c_str(), hit_ratio, miss_penalty, stats.hits.load(),
                    stats.misses.load(), victim_hit_ratio, victim_hits,
                    perf_gain, vcache_->count(), vcache_->size());
+
+  stats.timestamp = curr_ts;
+  stats.reset();
 }
 
 inline void CachePool::CacheStats::reset() noexcept {

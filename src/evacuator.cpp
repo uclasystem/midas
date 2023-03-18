@@ -19,8 +19,7 @@
 
 namespace midas {
 
-static inline int64_t get_nr_to_reclaim() {
-  auto manager = ResourceManager::global_manager();
+static inline int64_t get_nr_to_reclaim(ResourceManager *manager) {
   float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
                       (manager->NumRegionLimit() + 1);
   uint64_t nr_to_reclaim = 0;
@@ -32,12 +31,13 @@ static inline int64_t get_nr_to_reclaim() {
 }
 
 void Evacuator::init() {
-  rmanager_ = ResourceManager::global_manager_shared_ptr();
   gc_thd_ = std::make_shared<std::thread>([&]() {
     while (!terminated_) {
       {
         std::unique_lock<std::mutex> lk(gc_mtx_);
-        gc_cv_.wait(lk, [this] { return terminated_ || get_nr_to_reclaim(); });
+        gc_cv_.wait(lk, [this] {
+          return terminated_ || get_nr_to_reclaim(rmanager_.get());
+        });
       }
       parallel_gc(8);
       // serial_gc();
@@ -46,7 +46,7 @@ void Evacuator::init() {
 }
 
 int64_t Evacuator::gc(SegmentList &stash_list) {
-  auto nr_target = get_nr_to_reclaim();
+  auto nr_target = get_nr_to_reclaim(rmanager_.get());
   auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
     return 0;
@@ -102,7 +102,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
 }
 
 int64_t Evacuator::serial_gc() {
-  auto nr_target = get_nr_to_reclaim();
+  auto nr_target = get_nr_to_reclaim(rmanager_.get());
   auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
     return 0;

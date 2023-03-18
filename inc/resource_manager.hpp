@@ -7,12 +7,12 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <random>
+#include <thread>
 
 #include "qpair.hpp"
-#include "utils.hpp"
 #include "shm_types.hpp"
+#include "utils.hpp"
 
 namespace midas {
 
@@ -41,9 +41,11 @@ private:
   int64_t size_; // int64_t to adapt to boost::interprocess::offset_t
 };
 
+class CachePool;
 class ResourceManager {
 public:
-  ResourceManager(const std::string &daemon_name = kNameCtrlQ) noexcept;
+  ResourceManager(CachePool *cpool = nullptr,
+                  const std::string &daemon_name = kNameCtrlQ) noexcept;
   ~ResourceManager() noexcept;
 
   int64_t AllocRegion(bool overcommit = false) noexcept;
@@ -59,9 +61,9 @@ public:
 
   bool reclaim_trigger() const noexcept;
 
-  static inline ResourceManager *global_manager() noexcept;
-  static inline std::shared_ptr<ResourceManager>
+  static std::shared_ptr<ResourceManager>
   global_manager_shared_ptr() noexcept;
+  static ResourceManager *global_manager() noexcept;
 
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;
@@ -73,14 +75,14 @@ private:
   void do_profile_stats(CtrlMsg &msg);
   void do_reclaim(int64_t nr_to_reclaim);
 
-  uint64_t region_limit_;
+  CachePool *cpool_;
 
   uint64_t id_;
   std::mutex mtx_;
-
   QPair txqp_;
   QPair rxqp_;
 
+  uint64_t region_limit_;
   std::map<int64_t, std::shared_ptr<Region>> region_map_;
 
   std::shared_ptr<std::thread> handler_thd_;
