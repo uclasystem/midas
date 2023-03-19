@@ -10,8 +10,10 @@
 #include "robinhood.h"
 
 #include "cache_manager.hpp"
+#include "construct_args.hpp"
 #include "log.hpp"
 #include "object.hpp"
+#include "time.hpp"
 
 namespace midas {
 

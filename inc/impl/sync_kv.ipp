@@ -127,6 +127,7 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   lock.lock();
 
   size_t stored_vn = 0;
+  void *stored_v = nullptr;
   auto prev_next = &buckets_[bucket_idx];
   BNPtr node = buckets_[bucket_idx];
   bool found = false;
@@ -138,19 +139,21 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   if (!found) {
     lock.unlock();
     pool_->inc_cache_miss();
-    return nullptr;
+    goto failed;
   }
   assert(node);
-  void *stored_v = v ? v : malloc(stored_vn);
+  stored_v = v ? v : malloc(stored_vn);
   if (node->pair.null() ||
       !node->pair.copy_to(stored_v, stored_vn, kn + sizeof(size_t) * 2)) {
     if (node->pair.is_victim())
       pool_->inc_cache_victim_hit();
     node = delete_node(prev_next, node);
     lock.unlock();
-    if (!v) // stored_v is newly allocated
+    if (!v) { // stored_v is newly allocated
       free(stored_v);
-    return nullptr;
+      stored_v = nullptr;
+    }
+    goto failed;
   }
   lock.unlock();
   if (vn)
@@ -159,6 +162,29 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   pool_->inc_cache_hit();
   LogAllocator::count_access();
   return stored_v;
+
+failed:
+  assert(stored_v == nullptr);
+  if (kEnableConstruct && pool_->get_construct_func()) {
+    ConstructArgs args = {k, kn, stored_v, stored_vn};
+    auto stt = Time::get_cycles_stt();
+    bool succ = pool_->construct(&args) == 0;
+    if (!succ) { // failed to re-construct
+      if (!v)    // stored_v is newly allocated
+        free(stored_v);
+      return nullptr;
+    }
+    // successfully re-constructed
+    stored_v = args.value;
+    stored_vn = args.value_len;
+    set(k, kn, stored_v, stored_vn);
+    auto end = Time::get_cycles_end();
+    if (vn)
+      *vn = stored_vn;
+    pool_->record_miss_penalty(end - stt, stored_vn);
+    return stored_v;
+  }
+  return nullptr;
 }
 
 /** Ordered Set */
