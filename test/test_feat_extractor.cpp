@@ -187,11 +187,6 @@ private:
   std::shared_ptr<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>> feat_map;
 };
 
-struct ConstructArgs {
-  MD5Key *key;
-  Feature *ret;
-};
-
 /** initialization & utils */
 FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
   feat_map =
@@ -217,16 +212,20 @@ FeatExtractor::~FeatExtractor() {
 }
 
 int FeatExtractor::construct_callback(void *arg) {
-  auto args_ = reinterpret_cast<ConstructArgs *>(arg);
-  // auto extractor = args_->extractor;
-  auto md5 = args_->key;
-  auto feat_buf = args_->ret;
-  // auto tid = args_->tid;
+  auto args_ = reinterpret_cast<midas::ConstructArgs *>(arg);
+  auto md5 = reinterpret_cast<const MD5Key *>(args_->key);
+  auto feat_buf = reinterpret_cast<Feature *>(args_->value);
+  assert(args_->key_len == sizeof(MD5Key));
+  assert(args_->value_len == sizeof(Feature));
 
-  // extractor->perthd_cnts[tid].nr_miss++;
-  auto feat = std::unique_ptr<Feature>(fakeGPUBackend.serve_req());
-  if (feat_buf)
-    std::memcpy(feat_buf, feat.get(), sizeof(Feature));
+  auto feat = fakeGPUBackend.serve_req();
+  if (feat_buf) {
+    std::memcpy(feat_buf, feat, sizeof(Feature));
+    delete feat;
+  } else {
+    args_->value = feat;
+    args_->value_len = sizeof(Feature);
+  }
 
   return 0;
 }
@@ -271,10 +270,11 @@ bool FeatExtractor::serve_req(const FeatReq &req) {
   // Cache miss
   auto stt = midas::Time::get_cycles_stt();
   perthd_cnts[req.tid].nr_miss++;
-  ConstructArgs arg{.key = &md5,
-                    // .extractor = this, .tid = req.tid,
-                    .ret = req.feat};
-  assert(cpool->construct(&arg) == 0);
+  midas::ConstructArgs args{.key = &md5,
+                           .key_len = sizeof(md5),
+                           .value = req.feat,
+                           .value_len = sizeof(Feature)};
+  assert(cpool->construct(&args) == 0);
   feat_map->set(md5, req.feat);
   auto end = midas::Time::get_cycles_end();
 

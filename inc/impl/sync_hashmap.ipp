@@ -67,17 +67,16 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   return true;
 failed:
   if (kEnableConstruct && pool_->get_construct_func()) {
-    struct {
-      const Key *kp;
-      Tp *vp;
-    } args = {&k, &v};
+    ConstructArgs args = {&k, sizeof(k), &v, sizeof(v)};
     auto stt = Time::get_cycles_stt();
-    auto ret = pool_->construct(&args);
-    if (ret)
-      set(k, v);
+    bool succ = pool_->construct(&args) == 0;
+    if (!succ) // failed to re-construct
+      return false;
+    // successfully re-constructed
+    set(k, v);
     auto end = Time::get_cycles_end();
     pool_->record_miss_penalty(end - stt, sizeof(v));
-    return ret == 0; // ret == 0 means successfully re-constructed
+    return succ;
   }
   return false;
 }
