@@ -216,10 +216,10 @@ int FeatExtractor::construct_callback(void *arg) {
   auto md5 = reinterpret_cast<const MD5Key *>(args_->key);
   auto feat_buf = reinterpret_cast<Feature *>(args_->value);
   assert(args_->key_len == sizeof(MD5Key));
-  assert(args_->value_len == sizeof(Feature));
 
   auto feat = fakeGPUBackend.serve_req();
   if (feat_buf) {
+    assert(args_->value_len == sizeof(Feature));
     std::memcpy(feat_buf, feat, sizeof(Feature));
     delete feat;
   } else {
