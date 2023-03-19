@@ -7,12 +7,12 @@
 #include <vector>
 
 #include "cache_manager.hpp"
+#include "construct_args.hpp"
 #include "log.hpp"
 #include "object.hpp"
 #include "time.hpp"
 
 namespace midas {
-constexpr static bool kEnableConstruct = true;
 
 template <size_t NBuckets, typename Key, typename Tp,
           typename Hash = std::hash<Key>, typename Pred = std::equal_to<Key>,
