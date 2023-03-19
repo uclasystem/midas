@@ -72,6 +72,8 @@ test_ordered_set_obj = $(test_ordered_set_src:.cpp=.o)
 
 test_feat_extractor_src = test/test_feat_extractor.cpp
 test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
+test_feat_extractor_kv_src = test/test_feat_extractor_kv.cpp
+test_feat_extractor_kv_obj = $(test_feat_extractor_kv_src:.cpp=.o)
 
 .PHONY: all bin lib daemon clean
 
@@ -87,7 +89,7 @@ bin: bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_skewed_hashmap \
 	bin/test_sighandler \
 	bin/test_memcpy \
-	bin/test_feat_extractor
+	bin/test_feat_extractor bin/test_feat_extractor_kv
 
 daemon: bin/daemon_main
 
@@ -158,6 +160,9 @@ lib/libmidas++.a: $(lib_obj)
 	$(AR) rcs $@ $^
 
 bin/test_feat_extractor: $(test_feat_extractor_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ -lcrypto $(LDFLAGS)
+
+bin/test_feat_extractor_kv: $(test_feat_extractor_kv_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ -lcrypto $(LDFLAGS)
 
 %.o: %.cpp Makefile
