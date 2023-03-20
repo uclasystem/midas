@@ -189,7 +189,7 @@ Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
   monitor_ = std::make_shared<std::thread>([&] { monitor(); });
   if (kEnableProfiler)
     profiler_ = std::make_shared<std::thread>([&] { profiler(); });
-  if (kEnableRebalancer)
+  if (kEnableProfiler && kEnableRebalancer)
     rebalancer_ = std::make_shared<std::thread>([&] { rebalancer(); });
 }
 
