@@ -18,10 +18,12 @@ constexpr static float kPerfZeroThresh = 0.1;
 constexpr static bool kEnableProfiler = true;
 constexpr static bool kEnableRebalancer = true;
 /** Profiler related */
+constexpr static uint32_t kMonitorInteral = 1; // in seconds
 constexpr static uint32_t kProfInterval = 5; // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
 constexpr static float kExpandThresh = 0.5;
+constexpr static float kExpandFactor = 0.5;
 
 /** Client */
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
@@ -363,7 +365,7 @@ void Daemon::monitor() {
       }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::seconds(kMonitorInteral));
   }
 }
 
@@ -519,7 +521,7 @@ void Daemon::on_mem_expand() {
     auto old_limit = client->region_limit_;
     int64_t nr_granted = std::min<int64_t>(
         std::min<int64_t>(std::ceil(gain / total_gain * nr_to_grant),
-                          std::ceil(old_limit * (1 - kExpandThresh))),
+                          std::ceil(old_limit * (1 - kExpandFactor))),
         nr_to_grant);
     auto new_limit = old_limit + nr_granted;
     client->update_limit(new_limit);
