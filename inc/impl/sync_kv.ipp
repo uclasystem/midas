@@ -16,6 +16,12 @@ SyncKV<NBuckets, Alloc, Lock>::SyncKV(CachePool *pool) : pool_(pool) {
 /** Storage layout in soft memory:
  *    | KeyLen (8B) | ValueLen (8B) | Key (`KeyLen`B) | Value (`ValueLen`B) |
  */
+namespace layout {
+static inline size_t klen_offset() { return 0; }
+static inline size_t vlen_offset() { return klen_offset() + sizeof(size_t); }
+static inline size_t k_offset() { return vlen_offset() + sizeof(size_t); }
+static inline size_t v_offset(size_t keylen) { return k_offset() + keylen; }
+} // namespace layout
 
 /** Base Interfaces */
 template <size_t NBuckets, typename Alloc, typename Lock>
@@ -80,8 +86,8 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
     auto found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
     if (found) {
       if (vn <= stored_vn && !node->pair.null() && // try to set in place if fit
-          node->pair.copy_from(&vn, sizeof(size_t), sizeof(size_t)) &&
-          node->pair.copy_from(v, vn, kn + sizeof(size_t) * 2)) {
+          node->pair.copy_from(&vn, sizeof(size_t), layout::vlen_offset()) &&
+          node->pair.copy_from(v, vn, layout::v_offset(kn))) {
         lock.unlock();
         LogAllocator::count_access();
         return true;
@@ -144,7 +150,7 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   assert(node);
   stored_v = v ? v : malloc(stored_vn);
   if (node->pair.null() ||
-      !node->pair.copy_to(stored_v, stored_vn, kn + sizeof(size_t) * 2)) {
+      !node->pair.copy_to(stored_v, stored_vn, layout::v_offset(kn))) {
     if (node->pair.is_victim())
       pool_->inc_cache_victim_hit();
     node = delete_node(prev_next, node);
@@ -399,10 +405,10 @@ inline BNPtr<NBuckets, Alloc, Lock> SyncKV<NBuckets, Alloc, Lock>::create_node(
     uint64_t key_hash, const void *k, size_t kn, const void *v, size_t vn) {
   auto *new_node = new BucketNode();
   if (!pool_->alloc_to(sizeof(size_t) * 2 + kn + vn, &new_node->pair) ||
-      !new_node->pair.copy_from(&kn, sizeof(size_t)) ||
-      !new_node->pair.copy_from(&vn, sizeof(size_t), sizeof(size_t)) ||
-      !new_node->pair.copy_from(k, kn, sizeof(size_t) * 2) ||
-      !new_node->pair.copy_from(v, vn, kn + sizeof(size_t) * 2)) {
+      !new_node->pair.copy_from(&kn, sizeof(size_t), layout::klen_offset()) ||
+      !new_node->pair.copy_from(&vn, sizeof(size_t), layout::vlen_offset()) ||
+      !new_node->pair.copy_from(k, kn, layout::k_offset()) ||
+      !new_node->pair.copy_from(v, vn, layout::v_offset(kn))) {
     delete new_node;
     return nullptr;
   }
@@ -444,17 +450,18 @@ SyncKV<NBuckets, Alloc, Lock>::iterate_list(uint64_t key_hash, const void *k,
   void *stored_k = nullptr;
   if (key_hash != node->key_hash)
     goto notequal;
-  if (node->pair.null() || !node->pair.copy_to(&stored_kn, sizeof(size_t)))
+  if (node->pair.null() ||
+      !node->pair.copy_to(&stored_kn, sizeof(size_t), layout::klen_offset()))
     goto faulted;
   if (stored_kn != kn)
     goto notequal;
   stored_k = malloc(kn);
-  if (!node->pair.copy_to(stored_k, kn, sizeof(size_t) * 2))
+  if (!node->pair.copy_to(stored_k, kn, layout::k_offset()))
     goto faulted;
   if (strncmp(reinterpret_cast<const char *>(k),
               reinterpret_cast<const char *>(stored_k), kn) != 0)
     goto notequal;
-  if (vn && !node->pair.copy_to(vn, sizeof(size_t), sizeof(size_t)))
+  if (vn && !node->pair.copy_to(vn, sizeof(size_t), layout::vlen_offset()))
     goto faulted;
   if (stored_k)
     free(stored_k);
