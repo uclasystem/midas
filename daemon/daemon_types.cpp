@@ -454,9 +454,9 @@ void Daemon::on_mem_shrink() {
     }
     ul.unlock();
     for (auto client : inactive_clients) {
-      auto old_limit = client->region_limit_;
+      int64_t old_limit = client->region_limit_;
       int64_t nr_reclaimed = std::ceil(nr_reclaim_ratio * old_limit);
-      uint64_t new_limit = old_limit - nr_reclaimed;
+      int64_t new_limit = std::max(1l, old_limit - nr_reclaimed);
       client->update_limit(new_limit);
       nr_to_reclaim -= nr_reclaimed;
       MIDAS_LOG_PRINTF(kInfo, "Reclaimed client %lu %ld regions, %lu -> %lu\n",
@@ -469,9 +469,9 @@ void Daemon::on_mem_shrink() {
       total_gain += client->stats.perf_gain;
     for (auto client : active_clients) {
       auto gain = client->stats.perf_gain;
-      auto old_limit = client->region_limit_;
+      int64_t old_limit = client->region_limit_;
       int64_t nr_reclaimed = std::ceil(gain / total_gain * nr_to_reclaim);
-      auto new_limit = old_limit - nr_reclaimed;
+      int64_t new_limit = std::max(1l, old_limit - nr_reclaimed);
       client->update_limit(new_limit);
       nr_to_reclaim -= nr_reclaimed;
       MIDAS_LOG_PRINTF(kInfo, "Reclaimed client %lu %ld regions, %lu -> %lu\n",
@@ -564,16 +564,26 @@ void Daemon::on_mem_rebalance() {
   }
   if (!winner)
     return;
-  MIDAS_LOG(kError) << "Winner " << winner->id << " : "
-                    << winner->stats.perf_gain;
+  MIDAS_LOG(kInfo) << "Winner " << winner->id
+                    << ", perf gain: " << winner->stats.perf_gain;
   uint64_t nr_reclaimed = 0;
   for (auto client : clients) {
-    MIDAS_LOG(kError) << client->stats.perf_gain;
-    auto nr_to_reclaim = std::min(client->region_limit_, 8ul);
+    // each client must have at least 1 region
+    auto nr_to_reclaim = std::min(client->region_limit_ - 1, 8ul);
     client->update_limit(client->region_limit_ - nr_to_reclaim);
     nr_reclaimed += nr_to_reclaim;
   }
   winner->update_limit(winner->region_limit_ + nr_reclaimed);
+  if (nr_reclaimed) {
+    MIDAS_LOG(kInfo) << "Memory rebalance done! Total regions: " << region_cnt_
+                     << "/" << region_limit_;
+    std::unique_lock<std::mutex> ul(mtx_);
+    for (auto &[_, client] : clients_) {
+      MIDAS_LOG(kInfo) << "Client " << client->id
+                       << " regions: " << client->region_cnt_ << "/"
+                       << client->region_limit_;
+    }
+  }
 }
 
 void Daemon::serve() {
