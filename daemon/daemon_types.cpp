@@ -543,6 +543,10 @@ void Daemon::on_mem_expand() {
 }
 
 void Daemon::on_mem_rebalance() {
+  constexpr static uint64_t kMaxStepSize = 64;
+  static uint64_t kStepSize = 4ul;
+  static uint64_t prev_winner = -1ul;
+
   std::vector<Client *> clients;
   {
     std::unique_lock<std::mutex> ul(mtx_);
@@ -566,12 +570,17 @@ void Daemon::on_mem_rebalance() {
   }
   if (!winner)
     return;
+  if (winner->id == prev_winner) {
+    kStepSize = std::min(kMaxStepSize, kStepSize * 2);
+  } else {
+    prev_winner = winner->id;
+  }
   MIDAS_LOG(kInfo) << "Winner " << winner->id
                     << ", perf gain: " << winner->stats.perf_gain;
   uint64_t nr_reclaimed = 0;
   for (auto client : clients) {
     // each client must have at least 1 region
-    auto nr_to_reclaim = std::min(client->region_limit_ - 1, 8ul);
+    auto nr_to_reclaim = std::min(client->region_limit_ - 1, kStepSize);
     client->update_limit(client->region_limit_ - nr_to_reclaim);
     nr_reclaimed += nr_to_reclaim;
   }
