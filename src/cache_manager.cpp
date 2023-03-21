@@ -7,7 +7,7 @@
 
 namespace midas {
 inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
-  if (stats.hits == 0)
+  if (stats.hits == 0 || stats.misses == 0)
     return;
   auto curr_ts = Time::get_us_stt();
   auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
@@ -73,7 +73,7 @@ StatsMsg CacheManager::profile_pools() {
   for (auto &[_, pool] : pools_) {
     uint64_t curr_ts = Time::get_us_stt();
     uint64_t prev_ts = pool->stats.timestamp;
-    if (pool->stats.hits) {
+    if (pool->stats.hits || pool->stats.misses) {
       pool->profile_stats(&stats);
     }
     pool->stats.reset();

@@ -152,7 +152,7 @@ bool Client::profile_stats() {
     MIDAS_LOG(kInfo) << "Client " << id << " is dead!";
     return false;
   }
-  if (statsmsg.hits) {
+  if (statsmsg.hits || statsmsg.misses) {
     MIDAS_LOG(kError) << "Client " << id << " " << statsmsg.hits << " "
                       << statsmsg.misses << " " << statsmsg.miss_penalty << " "
                       << statsmsg.vhits;
