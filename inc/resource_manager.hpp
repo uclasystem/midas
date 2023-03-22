@@ -9,6 +9,7 @@
 #include <mutex>
 #include <random>
 #include <thread>
+#include <condition_variable>
 
 #include "qpair.hpp"
 #include "shm_types.hpp"
@@ -61,8 +62,7 @@ public:
 
   bool reclaim_trigger() const noexcept;
 
-  static std::shared_ptr<ResourceManager>
-  global_manager_shared_ptr() noexcept;
+  static std::shared_ptr<ResourceManager> global_manager_shared_ptr() noexcept;
   static ResourceManager *global_manager() noexcept;
 
 private:
@@ -79,6 +79,7 @@ private:
 
   uint64_t id_;
   std::mutex mtx_;
+  std::condition_variable cv_;
   QPair txqp_;
   QPair rxqp_;
 

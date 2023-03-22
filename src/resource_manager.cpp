@@ -165,8 +165,10 @@ inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
   cpool_->get_evacuator()->signal_gc();
   MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.\n",
                    nr_to_reclaim);
-  while (NumRegionAvail() < 0)
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  {
+    std::unique_lock<std::mutex> ul(mtx_);
+    cv_.wait(ul, [&] { return NumRegionAvail() > 0; });
+  }
   auto nr_reclaimed = nr_to_reclaim;
 
   MemMsg mm;
@@ -202,7 +204,11 @@ retry:
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
     lk.unlock();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    cpool_->get_evacuator()->signal_gc();
+    {
+      std::unique_lock<std::mutex> ul(mtx_);
+      cv_.wait(ul, [&] { return NumRegionAvail() > 0; });
+    }
     goto retry;
   }
 
@@ -279,6 +285,8 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
   }
 
   region_map_.erase(region_id);
+  if (NumRegionAvail() > 0)
+    cv_.notify_all();
   MIDAS_LOG(kDebug) << "region_map size: " << region_map_.size();
   return size;
 }
