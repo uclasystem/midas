@@ -19,13 +19,15 @@ constexpr static bool kEnableProfiler = true;
 constexpr static bool kEnableRebalancer = true;
 /** Profiler related */
 constexpr static uint32_t kMonitorInteral = 1; // in seconds
-constexpr static uint32_t kProfInterval = 5; // in seconds
+constexpr static uint32_t kProfInterval = 5;   // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
 constexpr static float kExpandThresh = 0.5;
 constexpr static float kExpandFactor = 0.5;
 /** Server related */
-constexpr static uint32_t kServeTimeout = 1; // in seconds
+constexpr static uint32_t kAliveTimeout = 3;   // in seconds
+constexpr static uint32_t kReclaimTimeout = 5; // in seconds
+constexpr static uint32_t kServeTimeout = 1;   // in seconds
 
 /** Client */
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
@@ -124,9 +126,9 @@ bool Client::free_region(int64_t region_id) {
   return ret == CtrlRetCode::MEM_SUCC;
 }
 
-void Client::update_limit(uint64_t region_limit) {
+bool Client::update_limit(uint64_t region_limit) {
   if (region_limit == region_limit_)
-    return;
+    return true;
   daemon_->charge(region_limit - region_limit_);
   region_limit_ = region_limit;
 
@@ -136,12 +138,17 @@ void Client::update_limit(uint64_t region_limit) {
               .mmsg{.size = region_limit_}};
   txqp.send(&msg, sizeof(msg));
   CtrlMsg ack;
-  txqp.recv(&ack, sizeof(ack));
-
-  if (ack.ret != CtrlRetCode::MEM_SUCC)
+  if (txqp.timed_recv(&ack, sizeof(ack), kReclaimTimeout) != 0) {
+    MIDAS_LOG(kError) << "Client " << id << " reclamation timed out!";
+    return false;
+  }
+  if (ack.ret != CtrlRetCode::MEM_SUCC) {
     MIDAS_LOG(kError) << ack.ret;
+    return false;
+  }
   // assert(ack.ret == CtrlRetCode::MEM_SUCC);
   // TODO: parse ack and react correspondingly
+  return true;
 }
 
 bool Client::profile_stats() {
@@ -149,7 +156,7 @@ bool Client::profile_stats() {
   CtrlMsg msg{.op = CtrlOpCode::PROF_STATS};
   txqp.send(&msg, sizeof(msg));
   StatsMsg statsmsg;
-  int ret = txqp.timed_recv(&statsmsg, sizeof(statsmsg), kProfInterval);
+  int ret = txqp.timed_recv(&statsmsg, sizeof(statsmsg), kAliveTimeout);
   if (ret != 0) {
     MIDAS_LOG(kInfo) << "Client " << id << " is dead!";
     return false;
@@ -572,7 +579,7 @@ void Daemon::on_mem_rebalance() {
     prev_winner = winner->id;
   }
   MIDAS_LOG(kInfo) << "Winner " << winner->id
-                    << ", perf gain: " << winner->stats.perf_gain;
+                   << ", perf gain: " << winner->stats.perf_gain;
   uint64_t nr_reclaimed = 0;
   for (auto client : clients) {
     // each client must have at least 1 region
