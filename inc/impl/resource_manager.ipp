@@ -23,7 +23,13 @@ inline VRange ResourceManager::GetRegion(int64_t region_id) noexcept {
 
 inline uint64_t ResourceManager::NumRegionInUse() const noexcept {
   // std::unique_lock<std::mutex> lk(mtx_);
+  /* YIFAN: NOTE: so far we don't count regions in freelist as in-use since they
+   * are only for reducing IPC across client<-> daemon, and the app never uses
+   * free regions until they allocate. If in the future we want to count their
+   * usage, we need to enforce evacuator to skip freelist to avoid they eat up
+   * application's cache portion. */
   return region_map_.size();
+  // return region_map_.size() + freelist_.size();
 }
 
 inline uint64_t ResourceManager::NumRegionLimit() const noexcept {
@@ -31,7 +37,7 @@ inline uint64_t ResourceManager::NumRegionLimit() const noexcept {
 }
 
 inline int64_t ResourceManager::NumRegionAvail() const noexcept {
-  return static_cast<int64_t>(region_limit_) - region_map_.size();
+  return static_cast<int64_t>(NumRegionLimit()) - NumRegionInUse();
 }
 
 inline bool ResourceManager::reclaim_trigger() const noexcept {

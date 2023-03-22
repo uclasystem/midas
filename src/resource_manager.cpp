@@ -18,8 +18,10 @@
 #include "utils.hpp"
 
 namespace midas {
-constexpr static int kMonitorTimeout = 1; // seconds
-constexpr static int kDisconnTimeout = 3; // seconds
+constexpr static int32_t kMonitorTimeout = 1; // seconds
+constexpr static int32_t kDisconnTimeout = 3; // seconds
+constexpr static bool kEnableFreeList = true;
+constexpr static int32_t kFreeListSize = 16;
 
 Region::Region(uint64_t pid, uint64_t region_id) noexcept
     : pid_(pid), region_id_(region_id) {
@@ -166,6 +168,11 @@ inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
                    nr_to_reclaim);
   {
     std::unique_lock<std::mutex> ul(mtx_);
+    while (!freelist_.empty()) {
+      auto client = freelist_.back();
+      freelist_.pop_back();
+      free_region(client, true);
+    }
     cv_.wait(ul, [&] { return NumRegionAvail() > 0; });
   }
   auto nr_reclaimed = nr_to_reclaim;
@@ -189,6 +196,14 @@ retry:
     cpool_->get_evacuator()->signal_gc();
 
   std::unique_lock<std::mutex> lk(mtx_);
+  if (!freelist_.empty()) {
+    auto region = freelist_.back();
+    freelist_.pop_back();
+    int64_t region_id = region->ID();
+    region_map_[region_id] = region;
+    return region_id;
+  }
+
   CtrlMsg msg{.id = id_,
               .op = overcommit ? CtrlOpCode::OVERCOMMIT : CtrlOpCode::ALLOC,
               .mmsg = {.size = kRegionSize}};
@@ -226,7 +241,12 @@ retry:
 
 void ResourceManager::FreeRegion(int64_t rid) noexcept {
   std::unique_lock<std::mutex> lk(mtx_);
-  int64_t freed_bytes = free_region(rid);
+  auto region_iter = region_map_.find(rid);
+  if (region_iter == region_map_.cend()) {
+    MIDAS_LOG(kError) << "Invalid region_id " << rid;
+    return;
+  }
+  int64_t freed_bytes = free_region(region_iter->second, false);
   if (freed_bytes == -1) {
     MIDAS_LOG(kError) << "Failed to free region " << rid;
     return;
@@ -238,13 +258,11 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
   size_t total_freed = 0;
   int nr_freed_regions = 0;
   while (!region_map_.empty()) {
-    auto region_iter = region_map_.begin();
-    int64_t freed_bytes = free_region(region_iter->second->ID());
+    auto region = region_map_.begin()->second;
+    int64_t freed_bytes = free_region(region, false);
     if (freed_bytes == -1) {
-      MIDAS_LOG(kError) << "Failed to free region "
-                        << region_iter->second->ID();
-      // continue;
-      break;
+      MIDAS_LOG(kError) << "Failed to free region " << region->ID();
+      continue;
     }
     total_freed += freed_bytes;
     nr_freed_regions++;
@@ -256,22 +274,17 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
 }
 
 /** This function is supposed to be called inside a locked section */
-inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
-  auto region_iter = region_map_.find(region_id);
-  if (region_iter == region_map_.cend()) {
-    MIDAS_LOG(kError) << "Invalid region_id " << region_id;
-    return -1;
-  }
-
-  size_t size = region_iter->second->Size();
-  try {
+inline size_t ResourceManager::free_region(std::shared_ptr<Region> region,
+                                           bool enforce) noexcept {
+  int64_t rid = region->ID();
+  uint64_t rsize = region->Size();
+  if (kEnableFreeList && !enforce && freelist_.size() < kFreeListSize) {
+    freelist_.emplace_back(region);
+  } else {
     CtrlMsg msg{.id = id_,
                 .op = CtrlOpCode::FREE,
-                .mmsg = {.region_id = region_id, .size = size}};
+                .mmsg = {.region_id = rid, .size = rsize}};
     txqp_.send(&msg, sizeof(msg));
-
-    MIDAS_LOG(kDebug) << "Free region " << region_id << " @ "
-                      << region_iter->second->Addr();
 
     CtrlMsg ack;
     unsigned prio;
@@ -279,15 +292,14 @@ inline size_t ResourceManager::free_region(int64_t region_id) noexcept {
     assert(ret == 0);
     if (ack.op != CtrlOpCode::FREE || ack.ret != CtrlRetCode::MEM_SUCC)
       return -1;
-  } catch (boost::interprocess::interprocess_exception &e) {
-    MIDAS_LOG(kError) << e.what();
+    MIDAS_LOG(kDebug) << "Free region " << rid << " @ " << region->Addr();
   }
 
-  region_map_.erase(region_id);
+  region_map_.erase(rid);
   if (NumRegionAvail() > 0)
     cv_.notify_all();
   MIDAS_LOG(kDebug) << "region_map size: " << region_map_.size();
-  return size;
+  return rsize;
 }
 
 } // namespace midas

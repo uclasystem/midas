@@ -3,13 +3,14 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
+#include <condition_variable>
 #include <cstddef>
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <random>
 #include <thread>
-#include <condition_variable>
 
 #include "qpair.hpp"
 #include "shm_types.hpp"
@@ -68,7 +69,7 @@ public:
 private:
   int connect(const std::string &daemon_name = kNameCtrlQ) noexcept;
   int disconnect() noexcept;
-  size_t free_region(int64_t region_id) noexcept;
+  size_t free_region(std::shared_ptr<Region> region, bool enforce) noexcept;
 
   void pressure_handler();
   void do_update_limit(CtrlMsg &msg);
@@ -85,6 +86,7 @@ private:
 
   uint64_t region_limit_;
   std::map<int64_t, std::shared_ptr<Region>> region_map_;
+  std::list<std::shared_ptr<Region>> freelist_;
 
   std::shared_ptr<std::thread> handler_thd_;
   bool stop_;
