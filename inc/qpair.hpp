@@ -12,8 +12,8 @@
 #include "shm_types.hpp"
 
 namespace midas {
-constexpr static uint32_t kDaemonQDepth = 1024;
-constexpr static uint32_t kClientQDepth = 128;
+constexpr static uint32_t kDaemonQDepth = 16384;
+constexpr static uint32_t kClientQDepth = 1024;
 constexpr static uint32_t kMaxMsgSize = sizeof(CtrlMsg);
 
 constexpr static char kNameCtrlQ[] = "daemon_ctrl_mq";

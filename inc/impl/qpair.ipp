@@ -91,10 +91,12 @@ inline int QSingle::timed_recv(void *buffer, size_t buffer_size, int timeout) {
 
 inline void QSingle::init(bool create) {
   try {
-    if (create)
+    if (create) {
+      boost::interprocess::permissions perms;
+      perms.set_unrestricted();
       q_ = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                      name_.c_str(), qdepth_, msgsize_);
-    else
+                                      name_.c_str(), qdepth_, msgsize_, perms);
+    } else
       q_ = std::make_shared<MsgQueue>(boost::interprocess::open_only,
                                       name_.c_str());
   } catch (boost::interprocess::interprocess_exception &e) {
