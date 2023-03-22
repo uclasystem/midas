@@ -18,6 +18,7 @@
 #include "utils.hpp"
 
 namespace midas {
+constexpr static int kMonitorTimeout = 1; // seconds
 constexpr static int kDisconnTimeout = 3; // seconds
 
 Region::Region(uint64_t pid, uint64_t region_id) noexcept
@@ -118,10 +119,8 @@ void ResourceManager::pressure_handler() {
 
   while (!stop_) {
     CtrlMsg msg;
-    if (rxqp_.try_recv(&msg, sizeof(msg)) == -1) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    if (rxqp_.timed_recv(&msg, sizeof(msg), kMonitorTimeout) != 0)
       continue;
-    }
 
     MIDAS_LOG(kDebug) << "PressureHandler recved msg " << msg.op;
     switch (msg.op) {
