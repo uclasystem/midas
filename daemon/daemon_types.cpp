@@ -24,6 +24,8 @@ constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
 constexpr static float kExpandThresh = 0.5;
 constexpr static float kExpandFactor = 0.5;
+/** Server related */
+constexpr static uint32_t kServeTimeout = 1; // in seconds
 
 /** Client */
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
@@ -178,16 +180,10 @@ void Client::destroy() {
 /** Daemon */
 Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
     : cfg_file_(cfg_file), ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
-      region_cnt_(0), region_limit_(kMaxRegions), terminated_(false),
+      ctrlq_(ctrlq_name_, true, kDaemonQDepth, kMaxMsgSize), region_cnt_(0),
+      region_limit_(kMaxRegions), terminated_(false),
       status_(MemStatus::NORMAL), monitor_(nullptr), profiler_(nullptr),
       rebalancer_(nullptr) {
-  MsgQueue::remove(ctrlq_name_.c_str());
-  boost::interprocess::permissions perms;
-  perms.set_unrestricted();
-  ctrlq_ = std::make_shared<MsgQueue>(boost::interprocess::create_only,
-                                      ctrlq_name_.c_str(), kDaemonQDepth,
-                                      kMaxMsgSize, perms);
-
   monitor_ = std::make_shared<std::thread>([&] { monitor(); });
   if (kEnableProfiler)
     profiler_ = std::make_shared<std::thread>([&] { profiler(); });
@@ -602,13 +598,9 @@ void Daemon::serve() {
 
   while (!terminated_) {
     CtrlMsg msg;
-    size_t recvd_size;
-    unsigned int prio;
+    if (ctrlq_.timed_recv(&msg, sizeof(CtrlMsg), kServeTimeout) != 0)
+      continue;
 
-    ctrlq_->receive(&msg, sizeof(CtrlMsg), recvd_size, prio);
-    if (recvd_size != sizeof(CtrlMsg)) {
-      break;
-    }
     MIDAS_LOG(kDebug) << "Daemon recved msg " << msg.op;
     switch (msg.op) {
     case CONNECT:

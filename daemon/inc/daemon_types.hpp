@@ -117,7 +117,7 @@ private:
   std::shared_ptr<std::thread> rebalancer_;
 
   const std::string ctrlq_name_;
-  std::shared_ptr<MsgQueue> ctrlq_;
+  QSingle ctrlq_;
   std::mutex mtx_;
   std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
 
@@ -125,7 +125,7 @@ private:
   uint64_t region_limit_;
   // For simluation
   std::string cfg_file_;
-  constexpr static uint64_t kInitRegions = (100ull << 20) / kRegionSize; // 100MB
+  constexpr static uint64_t kInitRegions = (100ull << 20) / kRegionSize;// 100MB
   constexpr static uint64_t kMaxRegions = (100ull << 30) / kRegionSize; // 100GB
   constexpr static char kDaemonCfgFile[] = "config/mem.config";
 
