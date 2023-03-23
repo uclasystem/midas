@@ -132,6 +132,8 @@ void ResourceManager::pressure_handler() {
     case PROF_STATS:
       do_profile_stats(msg);
       break;
+    case DISCONNECT:
+      do_disconnect(msg);
     default:
       MIDAS_LOG(kError) << "Recved unknown message: " << msg.op;
     }
@@ -161,8 +163,12 @@ void ResourceManager::do_profile_stats(CtrlMsg &msg) {
   rxqp_.send(&stats, sizeof(stats));
 }
 
-inline void ResourceManager::do_reclaim(int64_t nr_to_reclaim) {
-  assert(nr_to_reclaim > 0);
+void ResourceManager::do_disconnect(CtrlMsg &msg) {
+  stop_ = true;
+  handler_thd_->join();
+  MIDAS_LOG(kError) << "Client " << id_ << " Disconnected!";
+  exit(-1);
+}
   cpool_->get_evacuator()->signal_gc();
   MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.\n",
                    nr_to_reclaim);
