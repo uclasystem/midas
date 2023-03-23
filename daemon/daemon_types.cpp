@@ -574,13 +574,12 @@ void Daemon::on_mem_rebalance() {
         winner->region_cnt_ >= winner->region_limit_ * kExpandThresh)
       break;
   }
-  if (!winner)
+  if (!winner || winner->stats.perf_gain <= kPerfZeroThresh)
     return;
-  if (winner->id == prev_winner) {
+  if (winner->id == prev_winner)
     kStepSize = std::min(kMaxStepSize, kStepSize * 2);
-  } else {
+  else
     prev_winner = winner->id;
-  }
   MIDAS_LOG(kInfo) << "Winner " << winner->id
                    << ", perf gain: " << winner->stats.perf_gain;
   uint64_t nr_reclaimed = 0;
