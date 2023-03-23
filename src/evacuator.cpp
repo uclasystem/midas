@@ -245,12 +245,14 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             nr_deactivated++;
             alive_bytes += obj_size;
           } else {
+            auto rref = reinterpret_cast<ObjectPtr *>(obj_ptr.get_rref());
+            assert(rref);
             if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
               goto faulted;
-            auto vcache = pool_->get_vcache();
-            assert(obj_ptr.get_rref());
-            if (obj_ptr.get_rref())
+            if (rref && !rref->is_victim()) {
+              auto vcache = pool_->get_vcache();
               vcache->push_back(obj_ptr.get_rref(), nullptr);
+            }
             nr_freed++;
           }
         } else
@@ -275,15 +277,17 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
               nr_deactivated++;
               alive_bytes += obj_size;
             } else {
+              auto rref = reinterpret_cast<ObjectPtr *>(obj_ptr.get_rref());
+              assert(rref);
               // This will free all segments belonging to the same object
               if (obj_ptr.free(/* locked = */ true) == RetCode::Fault) {
                 MIDAS_LOG(kWarning);
                 // goto faulted;
               }
-              auto vcache = pool_->get_vcache();
-              assert(obj_ptr.get_rref());
-              if (obj_ptr.get_rref())
+              if (rref && !rref->is_victim()) {
+                auto vcache = pool_->get_vcache();
                 vcache->push_back(obj_ptr.get_rref(), nullptr);
+              }
 
               nr_freed++;
             }
