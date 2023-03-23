@@ -65,13 +65,14 @@ inline bool CachePool::free(ObjectPtr &ptr) {
   return allocator_->free(ptr);
 }
 
-inline void CachePool::inc_cache_hit() { stats.hits++; }
+inline void CachePool::inc_cache_hit() noexcept { stats.hits++; }
 
-inline void CachePool::inc_cache_miss() { stats.misses++; }
+inline void CachePool::inc_cache_miss() noexcept { stats.misses++; }
 
-inline void CachePool::inc_cache_victim_hit() { stats.victim_hits++; }
+inline void CachePool::inc_cache_victim_hit() noexcept { stats.victim_hits++; }
 
-inline void CachePool::record_miss_penalty(uint64_t cycles, uint64_t bytes) {
+inline void CachePool::record_miss_penalty(uint64_t cycles,
+                                           uint64_t bytes) noexcept {
   stats.miss_cycles += cycles;
   stats.miss_bytes += bytes;
 }
