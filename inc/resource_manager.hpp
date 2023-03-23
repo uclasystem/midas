@@ -75,7 +75,7 @@ private:
   void do_update_limit(CtrlMsg &msg);
   void do_profile_stats(CtrlMsg &msg);
   void do_disconnect(CtrlMsg &msg);
-  void do_reclaim(int64_t nr_to_reclaim);
+  bool do_reclaim();
 
   CachePool *cpool_;
 

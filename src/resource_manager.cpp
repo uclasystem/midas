@@ -18,6 +18,9 @@
 #include "utils.hpp"
 
 namespace midas {
+constexpr static int32_t kReclaimRepeat = 20;
+constexpr static auto kReclaimTimeout =
+    std::chrono::milliseconds(100);           // milliseconds
 constexpr static int32_t kMonitorTimeout = 1; // seconds
 constexpr static int32_t kDisconnTimeout = 3; // seconds
 constexpr static bool kEnableFreeList = true;
@@ -151,9 +154,8 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
     CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = CtrlRetCode::MEM_SUCC};
     rxqp_.send(&ack, sizeof(ack));
   } else {
-    int64_t nr_to_reclaim = region_limit_ - new_region_limit;
     region_limit_ = new_region_limit;
-    do_reclaim(nr_to_reclaim);
+    do_reclaim();
   }
 }
 
@@ -169,25 +171,40 @@ void ResourceManager::do_disconnect(CtrlMsg &msg) {
   MIDAS_LOG(kError) << "Client " << id_ << " Disconnected!";
   exit(-1);
 }
-  cpool_->get_evacuator()->signal_gc();
-  MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld to reclaim.\n",
-                   nr_to_reclaim);
-  {
-    std::unique_lock<std::mutex> ul(mtx_);
-    while (!freelist_.empty()) {
-      auto client = freelist_.back();
-      freelist_.pop_back();
-      free_region(client, true);
-    }
-    cv_.wait(ul, [&] { return NumRegionAvail() > 0; });
-  }
-  auto nr_reclaimed = nr_to_reclaim;
 
-  MemMsg mm;
-  CtrlRetCode ret = CtrlRetCode::MEM_SUCC;
-  mm.size = nr_reclaimed;
-  CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = ret, .mmsg = mm};
+inline bool ResourceManager::do_reclaim() {
+  int64_t nr_usage = NumRegionInUse();
+  int64_t nr_curr_limit = NumRegionLimit();
+  if (nr_usage <= nr_curr_limit)
+    return true;
+  cpool_->get_evacuator()->signal_gc();
+  MIDAS_LOG_PRINTF(kInfo, "Memory shrinkage: %ld to reclaim (%ld->%ld).\n",
+                   nr_usage - nr_curr_limit, nr_usage, nr_curr_limit);
+  for (int rep = 0; rep < kReclaimRepeat; rep++) {
+    std::unique_lock<std::mutex> ul(mtx_);
+    MIDAS_LOG(kError) << NumRegionInUse() << " " << NumRegionLimit();
+    while (!freelist_.empty()) {
+      auto region = freelist_.back();
+      freelist_.pop_back();
+      free_region(region, true);
+    }
+    MIDAS_LOG(kError) << NumRegionInUse() << " " << NumRegionLimit();
+    cv_.wait_for(ul, kReclaimTimeout, [&] { return NumRegionAvail() >= 0; });
+    if (NumRegionAvail() >= 0)
+      break;
+    cpool_->get_evacuator()->signal_gc();
+  }
+  int64_t nr_reclaimed = nr_usage - NumRegionInUse();
+  MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld reclaimed (%ld/%ld).\n",
+                   nr_reclaimed, NumRegionInUse(), NumRegionLimit());
+
+  CtrlRetCode ret =
+      NumRegionAvail() > 0 ? CtrlRetCode::MEM_SUCC : CtrlRetCode::MEM_FAIL;
+  CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT,
+              .ret = ret,
+              .mmsg{.size = static_cast<uint64_t>(nr_reclaimed)}};
   rxqp_.send(&ack, sizeof(ack));
+  return NumRegionAvail() > 0;
 }
 
 void ResourceManager::UpdateLimit(size_t size) noexcept {
