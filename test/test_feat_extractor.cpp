@@ -36,6 +36,7 @@ const static std::string md5_filename = data_dir + "md5.txt";
 const static std::string img_filename = data_dir + "val_img_names.txt";
 const static std::string feat_filename = data_dir + "enb5_feat_vec.data";
 
+const static std::string cachepool_name = "feats";
 float cache_ratio = 1.0;
 size_t cache_size = (kSimulate ? kSimuNumImgs : 41620ull) * (80 + 8192);
 
@@ -184,18 +185,23 @@ private:
   std::vector<FeatReq> reqs[kNrThd];
   std::shared_ptr<std::mt19937> gens[kNrThd];
 
+  midas::CachePool *cpool;
   std::shared_ptr<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>> feat_map;
 };
 
 /** initialization & utils */
 FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
+  cpool = midas::CacheManager::global_cache_manager()->get_pool(cachepool_name);
+  if (!cpool) {
+    std::cerr << "Failed to get cache pool!" << std::endl;
+    exit(-1);
+  }
   feat_map =
-      std::make_unique<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>>();
+      std::make_unique<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>>(cpool);
   load_imgs();
   load_feats();
   nr_imgs = kSimulate ? kSimuNumImgs : imgs.size();
 
-  auto cpool = midas::CachePool::global_cache_pool();
   cpool->set_construct_func(
       [&](void *args) { return construct_callback(args); });
 
@@ -251,8 +257,6 @@ void FeatExtractor::gen_load() {
 }
 
 bool FeatExtractor::serve_req(const FeatReq &req) {
-  auto cpool = midas::CachePool::global_cache_pool();
-
   MD5Key md5;
   md5_from_file(md5, req.filename);
   if (kSimulate) {
@@ -414,7 +418,9 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
   cache_ratio = std::stof(argv[1]);
-  midas::CachePool::global_cache_pool()->update_limit(cache_size * cache_ratio);
+  midas::CacheManager::global_cache_manager()->create_pool(cachepool_name);
+  auto pool = midas::CacheManager::global_cache_manager()->get_pool(cachepool_name);
+  pool->update_limit(cache_size * cache_ratio);
 
   FeatExtractor client;
   if (kSimulate)
