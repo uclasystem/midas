@@ -476,7 +476,8 @@ void Daemon::on_mem_shrink() {
     for (auto client : active_clients) {
       auto gain = client->stats.perf_gain;
       int64_t old_limit = client->region_limit_;
-      int64_t nr_reclaimed = std::ceil(gain / total_gain * nr_to_reclaim);
+      int64_t nr_reclaimed =
+          std::max<int64_t>(std::ceil(gain / total_gain * nr_to_reclaim), 1);
       int64_t new_limit = std::max(1l, old_limit - nr_reclaimed);
       client->update_limit(new_limit);
       nr_to_reclaim -= nr_reclaimed;
