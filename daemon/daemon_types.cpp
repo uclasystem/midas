@@ -142,12 +142,11 @@ bool Client::update_limit(uint64_t region_limit) {
     MIDAS_LOG(kError) << "Client " << id << " reclamation timed out!";
     return false;
   }
+  assert(ack.mmsg.size == region_cnt_);
   if (ack.ret != CtrlRetCode::MEM_SUCC) {
-    MIDAS_LOG(kError) << ack.ret;
-    return false;
+    MIDAS_LOG(kError) << "Client " << id << " failed to reclaim" << region_cnt_
+                      << "/" << region_limit_;
   }
-  // assert(ack.ret == CtrlRetCode::MEM_SUCC);
-  // TODO: parse ack and react correspondingly
   return true;
 }
 
