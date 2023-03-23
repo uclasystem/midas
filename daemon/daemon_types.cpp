@@ -224,7 +224,7 @@ int Daemon::do_connect(const CtrlMsg &msg) {
       return -1;
     }
     ul.unlock();
-    auto client = std::make_unique<Client>(this, msg.id, kInitRegions);
+    auto client = std::make_shared<Client>(this, msg.id, kInitRegions);
     client->connect();
     MIDAS_LOG(kInfo) << "Client " << msg.id << " connected.";
     ul.lock();
@@ -393,8 +393,10 @@ void Daemon::profiler() {
       });
       futures.emplace_back(std::move(future));
     }
+    ul.unlock();
     for (auto &f : futures)
       f.get();
+    ul.lock();
     for (const auto &cid : dead_clients)
       clients_.erase(cid);
     dead_clients.clear();
@@ -448,14 +450,14 @@ void Daemon::on_mem_shrink() {
     int64_t nr_to_reclaim = region_cnt_ - region_limit_;
     double nr_reclaim_ratio = static_cast<double>(nr_to_reclaim) / region_cnt_;
 
-    std::vector<Client *> inactive_clients;
-    std::vector<Client *> active_clients;
+    std::vector<std::shared_ptr<Client>> inactive_clients;
+    std::vector<std::shared_ptr<Client>> active_clients;
     std::unique_lock<std::mutex> ul(mtx_);
     for (auto &[_, client] : clients_) {
       if (client->stats.perf_gain < kPerfZeroThresh)
-        inactive_clients.emplace_back(client.get());
+        inactive_clients.emplace_back(client);
       else
-        active_clients.emplace_back(client.get());
+        active_clients.emplace_back(client);
     }
     ul.unlock();
     for (auto client : inactive_clients) {
@@ -500,11 +502,11 @@ void Daemon::on_mem_expand() {
     return;
   double nr_grant_ratio = static_cast<double>(nr_to_grant) / region_limit_;
 
-  std::vector<Client *> active_clients;
+  std::vector<std::shared_ptr<Client>> active_clients;
   std::unique_lock<std::mutex> ul(mtx_);
   for (auto &[_, client] : clients_) {
     if (client->stats.perf_gain > kPerfZeroThresh)
-      active_clients.emplace_back(client.get());
+      active_clients.emplace_back(client);
   }
   ul.unlock();
   if (active_clients.empty())
@@ -550,20 +552,21 @@ void Daemon::on_mem_rebalance() {
   static uint64_t kStepSize = 4ul;
   static uint64_t prev_winner = -1ul;
 
-  std::vector<Client *> clients;
+  std::vector<std::shared_ptr<Client>> clients;
   {
     std::unique_lock<std::mutex> ul(mtx_);
     for (auto &[_, client] : clients_)
-      clients.emplace_back(client.get());
+      clients.emplace_back(client);
   }
-  std::sort(clients.begin(), clients.end(), [](Client *c1, Client *c2) {
-    return c1->stats.perf_gain < c2->stats.perf_gain;
-  });
+  std::sort(clients.begin(), clients.end(),
+            [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
+              return c1->stats.perf_gain < c2->stats.perf_gain;
+            });
 
   if (clients.size() <= 1)
     return;
 
-  Client *winner = nullptr;
+  std::shared_ptr<Client> winner = nullptr;
   while (!clients.empty()) {
     winner = clients.back();
     clients.pop_back();
@@ -632,6 +635,8 @@ void Daemon::serve() {
       MIDAS_LOG(kError) << "Recved unknown message: " << msg.op;
     }
   }
+
+  MIDAS_LOG(kInfo) << "Daemon stopped to serve...";
 }
 
 } // namespace midas

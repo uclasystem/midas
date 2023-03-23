@@ -119,7 +119,7 @@ private:
   const std::string ctrlq_name_;
   QSingle ctrlq_;
   std::mutex mtx_;
-  std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
+  std::unordered_map<uint64_t, std::shared_ptr<Client>> clients_;
 
   std::atomic_int_fast64_t region_cnt_;
   uint64_t region_limit_;
