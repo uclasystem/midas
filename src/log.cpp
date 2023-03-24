@@ -218,7 +218,7 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   return obj_ptr;
 
 failed:
-  MIDAS_LOG(kError) << "allocation failed!";
+  MIDAS_LOG(kDebug) << "allocation failed!";
   for (auto &tptr : alloced_ptrs) {
     MetaObjectHdr mhdr;
     if (!load_hdr(mhdr, tptr))
