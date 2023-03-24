@@ -52,8 +52,8 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   if (nr_avail >= nr_target)
     return 0;
 
-  std::atomic_int64_t nr_scanned{0};
-  std::atomic_int64_t nr_evaced{0};
+  int nr_scanned = 0;
+  int nr_evaced = 0;
   auto &segments = allocator_->segments_;
 
   auto stt = chrono_utils::now();
@@ -108,8 +108,8 @@ int64_t Evacuator::serial_gc() {
   if (nr_avail >= nr_target)
     return 0;
 
-  std::atomic_int64_t nr_scanned{0};
-  std::atomic_int64_t nr_evaced{0};
+  int64_t nr_scanned = 0;
+  int64_t nr_evaced =0;
   auto &segments = allocator_->segments_;
 
   auto stt = chrono_utils::now();
