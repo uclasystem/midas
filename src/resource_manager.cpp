@@ -310,7 +310,13 @@ inline size_t ResourceManager::free_region(std::shared_ptr<Region> region,
                                            bool enforce) noexcept {
   int64_t rid = region->ID();
   uint64_t rsize = region->Size();
-  if (kEnableFreeList && !enforce && freelist_.size() < kFreeListSize) {
+  /* Only stash freed region into the free list when:
+   *  (1) not enforce free (happen in reclamation);
+   *  (2) still have avail memory budget (or else we will need to return extra
+          memory allocated by the evacuator);
+   *  (3) freelist is not full.
+   */
+  if (kEnableFreeList && !enforce && NumRegionAvail() > 0 && freelist_.size() < kFreeListSize) {
     freelist_.emplace_back(region);
   } else {
     CtrlMsg msg{.id = id_,
