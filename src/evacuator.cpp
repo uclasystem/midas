@@ -48,10 +48,12 @@ void Evacuator::init() {
 
 int64_t Evacuator::gc(SegmentList &stash_list) {
   auto nr_target = get_nr_to_reclaim(rmanager_.get());
+  auto nr_inuse = rmanager_->NumRegionInUse();
   auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
     return 0;
 
+  int nr_skipped = 0;
   int nr_scanned = 0;
   int nr_evaced = 0;
   auto &segments = allocator_->segments_;
@@ -63,6 +65,12 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
       continue;
     if (!segment->sealed()) { // put in-used segment back to list
       segments.push_back(segment);
+      nr_skipped++;
+      if (nr_skipped > nr_inuse) { // we have been in loop for too long
+        MIDAS_LOG(kDebug) << "Encountered too many unsealed segments during "
+                             "GC, skip GC this round.";
+        break;
+      }
       continue;
     }
     EvacState ret = scan_segment(segment.get(), true);
