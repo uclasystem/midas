@@ -14,11 +14,16 @@
 #include "utils.hpp"
 
 namespace midas {
-constexpr static float kPerfZeroThresh = 0.1;
+/** Global control flags */
+constexpr static bool kEnableDynamicRebalance = true;
+// WARNING: two flags below should always be enabled to adapt clients' memory
+// usage to the amount of server's idle memory
 constexpr static bool kEnableProfiler = true;
 constexpr static bool kEnableRebalancer = true;
-/** Profiler related */
+/** Monitor related */
 constexpr static uint32_t kMonitorInteral = 1; // in seconds
+/** Profiler related */
+constexpr static float kPerfZeroThresh = 0.1;
 constexpr static uint32_t kProfInterval = 5;   // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
@@ -193,7 +198,7 @@ Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
   monitor_ = std::make_shared<std::thread>([&] { monitor(); });
   if (kEnableProfiler)
     profiler_ = std::make_shared<std::thread>([&] { profiler(); });
-  if (kEnableProfiler && kEnableRebalancer)
+  if (kEnableRebalancer)
     rebalancer_ = std::make_shared<std::thread>([&] { rebalancer(); });
 }
 
@@ -548,6 +553,8 @@ void Daemon::on_mem_expand() {
 }
 
 void Daemon::on_mem_rebalance() {
+  if (!kEnableDynamicRebalance)
+    return;
   constexpr static uint64_t kMaxStepSize = 64;
   static uint64_t kStepSize = 4ul;
   static uint64_t prev_winner = -1ul;
