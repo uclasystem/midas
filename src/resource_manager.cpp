@@ -18,6 +18,7 @@
 #include "utils.hpp"
 
 namespace midas {
+constexpr static int32_t kMaxAllocRetry = 10;
 constexpr static int32_t kReclaimRepeat = 10;
 constexpr static auto kReclaimTimeout =
     std::chrono::milliseconds(100);           // milliseconds
@@ -211,10 +212,21 @@ void ResourceManager::UpdateLimit(size_t size) noexcept {
 }
 
 int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
+  int retry_cnt = 0;
 retry:
-  if (!overcommit && reclaim_trigger())
-    cpool_->get_evacuator()->signal_gc();
+  if (retry_cnt >= kMaxAllocRetry) {
+    MIDAS_LOG(kDebug) << "Cannot allocate new region after " << retry_cnt << " retires!";
+    return -1;
+  }
+  retry_cnt++;
+  if (!overcommit && reclaim_trigger()) {
+    if (NumRegionAvail() <= 0) // block waiting for reclamation
+      do_reclaim();
+    else
+      cpool_->get_evacuator()->signal_gc();
+  }
 
+  // 1) Fast path. Allocate from freelist
   std::unique_lock<std::mutex> lk(mtx_);
   if (!freelist_.empty()) {
     auto region = freelist_.back();
@@ -223,7 +235,12 @@ retry:
     region_map_[region_id] = region;
     return region_id;
   }
-
+  // 2) Local alloc path. Do reclamation and try local allocation again
+  if (!overcommit && NumRegionAvail() <= 0) {
+    lk.unlock();
+    goto retry;
+  }
+  // 3) Remote alloc path. Comm with daemon and try to alloc
   CtrlMsg msg{.id = id_,
               .op = overcommit ? CtrlOpCode::OVERCOMMIT : CtrlOpCode::ALLOC,
               .mmsg = {.size = kRegionSize}};
@@ -238,11 +255,6 @@ retry:
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
     lk.unlock();
-    cpool_->get_evacuator()->signal_gc();
-    {
-      std::unique_lock<std::mutex> ul(mtx_);
-      cv_.wait(ul, [&] { return NumRegionAvail() > 0; });
-    }
     goto retry;
   }
 
