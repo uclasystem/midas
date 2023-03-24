@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -20,13 +21,13 @@
 namespace midas {
 
 static inline int64_t get_nr_to_reclaim(ResourceManager *manager) {
-  float avail_ratio = static_cast<float>(manager->NumRegionAvail() + 1) /
-                      (manager->NumRegionLimit() + 1);
-  uint64_t nr_to_reclaim = 0;
-  if (avail_ratio < 0.01 || manager->NumRegionAvail() <= 1)
-    nr_to_reclaim = std::max(manager->NumRegionLimit() / 100, 2ul);
-  else
-    nr_to_reclaim = 0;
+  int64_t nr_avail = manager->NumRegionAvail();
+  int64_t nr_limit = manager->NumRegionLimit();
+  float avail_ratio = nr_limit ? (static_cast<float>(nr_avail) / nr_limit) : 0.;
+  int64_t nr_to_reclaim = manager->nr_pending;
+  if (avail_ratio < 0.01 || nr_avail <= 1)
+    nr_to_reclaim += std::max(nr_limit / 100, 2l);
+  nr_to_reclaim = std::min(nr_to_reclaim, nr_limit);
   return nr_to_reclaim;
 }
 

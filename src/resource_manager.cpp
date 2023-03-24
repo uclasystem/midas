@@ -44,12 +44,12 @@ Region::~Region() noexcept {
 
 ResourceManager::ResourceManager(CachePool *cpool,
                                  const std::string &daemon_name) noexcept
-    : cpool_(cpool), region_limit_(0), id_(get_unique_id()),
+    : cpool_(cpool), id_(get_unique_id()), region_limit_(0),
       txqp_(std::make_shared<QSingle>(utils::get_sq_name(daemon_name, false),
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
                                       true)),
-      rxqp_(std::to_string(id_), true), stop_(false) {
+      rxqp_(std::to_string(id_), true), stop_(false), nr_pending(0) {
   handler_thd_ = std::make_shared<std::thread>([&]() { pressure_handler(); });
   if (!cpool_)
     cpool_ = CachePool::global_cache_pool();
@@ -177,18 +177,18 @@ inline bool ResourceManager::do_reclaim() {
   int64_t nr_curr_limit = NumRegionLimit();
   if (nr_usage < nr_curr_limit)
     return true;
+
+  nr_pending++;
   cpool_->get_evacuator()->signal_gc();
   MIDAS_LOG_PRINTF(kInfo, "Memory shrinkage: %ld to reclaim (%ld->%ld).\n",
                    nr_usage - nr_curr_limit, nr_usage, nr_curr_limit);
   for (int rep = 0; rep < kReclaimRepeat; rep++) {
     std::unique_lock<std::mutex> ul(mtx_);
-    MIDAS_LOG(kError) << NumRegionInUse() << " " << NumRegionLimit();
     while (!freelist_.empty()) {
       auto region = freelist_.back();
       freelist_.pop_back();
       free_region(region, true);
     }
-    MIDAS_LOG(kError) << NumRegionInUse() << " " << NumRegionLimit();
     cv_.wait_for(ul, kReclaimTimeout, [&] { return NumRegionAvail() > 0; });
     if (NumRegionAvail() > 0)
       break;
@@ -198,6 +198,7 @@ inline bool ResourceManager::do_reclaim() {
   MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld reclaimed (%ld/%ld).\n",
                    nr_reclaimed, NumRegionInUse(), NumRegionLimit());
 
+  nr_pending--;
   return NumRegionAvail() > 0;
 }
 

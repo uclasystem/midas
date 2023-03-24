@@ -50,6 +50,8 @@ public:
                   const std::string &daemon_name = kNameCtrlQ) noexcept;
   ~ResourceManager() noexcept;
 
+  std::atomic_int_fast64_t nr_pending;
+
   int64_t AllocRegion(bool overcommit = false) noexcept;
   void FreeRegion(int64_t rid) noexcept;
   void FreeRegions(size_t size = kRegionSize) noexcept;
