@@ -9,6 +9,7 @@
 #include "object.hpp"
 
 namespace midas {
+constexpr static bool kEnableVictimCache = true;
 
 struct VCEntry {
 #pragma pack(push, 1)
@@ -20,6 +21,7 @@ struct VCEntry {
 #pragma pack(pop)
   VCEntry();
   VCEntry(ObjectPtr *optr_, void *construct_args_);
+  void reset(ObjectPtr *optr_, void *construct_args_) noexcept;
 };
 
 static_assert(sizeof(VCEntry) <= sizeof(ObjectPtr) + sizeof(size_t) +
@@ -32,20 +34,22 @@ public:
               int64_t cnt_limit = std::numeric_limits<int64_t>::max());
   ~VictimCache();
 
-  bool push_back(ObjectPtr *optr_addr, void *construct_args);
-  VCEntry *pop_front();
-  bool remove(ObjectPtr *optr_addr);
+  bool push_back(ObjectPtr *optr_addr, void *construct_args) noexcept;
+  bool remove(ObjectPtr *optr_addr) noexcept;
 
   int64_t size() const noexcept;
   int64_t count() const noexcept;
 
 private:
-  VCEntry *remove_locked(VCEntry *entry);
+  void pop_front_locked() noexcept;
+  void remove_locked(VCEntry *entry) noexcept;
+  inline VCEntry *create_entry(ObjectPtr *optr_addr,
+                               void *construct_args) noexcept;
+  inline void delete_entry(VCEntry *entry) noexcept;
 
   std::mutex mtx_;
-  VCEntry *entries_; // The LRU list
-  // optr_addr -> construct_args
-  std::unordered_map<ObjectPtr *, VCEntry *> map_;
+  VCEntry *entries_;                               // The LRU list
+  std::unordered_map<ObjectPtr *, VCEntry *> map_; // optr * -> construct_args
 
   int64_t size_limit_;
   int64_t cnt_limit_;
