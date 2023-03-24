@@ -146,15 +146,24 @@ void ResourceManager::pressure_handler() {
 void ResourceManager::do_update_limit(CtrlMsg &msg) {
   assert(msg.mmsg.size != 0);
   auto new_region_limit = msg.mmsg.size;
-  bool need_reclaim = new_region_limit < region_limit_;
   MIDAS_LOG(kError) << "Client " << id_ << " update limit: " << region_limit_
                     << "->" << new_region_limit;
-
   region_limit_ = new_region_limit;
 
   CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = CtrlRetCode::MEM_SUCC};
-  if (need_reclaim && !do_reclaim()) // failed to reclaim enough memory
-    ack.ret = CtrlRetCode::MEM_FAIL;
+  if (NumRegionAvail() <= 0) {
+    auto before_usage = NumRegionInUse();
+    MIDAS_LOG_PRINTF(kInfo, "Memory shrinkage: %ld to reclaim (%ld->%ld).\n",
+                     -NumRegionAvail(), NumRegionInUse(), NumRegionLimit());
+    if (!do_reclaim()) // failed to reclaim enough memory
+      ack.ret = CtrlRetCode::MEM_FAIL;
+    auto after_usage = NumRegionInUse();
+    auto nr_reclaimed = before_usage - after_usage;
+    MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld reclaimed (%ld/%ld).\n",
+                     nr_reclaimed, NumRegionInUse(), NumRegionLimit());
+  } else if (reclaim_trigger()) {
+    cpool_->get_evacuator()->signal_gc();
+  }
   ack.mmsg.size = region_map_.size() + freelist_.size();
   rxqp_.send(&ack, sizeof(ack));
 }
@@ -173,15 +182,11 @@ void ResourceManager::do_disconnect(CtrlMsg &msg) {
 }
 
 inline bool ResourceManager::do_reclaim() {
-  int64_t nr_usage = NumRegionInUse();
-  int64_t nr_curr_limit = NumRegionLimit();
-  if (nr_usage < nr_curr_limit)
+  if (NumRegionInUse() < NumRegionLimit())
     return true;
 
   nr_pending++;
   cpool_->get_evacuator()->signal_gc();
-  MIDAS_LOG_PRINTF(kInfo, "Memory shrinkage: %ld to reclaim (%ld->%ld).\n",
-                   nr_usage - nr_curr_limit, nr_usage, nr_curr_limit);
   for (int rep = 0; rep < kReclaimRepeat; rep++) {
     std::unique_lock<std::mutex> ul(mtx_);
     while (!freelist_.empty()) {
@@ -194,9 +199,6 @@ inline bool ResourceManager::do_reclaim() {
       break;
     cpool_->get_evacuator()->signal_gc();
   }
-  int64_t nr_reclaimed = nr_usage - NumRegionInUse();
-  MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld reclaimed (%ld/%ld).\n",
-                   nr_reclaimed, NumRegionInUse(), NumRegionLimit());
 
   nr_pending--;
   return NumRegionAvail() > 0;
