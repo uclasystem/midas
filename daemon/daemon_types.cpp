@@ -162,11 +162,11 @@ bool Client::profile_stats() {
   StatsMsg statsmsg;
   int ret = txqp.timed_recv(&statsmsg, sizeof(statsmsg), kAliveTimeout);
   if (ret != 0) {
-    MIDAS_LOG(kInfo) << "Client " << id << " is dead!";
+    MIDAS_LOG(kWarning) << "Client " << id << " is dead!";
     return false;
   }
   if (statsmsg.hits || statsmsg.misses) {
-    MIDAS_LOG(kError) << "Client " << id << " " << statsmsg.hits << " "
+    MIDAS_LOG(kDebug) << "Client " << id << " " << statsmsg.hits << " "
                       << statsmsg.misses << " " << statsmsg.miss_penalty << " "
                       << statsmsg.vhits;
   }
@@ -587,7 +587,7 @@ void Daemon::on_mem_rebalance() {
     kStepSize = std::min(kMaxStepSize, kStepSize * 2);
   else
     prev_winner = winner->id;
-  MIDAS_LOG(kInfo) << "Winner " << winner->id
+  MIDAS_LOG(kDebug) << "Winner " << winner->id
                    << ", perf gain: " << winner->stats.perf_gain;
   uint64_t nr_reclaimed = 0;
   for (auto client : clients) {
