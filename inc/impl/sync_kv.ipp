@@ -476,9 +476,16 @@ template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::bget_single(kv_types::Key key,
                                                 kv_types::Value value,
                                                 kv_types::BatchPlug &plug) {
-  bool ret =
-      get_(key.first, key.second, value.first, value.second, &plug, false);
-  return ret;
+  auto [v, vn] = value;
+  if (!v)
+    return false;
+  size_t stored_vn = 0;
+  if (get_(key.first, key.second, value.first, value.second, &plug, false) ==
+      nullptr)
+    return false;
+  if (stored_vn < vn) // value size check
+    return false;
+  return true;
 }
 
 /** Utility functions */
