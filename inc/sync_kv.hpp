@@ -23,6 +23,17 @@ using Key = std::pair<const void *, size_t>; // key location and its length
 using Value = std::pair<void *, size_t>;     // value location and its length
 using CValue = Key; // const value format is the same to key
 using ValueWithScore = std::pair<Value, double>; // value and its score
+
+struct BatchPlug {
+  int16_t hits{0};
+  int16_t misses{0};
+  int16_t vhits{0};
+  int16_t batch_size{0};
+
+  inline void reset() { hits = misses = vhits = batch_size = 0; }
+};
+static_assert(sizeof(BatchPlug) <= sizeof(int64_t),
+              "BatchPlug is not correctly aligned!");
 } // namespace kv_types
 
 template <size_t NBuckets, typename Alloc = LogAllocator,
@@ -57,6 +68,11 @@ public:
   int bset(std::vector<kv_types::Key> &keys,
            std::vector<kv_types::CValue> &values);
   int bremove(std::vector<kv_types::Key> &keys);
+  // User can also mark a section with batch_[stt|end] and manually bget_single
+  void batch_stt(kv_types::BatchPlug &plug);
+  int batch_end(kv_types::BatchPlug &plug);
+  bool bget_single(kv_types::Key key, kv_types::Value value,
+                   kv_types::BatchPlug &plug);
 
 private:
   struct BucketNode {
@@ -67,8 +83,8 @@ private:
   using BNPtr = BucketNode *;
 
   static inline uint64_t hash_(const void *key, size_t klen);
-  void *get_(const void *key, size_t klen, void *value, size_t *vlen, bool *hit,
-             bool *miss, bool *vhit, bool construct);
+  void *get_(const void *key, size_t klen, void *value, size_t *vlen,
+             kv_types::BatchPlug *plug, bool construct);
   BNPtr create_node(uint64_t hash, const void *k, size_t kn, const void *v,
                     size_t vn);
   BNPtr delete_node(BNPtr *prev_next, BNPtr node);
