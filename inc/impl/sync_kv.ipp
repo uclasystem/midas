@@ -123,91 +123,6 @@ bool SyncKV<NBuckets, Alloc, Lock>::clear() {
   return true;
 }
 
-template <size_t NBuckets, typename Alloc, typename Lock>
-void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
-                                          size_t *vn, kv_types::BatchPlug *plug,
-                                          bool construct) {
-  auto key_hash = hash_(k, kn);
-  auto bucket_idx = key_hash % NBuckets;
-
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
-
-  size_t stored_vn = 0;
-  void *stored_v = nullptr;
-  auto prev_next = &buckets_[bucket_idx];
-  BNPtr node = buckets_[bucket_idx];
-  bool found = false;
-  while (node) {
-    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
-    if (found)
-      break;
-  }
-  if (!found) {
-    lock.unlock();
-    goto failed;
-  }
-  assert(node);
-  stored_v = v ? v : malloc(stored_vn);
-  if (node->pair.null() ||
-      !node->pair.copy_to(stored_v, stored_vn, layout::v_offset(kn))) {
-    if (node->pair.is_victim()) {
-      if (plug)
-        plug->vhits++;
-      else
-        pool_->inc_cache_victim_hit();
-    }
-    node = delete_node(prev_next, node);
-    lock.unlock();
-    if (!v) { // stored_v is newly allocated
-      free(stored_v);
-      stored_v = nullptr;
-    }
-    goto failed;
-  }
-  lock.unlock();
-  if (vn)
-    *vn = stored_vn;
-
-  if (plug) {
-    plug->hits++;
-    plug->batch_size++;
-  } else
-    pool_->inc_cache_hit();
-  LogAllocator::count_access();
-  return stored_v;
-
-failed:
-  assert(stored_v == nullptr);
-  if (plug) {
-    plug->misses++;
-    plug->batch_size++;
-  } else
-    pool_->inc_cache_miss();
-
-  // only re-construct for non-batched calls
-  if (kEnableConstruct && !plug && construct && pool_->get_construct_func()) {
-    ConstructArgs args = {k, kn, stored_v, stored_vn};
-    auto stt = Time::get_cycles_stt();
-    bool succ = pool_->construct(&args) == 0;
-    if (!succ) { // failed to re-construct
-      if (!v)    // stored_v is newly allocated
-        free(stored_v);
-      return nullptr;
-    }
-    // successfully re-constructed
-    stored_v = args.value;
-    stored_vn = args.value_len;
-    set(k, kn, stored_v, stored_vn);
-    auto end = Time::get_cycles_end();
-    if (vn)
-      *vn = stored_vn;
-    pool_->record_miss_penalty(end - stt, stored_vn);
-    return stored_v;
-  }
-  return nullptr;
-}
-
 /** Ordered Set */
 /** Value Format:
  *    | NumEle (8B) | Len<V1> (8B) | Score<V1> (8B) | V1 (Len<V1>) | ...
@@ -496,6 +411,94 @@ bool SyncKV<NBuckets, Alloc, Lock>::bget_single(kv_types::Key key,
 }
 
 /** Utility functions */
+/* if @v is given, then we will read the cache content into v directly; if v ==
+ * nullptr, then this function will allocate a new buffer, reading the content
+ * into it, and return it. A nullptr ret value indicates a get failure. */
+template <size_t NBuckets, typename Alloc, typename Lock>
+void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
+                                          size_t *vn, kv_types::BatchPlug *plug,
+                                          bool construct) {
+  auto key_hash = hash_(k, kn);
+  auto bucket_idx = key_hash % NBuckets;
+
+  auto &lock = locks_[bucket_idx];
+  lock.lock();
+
+  size_t stored_vn = 0;
+  void *stored_v = nullptr;
+  auto prev_next = &buckets_[bucket_idx];
+  BNPtr node = buckets_[bucket_idx];
+  bool found = false;
+  while (node) {
+    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
+    if (found)
+      break;
+  }
+  if (!found) {
+    lock.unlock();
+    goto failed;
+  }
+  assert(node);
+  stored_v = v ? v : malloc(stored_vn);
+  if (node->pair.null() ||
+      !node->pair.copy_to(stored_v, stored_vn, layout::v_offset(kn))) {
+    if (node->pair.is_victim()) {
+      if (plug)
+        plug->vhits++;
+      else
+        pool_->inc_cache_victim_hit();
+    }
+    node = delete_node(prev_next, node);
+    lock.unlock();
+    if (!v) { // stored_v is newly allocated
+      free(stored_v);
+      stored_v = nullptr;
+    }
+    goto failed;
+  }
+  lock.unlock();
+  if (vn)
+    *vn = stored_vn;
+
+  if (plug) {
+    plug->hits++;
+    plug->batch_size++;
+  } else
+    pool_->inc_cache_hit();
+  LogAllocator::count_access();
+  return stored_v;
+
+failed:
+  assert(stored_v == nullptr);
+  if (plug) {
+    plug->misses++;
+    plug->batch_size++;
+  } else
+    pool_->inc_cache_miss();
+
+  // only re-construct for non-batched calls
+  if (kEnableConstruct && !plug && construct && pool_->get_construct_func()) {
+    ConstructArgs args = {k, kn, stored_v, stored_vn};
+    auto stt = Time::get_cycles_stt();
+    bool succ = pool_->construct(&args) == 0;
+    if (!succ) { // failed to re-construct
+      if (!v)    // stored_v is newly allocated
+        free(stored_v);
+      return nullptr;
+    }
+    // successfully re-constructed
+    stored_v = args.value;
+    stored_vn = args.value_len;
+    set(k, kn, stored_v, stored_vn);
+    auto end = Time::get_cycles_end();
+    if (vn)
+      *vn = stored_vn;
+    pool_->record_miss_penalty(end - stt, stored_vn);
+    return stored_v;
+  }
+  return nullptr;
+}
+
 template <size_t NBuckets, typename Alloc, typename Lock>
 using BNPtr = typename SyncKV<NBuckets, Alloc, Lock>::BucketNode *;
 
