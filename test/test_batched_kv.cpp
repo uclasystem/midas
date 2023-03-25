@@ -24,7 +24,7 @@ constexpr static int kBatchSize = 10;
 constexpr static int kNumObjs = 10240;
 constexpr static int kKLen = 32;
 constexpr static int kVLen = 8192;
-#else // !TEST_LARGE
+#else  // !TEST_LARGE
 constexpr static int kNumObjs = 102400;
 constexpr static int kKLen = 61;
 constexpr static int kVLen = 10;
@@ -37,7 +37,7 @@ template <int Len> struct Object;
 #if TEST_OBJECT
 using K = Object<kKLen>;
 using V = Object<kVLen>;
-#else // !TEST_OBJECT
+#else  // !TEST_OBJECT
 using K = int;
 using V = int;
 #endif // TEST_OBJECT
@@ -187,8 +187,8 @@ int main(int argc, char *argv[]) {
         for (int j = i; j < i + kBatchSize; j++) {
           auto &k = ks[tid][j];
           auto &v = vs[tid][j];
-          keys.emplace_back(std::make_pair(&k, sizeof(k)));
-          values.emplace_back(std::make_pair(&v, sizeof(v)));
+          keys.emplace_back(midas::kv_utils::make_key(&k, sizeof(k)));
+          values.emplace_back(midas::kv_utils::make_cvalue(&v, sizeof(v)));
         }
         int ret = kvstore->bset(keys, values);
         nr_succ += ret;
@@ -210,13 +210,13 @@ int main(int argc, char *argv[]) {
   std::atomic_int32_t nr_nequal{0};
   nr_succ = nr_err = 0;
   for (int tid = 0; tid < kNumInsertThds; tid++) {
-    thds.push_back(std::thread([&, tid=tid]() {
+    thds.push_back(std::thread([&, tid = tid]() {
       for (int i = 0; i < kNumObjs; i += kBatchSize) {
         std::vector<midas::kv_types::Key> keys;
         std::vector<midas::kv_types::Value> values;
         for (int j = i; j < i + kBatchSize; j++) {
           auto &k = ks[tid][j];
-          keys.emplace_back(std::make_pair(&k, sizeof(k)));
+          keys.emplace_back(midas::kv_utils::make_key(&k, sizeof(k)));
         }
         int succ = kvstore->bget(keys, values);
         nr_succ += succ;
@@ -224,8 +224,8 @@ int main(int argc, char *argv[]) {
         assert(values.size() == kBatchSize);
         for (int j = 0; j < kBatchSize; j++) {
           auto &v = vs[tid][i + j];
-          V *v2 = reinterpret_cast<V *>(values[j].first);
-          size_t stored_vn = values[j].second;
+          V *v2 = reinterpret_cast<V *>(values[j].data);
+          size_t stored_vn = values[j].size;
           if (v2) {
             assert(stored_vn == sizeof(V));
             if (v == *v2) {
@@ -263,7 +263,7 @@ int main(int argc, char *argv[]) {
         std::vector<midas::kv_types::Key> keys;
         for (int j = i; j < i + kBatchSize; j++) {
           auto &k = ks[tid][j];
-          keys.emplace_back(std::make_pair(&k, sizeof(k)));
+          keys.emplace_back(midas::kv_utils::make_key(&k, sizeof(k)));
         }
         int succ = kvstore->bremove(keys);
         nr_succ += succ;

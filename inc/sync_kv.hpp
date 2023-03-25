@@ -19,10 +19,33 @@
 namespace midas {
 
 namespace kv_types {
-using Key = std::pair<const void *, size_t>; // key location and its length
-using Value = std::pair<void *, size_t>;     // value location and its length
+// using Key = std::pair<const void *, size_t>; // key location and its length
+struct Key {
+  const void *data;
+  size_t size;
+  Key() : data(nullptr), size(0) {}
+  Key(const void *data_, size_t size_) : data(data_), size(size_) {}
+};
+static_assert(sizeof(Key) == sizeof(void *) + sizeof(size_t),
+              "Key is not correctly aligned!");
+
+// using Value = std::pair<void *, size_t>;     // value location and its length
+struct Value {
+  void *data;
+  size_t size;
+  Value() : data(nullptr), size(0) {}
+  Value(void *data_, size_t size_) : data(data_), size(size_) {}
+};
+static_assert(sizeof(Value) == sizeof(void *) + sizeof(size_t),
+              "Value is not correctly aligned!");
+
 using CValue = Key; // const value format is the same to key
+static_assert(sizeof(CValue) == sizeof(void *) + sizeof(size_t),
+              "CValue is not correctly aligned!");
+
 using ValueWithScore = std::pair<Value, double>; // value and its score
+static_assert(sizeof(ValueWithScore) == sizeof(Value) + sizeof(double),
+              "ValueWithScore is not correctly aligned!");
 
 struct BatchPlug {
   int16_t hits{0};
@@ -35,6 +58,17 @@ struct BatchPlug {
 static_assert(sizeof(BatchPlug) <= sizeof(int64_t),
               "BatchPlug is not correctly aligned!");
 } // namespace kv_types
+
+namespace kv_utils {
+/** Util function to make a Key or [C]Value item.
+ *    WARNING: clearly this declaration is very dirty and error-prune. Always
+ * use the shortcuts defined below if possible. */
+template <typename T> T make_(decltype(T::data) data, decltype(T::size) size);
+/** Shortcuts to create certain key/value types. */
+constexpr static auto make_key = make_<kv_types::Key>;
+constexpr static auto make_value = make_<kv_types::Value>;
+constexpr static auto make_cvalue = make_<kv_types::CValue>;
+} // namespace kv_utils
 
 template <size_t NBuckets, typename Alloc = LogAllocator,
           typename Lock = std::mutex>
