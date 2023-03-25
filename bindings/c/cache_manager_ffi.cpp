@@ -42,6 +42,14 @@ int midas_pool_construct(CachePool pool, void *arg) {
   return pool_->construct(arg);
 }
 
+int midas_pool_update_limit(CachePool pool, uint64_t limit_in_bytes) {
+  auto pool_ = reinterpret_cast<midas::CachePool *>(pool);
+  if (!pool_)
+    return -1;
+  pool_->update_limit(limit_in_bytes);
+  return 0;
+}
+
 void midas_inc_cache_hit(CachePool pool) {
   auto pool_ = reinterpret_cast<midas::CachePool *>(pool);
   if (pool_)
