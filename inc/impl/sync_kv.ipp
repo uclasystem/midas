@@ -377,19 +377,13 @@ bool SyncKV<NBuckets, Alloc, Lock>::zrevrange(
 template <size_t NBuckets, typename Alloc, typename Lock>
 int SyncKV<NBuckets, Alloc, Lock>::bget(const std::vector<kv_types::Key> &keys,
                                         std::vector<kv_types::Value> &values) {
-  int succ = 0;
   kv_types::BatchPlug plug;
   batch_stt(plug);
-  for (auto &[k, kn] : keys) {
-    size_t vn = 0;
-    void *v = get_(k, kn, nullptr, &vn, &plug, false);
-    if (!v)
-      vn = 0;
-    else
-      succ++;
-    values.emplace_back(std::make_pair(v, vn));
+  for (auto &k: keys) {
+    kv_types::Value v = bget_single(k, plug);
+    values.emplace_back(std::move(v));
   }
-  assert(succ == plug.hits);
+  int succ = plug.hits;
   assert(keys.size() == plug.batch_size);
   batch_end(plug);
 
@@ -400,19 +394,13 @@ template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K>
 int SyncKV<NBuckets, Alloc, Lock>::bget(const std::vector<K> &keys,
                                         std::vector<kv_types::Value> &values) {
-  int succ = 0;
   kv_types::BatchPlug plug;
   batch_stt(plug);
   for (const auto &k : keys) {
-    size_t vn = 0;
-    void *v = get_(&k, sizeof(K), nullptr, &vn, &plug, false);
-    if (!v)
-      vn = 0;
-    else
-      succ++;
-    values.emplace_back(std::make_pair(v, vn));
+    kv_types::Value v = bget_single(k, plug);
+    values.emplace_back(std::move(v));
   }
-  assert(succ == plug.hits);
+  int succ = plug.hits;
   assert(keys.size() == plug.batch_size);
   batch_end(plug);
 
@@ -423,20 +411,13 @@ template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K, typename V>
 int SyncKV<NBuckets, Alloc, Lock>::bget(
     const std::vector<K> &keys, std::vector<std::unique_ptr<V>> &values) {
-  int succ = 0;
   kv_types::BatchPlug plug;
   batch_stt(plug);
   for (const auto &k : keys) {
-    size_t vn = 0;
-    auto v =
-        std::unique_ptr<V>(get_(&k, sizeof(K), nullptr, &vn, &plug, false));
-    if (!v || vn != sizeof(V))
-      v.reset(); // which also frees the underlying buffer
-    else
-      succ++;
+    std::unique_ptr<V> v = bget_single(k, plug);
     values.emplace_back(std::move(v));
   }
-  assert(succ == plug.hits);
+  int succ = plug.hits;
   assert(keys.size() == plug.batch_size);
   batch_end(plug);
 
@@ -450,11 +431,8 @@ int SyncKV<NBuckets, Alloc, Lock>::bset(
   assert(keys.size() == values.size());
   int succ = 0;
   auto nr_pairs = keys.size();
-  for (int i = 0; i < nr_pairs; i++) {
-    auto &[k, kn] = keys[i];
-    auto &[v, vn] = values[i];
-    succ += set(k, kn, v, vn);
-  }
+  for (int i = 0; i < nr_pairs; i++)
+    succ += set(keys[i], values[i]);
   return succ;
 }
 
@@ -486,9 +464,8 @@ template <size_t NBuckets, typename Alloc, typename Lock>
 int SyncKV<NBuckets, Alloc, Lock>::bremove(
     const std::vector<kv_types::Key> &keys) {
   int succ = 0;
-  for (auto &[k, kn] : keys) {
-    succ += remove(k, kn);
-  }
+  for (auto &k: keys)
+    succ += remove(k);
   return succ;
 }
 
