@@ -145,10 +145,6 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   }
   if (!found) {
     lock.unlock();
-    if (miss)
-      *miss = true;
-    else
-      pool_->inc_cache_miss();
     goto failed;
   }
   assert(node);
@@ -182,6 +178,10 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
 
 failed:
   assert(stored_v == nullptr);
+  if (miss)
+    *miss = true;
+  else
+    pool_->inc_cache_miss();
   if (kEnableConstruct && construct && pool_->get_construct_func()) {
     ConstructArgs args = {k, kn, stored_v, stored_vn};
     auto stt = Time::get_cycles_stt();
