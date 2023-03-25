@@ -69,7 +69,8 @@ test_sync_kv_src = test/test_sync_kv.cpp
 test_sync_kv_obj = $(test_sync_kv_src:.cpp=.o)
 test_ordered_set_src = test/test_ordered_set.cpp
 test_ordered_set_obj = $(test_ordered_set_src:.cpp=.o)
-
+test_batched_kv_src = test/test_batched_kv.cpp
+test_batched_kv_obj = $(test_batched_kv_src:.cpp=.o)
 test_feat_extractor_src = test/test_feat_extractor.cpp
 test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
 test_feat_extractor_kv_src = test/test_feat_extractor_kv.cpp
@@ -85,7 +86,7 @@ bin: bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_log bin/test_large_alloc \
 	bin/test_sync_hashmap bin/test_hashmap_clear bin/test_sync_list \
 	bin/test_cache_manager bin/test_victim_cache \
-	bin/test_sync_kv bin/test_ordered_set \
+	bin/test_sync_kv bin/test_ordered_set bin/test_batched_kv \
 	bin/test_skewed_hashmap \
 	bin/test_sighandler \
 	bin/test_memcpy \
@@ -153,6 +154,9 @@ bin/test_sync_kv: $(test_sync_kv_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_ordered_set: $(test_ordered_set_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_batched_kv: $(test_batched_kv_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 lib/libmidas++.a: $(lib_obj)
