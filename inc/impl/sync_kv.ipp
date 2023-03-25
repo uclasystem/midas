@@ -26,7 +26,7 @@ static inline size_t v_offset(size_t keylen) { return k_offset() + keylen; }
 /** Base Interfaces */
 template <size_t NBuckets, typename Alloc, typename Lock>
 void *SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, size_t *vn) {
-  return get_(k, kn, nullptr, vn);
+  return get_(k, kn, nullptr, vn, nullptr, nullptr, nullptr, true);
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
@@ -35,7 +35,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, void *v,
   if (!v)
     return false;
   size_t stored_vn = 0;
-  if (get_(k, kn, v, &stored_vn) == nullptr)
+  if (get_(k, kn, v, &stored_vn, nullptr, nullptr, nullptr, true) == nullptr)
     return false;
   if (stored_vn < vn) // value size check
     return false;
@@ -125,7 +125,8 @@ bool SyncKV<NBuckets, Alloc, Lock>::clear() {
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
-                                          size_t *vn) {
+                                          size_t *vn, bool *hit, bool *miss,
+                                          bool *vhit, bool construct) {
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
@@ -144,15 +145,22 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   }
   if (!found) {
     lock.unlock();
-    pool_->inc_cache_miss();
+    if (miss)
+      *miss = true;
+    else
+      pool_->inc_cache_miss();
     goto failed;
   }
   assert(node);
   stored_v = v ? v : malloc(stored_vn);
   if (node->pair.null() ||
       !node->pair.copy_to(stored_v, stored_vn, layout::v_offset(kn))) {
-    if (node->pair.is_victim())
-      pool_->inc_cache_victim_hit();
+    if (node->pair.is_victim()) {
+      if (vhit)
+        *vhit = true;
+      else
+        pool_->inc_cache_victim_hit();
+    }
     node = delete_node(prev_next, node);
     lock.unlock();
     if (!v) { // stored_v is newly allocated
@@ -165,13 +173,16 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   if (vn)
     *vn = stored_vn;
 
-  pool_->inc_cache_hit();
+  if (hit)
+    *hit = true;
+  else
+    pool_->inc_cache_hit();
   LogAllocator::count_access();
   return stored_v;
 
 failed:
   assert(stored_v == nullptr);
-  if (kEnableConstruct && pool_->get_construct_func()) {
+  if (kEnableConstruct && construct && pool_->get_construct_func()) {
     ConstructArgs args = {k, kn, stored_v, stored_vn};
     auto stt = Time::get_cycles_stt();
     bool succ = pool_->construct(&args) == 0;
@@ -310,8 +321,8 @@ bool SyncKV<NBuckets, Alloc, Lock>::zadd(const void *k, size_t kn,
                                          const void *v, size_t vn, double score,
                                          UpdateType type) {
   size_t oset_len = 0;
-  auto oset =
-      reinterpret_cast<ordered_set::OSet *>(get_(k, kn, nullptr, &oset_len));
+  auto oset = reinterpret_cast<ordered_set::OSet *>(
+      get_(k, kn, nullptr, &oset_len, nullptr, nullptr, nullptr, false));
   if (!oset) {
     if (type == UpdateType::EXIST)
       return false;
@@ -359,7 +370,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::zrange(
     std::back_insert_iterator<std::vector<ordered_set::Value>> bi) {
   size_t oset_len;
   auto oset = reinterpret_cast<ordered_set::OSet *>(
-      get_(key, klen, nullptr, &oset_len));
+      get_(key, klen, nullptr, &oset_len, nullptr, nullptr, nullptr, false));
   if (!oset)
     return false;
   if (start < 0 || end > oset->num_ele)
@@ -387,6 +398,63 @@ bool SyncKV<NBuckets, Alloc, Lock>::zrevrange(
   for (auto iter = values.rbegin(); iter != values.rend(); ++iter)
     bi = *iter;
   return true;
+}
+
+/** Batched Interfaces */
+template <size_t NBuckets, typename Alloc, typename Lock>
+int SyncKV<NBuckets, Alloc, Lock>::bget(std::vector<kv_types::Key> &keys,
+                                        std::vector<kv_types::Value> &values) {
+  int succ = 0;
+  int nr_hits = 0, nr_misses = 0, nr_vhits = 0;
+  for (auto &[k, kn] : keys) {
+    size_t vn = 0;
+    bool hit = false, miss = false, vhit = false;
+    void *v = get_(k, kn, nullptr, &vn, &hit, &miss, &vhit, false);
+    if (!v)
+      vn = 0;
+    else
+      succ++;
+    nr_hits += hit;
+    nr_misses += miss;
+    nr_vhits += vhit;
+    values.emplace_back(std::make_pair(v, vn));
+  }
+  assert(succ == nr_hits);
+  assert(nr_hits + nr_misses == keys.size());
+  // for batch operations, we count their cache stats only once
+  if (nr_hits == keys.size())
+    pool_->inc_cache_hit();
+  else {
+    if (nr_misses)
+      pool_->inc_cache_miss();
+    if (nr_vhits == nr_misses) // count only if vcache contains all missed items
+      pool_->inc_cache_victim_hit();
+  }
+
+  return succ;
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
+int SyncKV<NBuckets, Alloc, Lock>::bset(std::vector<kv_types::Key> &keys,
+                                        std::vector<kv_types::CValue> &values) {
+  assert(keys.size() == values.size());
+  int succ = 0;
+  auto nr_pairs = keys.size();
+  for (int i = 0; i < nr_pairs; i++) {
+    auto &[k, kn] = keys[i];
+    auto &[v, vn] = values[i];
+    succ += set(k, kn, v, vn);
+  }
+  return succ;
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
+int SyncKV<NBuckets, Alloc, Lock>::bremove(std::vector<kv_types::Key> &keys) {
+  int succ = 0;
+  for (auto &[k, kn] : keys) {
+    succ += remove(k, kn);
+  }
+  return succ;
 }
 
 /** Utility functions */
