@@ -389,25 +389,18 @@ int SyncKV<NBuckets, Alloc, Lock>::batch_end(kv_types::BatchPlug &plug) {
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 void *SyncKV<NBuckets, Alloc, Lock>::bget_single(const void *k, size_t kn,
-                                                size_t *vn,
-                                                kv_types::BatchPlug &plug) {
+                                                 size_t *vn,
+                                                 kv_types::BatchPlug &plug) {
   return get_(k, kn, nullptr, vn, &plug, false);
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
-bool SyncKV<NBuckets, Alloc, Lock>::bget_single(kv_types::Key key,
-                                                kv_types::Value value,
-                                                kv_types::BatchPlug &plug) {
-  auto [v, vn] = value;
-  if (!v)
-    return false;
-  size_t stored_vn = 0;
-  if (get_(key.first, key.second, value.first, value.second, &plug, false) ==
-      nullptr)
-    return false;
-  if (stored_vn < vn) // value size check
-    return false;
-  return true;
+kv_types::Value
+SyncKV<NBuckets, Alloc, Lock>::bget_single(kv_types::Key key,
+                                           kv_types::BatchPlug &plug) {
+  size_t vn = 0;
+  auto v = get_(key.first, key.second, nullptr, &vn, &plug, false);
+  return std::make_pair(v, vn);
 }
 
 /** Utility functions */
