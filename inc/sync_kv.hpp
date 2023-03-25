@@ -71,6 +71,8 @@ public:
   // User can also mark a section with batch_[stt|end] and manually bget_single
   void batch_stt(kv_types::BatchPlug &plug);
   int batch_end(kv_types::BatchPlug &plug);
+  void *bget_single(const void *key, size_t klen, size_t *vlen,
+                    kv_types::BatchPlug &plug);
   bool bget_single(kv_types::Key key, kv_types::Value value,
                    kv_types::BatchPlug &plug);
 

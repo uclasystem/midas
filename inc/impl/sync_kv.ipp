@@ -473,6 +473,13 @@ int SyncKV<NBuckets, Alloc, Lock>::batch_end(kv_types::BatchPlug &plug) {
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
+void *SyncKV<NBuckets, Alloc, Lock>::bget_single(const void *k, size_t kn,
+                                                size_t *vn,
+                                                kv_types::BatchPlug &plug) {
+  return get_(k, kn, nullptr, vn, &plug, false);
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::bget_single(kv_types::Key key,
                                                 kv_types::Value value,
                                                 kv_types::BatchPlug &plug) {
