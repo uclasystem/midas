@@ -45,9 +45,20 @@ public:
 
   /** Basic Interfaces */
   void *get(const void *key, size_t klen, size_t *vlen);
+  kv_types::Value get(kv_types::Key key);
+  template <typename K> kv_types::Value get(const K &&k);
+  template <typename K, typename V> std::unique_ptr<V> get(const K &&k);
   bool get(const void *key, size_t klen, void *value, size_t vlen);
+
   bool set(const void *key, size_t klen, const void *value, size_t vlen);
+  bool set(kv_types::Key key, kv_types::CValue value);
+  template <typename K> bool set(const K &&k, kv_types::CValue value);
+  template <typename K, typename V> bool set(const K &&k, const V &v);
+
   bool remove(const void *key, size_t klen);
+  bool remove(kv_types::Key key);
+  template <typename K> bool remove(const K &&k);
+
   bool clear();
   // std::vector<Pair> get_all_pairs();
   /** Ordered Set Interfaces */
@@ -65,15 +76,32 @@ public:
   /** Batched Interfaces */
   int bget(std::vector<kv_types::Key> &keys,
            std::vector<kv_types::Value> &values);
+  template <typename K>
+  int bget(std::vector<const K> &keys, std::vector<kv_types::Value> &values);
+  template <typename K, typename V>
+  int bget(std::vector<const K> &keys, std::vector<std::unique_ptr<V>> &values);
+
   int bset(std::vector<kv_types::Key> &keys,
            std::vector<kv_types::CValue> &values);
+  template <typename K>
+  int bset(std::vector<const K> &keys, std::vector<kv_types::CValue> &values);
+  template <typename K, typename V>
+  int bset(std::vector<const K> &keys, std::vector<const V> &values);
+
   int bremove(std::vector<kv_types::Key> &keys);
+  template <typename K> int bremove(std::vector<const K> &keys);
+
   // User can also mark a section with batch_[stt|end] and manually bget_single
   void batch_stt(kv_types::BatchPlug &plug);
   int batch_end(kv_types::BatchPlug &plug);
+
   void *bget_single(const void *key, size_t klen, size_t *vlen,
                     kv_types::BatchPlug &plug);
   kv_types::Value bget_single(kv_types::Key key, kv_types::BatchPlug &plug);
+  template <typename K>
+  kv_types::Value bget_single(const K &&k, kv_types::BatchPlug &plug);
+  template <typename K, typename V>
+  std::unique_ptr<V> bget_single(const K &&k, kv_types::BatchPlug &plug);
 
 private:
   struct BucketNode {
