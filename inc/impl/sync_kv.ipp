@@ -367,7 +367,7 @@ failed:
 template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::zrange(
     const void *key, size_t klen, int64_t start, int64_t end,
-    std::back_insert_iterator<std::vector<ordered_set::Value>> bi) {
+    std::back_insert_iterator<std::vector<kv_types::Value>> bi) {
   size_t oset_len;
   auto oset = reinterpret_cast<ordered_set::OSet *>(
       get_(key, klen, nullptr, &oset_len, nullptr, nullptr, nullptr, false));
@@ -391,8 +391,8 @@ bool SyncKV<NBuckets, Alloc, Lock>::zrange(
 template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::zrevrange(
     const void *key, size_t klen, int64_t start, int64_t end,
-    std::back_insert_iterator<std::vector<ordered_set::Value>> bi) {
-  std::vector<ordered_set::Value> values;
+    std::back_insert_iterator<std::vector<kv_types::Value>> bi) {
+  std::vector<kv_types::Value> values;
   if (!zrange(key, klen, start, end, std::back_inserter(values)))
     return false;
   for (auto iter = values.rbegin(); iter != values.rend(); ++iter)

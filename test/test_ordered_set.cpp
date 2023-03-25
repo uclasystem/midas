@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
         const auto &op = ops[tid][i];
         const K &k = op.key;
         size_t stored_vn = 0;
-        std::vector<midas::ordered_set::Value> raw_vs;
+        std::vector<midas::kv_types::Value> raw_vs;
         std::vector<V> vs;
         if (!kvstore->zrange(&k, sizeof(k), 0, kOSetSize - 1,
                              std::back_inserter(raw_vs))) {

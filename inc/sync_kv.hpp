@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <iterator>
 #include <memory>
@@ -24,11 +25,6 @@ using CValue = Key; // const value format is the same to key
 using ValueWithScore = std::pair<Value, double>; // value and its score
 } // namespace kv_types
 
-namespace ordered_set {
-using Value = std::pair<void *, size_t>;         // value buffer and its length
-using ValueWithScore = std::pair<Value, double>; // value and its score
-} // namespace ordered_set
-
 template <size_t NBuckets, typename Alloc = LogAllocator,
           typename Lock = std::mutex>
 class SyncKV {
@@ -52,9 +48,9 @@ public:
   bool zadd(const void *key, size_t klen, const void *value, size_t vlen,
             double score, UpdateType type);
   bool zrange(const void *key, size_t klen, int64_t start, int64_t end,
-              std::back_insert_iterator<std::vector<ordered_set::Value>> bi);
+              std::back_insert_iterator<std::vector<kv_types::Value>> bi);
   bool zrevrange(const void *key, size_t klen, int64_t start, int64_t end,
-                 std::back_insert_iterator<std::vector<ordered_set::Value>> bi);
+                 std::back_insert_iterator<std::vector<kv_types::Value>> bi);
   /** Batched Interfaces */
   int bget(std::vector<kv_types::Key> &keys,
            std::vector<kv_types::Value> &values);
