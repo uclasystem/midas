@@ -19,25 +19,13 @@
 #include "utils.hpp"
 
 namespace midas {
-
-static inline int64_t get_nr_to_reclaim(ResourceManager *manager) {
-  int64_t nr_avail = manager->NumRegionAvail();
-  int64_t nr_limit = manager->NumRegionLimit();
-  float avail_ratio = nr_limit ? (static_cast<float>(nr_avail) / nr_limit) : 0.;
-  int64_t nr_to_reclaim = manager->nr_pending;
-  if (avail_ratio < 0.01 || nr_avail <= 1)
-    nr_to_reclaim += std::max(nr_limit / 100, 2l);
-  nr_to_reclaim = std::min(nr_to_reclaim, nr_limit);
-  return nr_to_reclaim;
-}
-
 void Evacuator::init() {
   gc_thd_ = std::make_shared<std::thread>([&]() {
     while (!terminated_) {
       {
         std::unique_lock<std::mutex> lk(gc_mtx_);
         gc_cv_.wait(lk, [this] {
-          return terminated_ || get_nr_to_reclaim(rmanager_.get());
+          return terminated_ || rmanager_->reclaim_trigger();
         });
       }
       parallel_gc(8);
@@ -47,7 +35,7 @@ void Evacuator::init() {
 }
 
 int64_t Evacuator::gc(SegmentList &stash_list) {
-  auto nr_target = get_nr_to_reclaim(rmanager_.get());
+  auto nr_target = rmanager_->reclaim_target();
   auto nr_inuse = rmanager_->NumRegionInUse();
   auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
@@ -111,7 +99,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
 }
 
 int64_t Evacuator::serial_gc() {
-  auto nr_target = get_nr_to_reclaim(rmanager_.get());
+  auto nr_target = rmanager_->reclaim_target();
   auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
     return 0;

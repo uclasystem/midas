@@ -64,6 +64,7 @@ public:
   int64_t NumRegionAvail() const noexcept;
 
   bool reclaim_trigger() const noexcept;
+  int64_t reclaim_target() const noexcept;
 
   static std::shared_ptr<ResourceManager> global_manager_shared_ptr() noexcept;
   static ResourceManager *global_manager() noexcept;

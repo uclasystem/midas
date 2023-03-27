@@ -41,12 +41,18 @@ inline int64_t ResourceManager::NumRegionAvail() const noexcept {
 }
 
 inline bool ResourceManager::reclaim_trigger() const noexcept {
-  float avail_ratio =
-      static_cast<float>(NumRegionAvail() + 1) / (NumRegionLimit() + 1);
-  if (avail_ratio < 0.1) {
-    return true;
-  }
-  return false;
+  return reclaim_target() > 0;
+}
+
+inline int64_t ResourceManager::reclaim_target() const noexcept {
+  int64_t nr_avail = NumRegionAvail();
+  int64_t nr_limit = NumRegionLimit();
+  float avail_ratio = nr_limit ? (static_cast<float>(nr_avail) / nr_limit) : 0.;
+  int64_t nr_to_reclaim = nr_pending;
+  if (avail_ratio < 0.01 || nr_avail <= 1)
+    nr_to_reclaim += std::max(nr_limit / 100, 2l);
+  nr_to_reclaim = std::min(nr_to_reclaim, nr_limit);
+  return nr_to_reclaim;
 }
 
 inline ResourceManager *ResourceManager::global_manager() noexcept {
