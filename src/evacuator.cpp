@@ -28,7 +28,7 @@ void Evacuator::init() {
           return terminated_ || rmanager_->reclaim_trigger();
         });
       }
-      parallel_gc(8);
+      parallel_gc(16);
       // serial_gc();
     }
   });
