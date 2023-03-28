@@ -17,6 +17,16 @@ PageCacheInterceptor::PageCacheInterceptor() {
       (FILE * (*)(const char *, const char *)) dlsym(RTLD_NEXT, "fopen64");
   fclose = (int (*)(FILE *))dlsym(RTLD_NEXT, "fclose");
 
+  read = (ssize_t(*)(int, void *, size_t))dlsym(RTLD_NEXT, "read");
+  write = (ssize_t(*)(int, const void *, size_t))dlsym(RTLD_NEXT, "write");
+  pread = (ssize_t(*)(int, void *, size_t, off_t))dlsym(RTLD_NEXT, "pread");
+  pwrite =
+      (ssize_t(*)(int, const void *, size_t, off_t))dlsym(RTLD_NEXT, "pwrite");
+  fread = (size_t(*)(void *, size_t, size_t, FILE *))dlsym(RTLD_NEXT, "fread");
+  fwrite = (size_t(*)(const void *, size_t, size_t, FILE *))dlsym(RTLD_NEXT,
+                                                                  "fwrite");
+  lseek = (off_t(*)(int, off_t, int))dlsym(RTLD_NEXT, "lseek");
+
   char *error = nullptr;
   if ((error = dlerror()) != nullptr)
     MIDAS_ABORT("%s", error);
@@ -24,15 +34,15 @@ PageCacheInterceptor::PageCacheInterceptor() {
 
 inline PageCacheInterceptor *PageCacheInterceptor::global_interceptor() {
   static std::mutex mtx_;
-  static std::unique_ptr<PageCacheInterceptor> inter_;
+  static std::unique_ptr<PageCacheInterceptor> intor_;
 
-  if (inter_)
-    return inter_.get();
+  if (intor_)
+    return intor_.get();
   std::unique_lock<std::mutex> ul(mtx_);
-  if (inter_)
-    return inter_.get();
-  inter_ = std::make_unique<PageCacheInterceptor>();
-  assert(inter_);
-  return inter_.get();
+  if (intor_)
+    return intor_.get();
+  intor_ = std::make_unique<PageCacheInterceptor>();
+  assert(intor_);
+  return intor_.get();
 }
 } // namespace midas

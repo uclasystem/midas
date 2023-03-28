@@ -1,4 +1,5 @@
 #include "page_cache.hpp"
+#include "logging.hpp"
 
 #ifdef HIJACK_FS_SYSCALLS
 
@@ -125,7 +126,7 @@ int close(int fd) {
 
 FILE *fopen(const char *path, const char *mode) {
   auto pc_intor = PageCacheInterceptor::global_interceptor();
-  assert(pc_intor->open != NULL);
+  assert(pc_intor->fopen != NULL);
 
   int fd;
   FILE *fp = NULL;
@@ -143,7 +144,7 @@ FILE *fopen(const char *path, const char *mode) {
 
 FILE *fopen64(const char *path, const char *mode) {
   auto pc_intor = PageCacheInterceptor::global_interceptor();
-  assert(pc_intor->open != NULL);
+  assert(pc_intor->fopen64 != NULL);
 
   int fd;
   FILE *fp;
@@ -162,7 +163,7 @@ FILE *fopen64(const char *path, const char *mode) {
 
 int fclose(FILE *fp) {
   auto pc_intor = PageCacheInterceptor::global_interceptor();
-  assert(pc_intor->open != NULL);
+  assert(pc_intor->close != NULL);
 
   if (pc_intor->fclose) {
     // free_unclaimed_pages(fileno(fp), true);
@@ -172,6 +173,56 @@ int fclose(FILE *fp) {
   errno = EFAULT;
   return EOF;
 }
+
+ssize_t read(int fd, void *buf, size_t count) {
+  auto pc_intor = PageCacheInterceptor::global_interceptor();
+  assert(pc_intor->read != NULL);
+  MIDAS_LOG_PRINTF(kDebug, "capture read %p %lu\n", buf, count);
+  return pc_intor->read(fd, buf, count);
+}
+
+ssize_t write(int fd, const void *buf, size_t count) {
+  auto pc_intor = PageCacheInterceptor::global_interceptor();
+  assert(pc_intor->write != NULL);
+  MIDAS_LOG_PRINTF(kDebug, "capture write %p %lu\n", buf, count);
+  return pc_intor->write(fd, buf, count);
+}
+
+ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
+  auto pc_intor = PageCacheInterceptor::global_interceptor();
+  assert(pc_intor->pread != NULL);
+  MIDAS_LOG_PRINTF(kDebug, "capture pread %p %lu\n", buf, count);
+  return pc_intor->pread(fd, buf, count, offset);
+}
+
+ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
+  auto pc_intor = PageCacheInterceptor::global_interceptor();
+  assert(pc_intor->pwrite != NULL);
+  MIDAS_LOG_PRINTF(kDebug, "capture pwrite %p %lu\n", buf, count);
+  return pc_intor->pwrite(fd, buf, count, offset);
+}
+
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
+  auto pc_intor = PageCacheInterceptor::global_interceptor();
+  assert(pc_intor->fread != NULL);
+  MIDAS_LOG_PRINTF(kDebug, "capture fread\n");
+  return pc_intor->fread(ptr, size, nmemb, stream);
+}
+
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
+  auto pc_intor = PageCacheInterceptor::global_interceptor();
+  assert(pc_intor->fwrite != NULL);
+  MIDAS_LOG_PRINTF(kDebug, "capture fwrite\n");
+  return pc_intor->fwrite(ptr, size, nmemb, stream);
+}
+
+off_t lseek(int fd, off_t offset, int whence) {
+  auto pc_intor = PageCacheInterceptor::global_interceptor();
+  assert(pc_intor->lseek != NULL);
+  MIDAS_LOG_PRINTF(kDebug, "capture lseek\n");
+  return pc_intor->lseek(fd, offset, whence);
+}
+
 } // namespace midas
 }
 

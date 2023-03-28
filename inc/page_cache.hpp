@@ -20,6 +20,7 @@ extern "C" {
 #include <sys/types.h>
 #include <unistd.h>
 
+/** File open/close related syscalls */
 int open(const char *pathname, int flags, mode_t mode);
 int open64(const char *pathname, int flags, mode_t mode);
 int creat(const char *pathname, int flags, mode_t mode);
@@ -34,6 +35,14 @@ int close(int fd);
 FILE *fopen(const char *path, const char *mode);
 FILE *fopen64(const char *path, const char *mode);
 int fclose(FILE *fp);
+/** File read/write related syscalls */
+ssize_t read(int fd, void *buf, size_t count);
+ssize_t write(int fd, const void *buf, size_t count);
+ssize_t pread(int fd, void *buf, size_t count, off_t offset);
+ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+off_t lseek(int fd, off_t offset, int whence);
 }
 
 #include <memory>
@@ -60,6 +69,14 @@ public:
   FILE *(*fopen)(const char *path, const char *mode);
   FILE *(*fopen64)(const char *path, const char *mode);
   int (*fclose)(FILE *fp);
+
+  ssize_t (*read)(int fd, void *buf, size_t count);
+  ssize_t (*write)(int fd, const void *buf, size_t count);
+  ssize_t (*pread)(int fd, void *buf, size_t count, off_t offset);
+  ssize_t (*pwrite)(int fd, const void *buf, size_t count, off_t offset);
+  size_t (*fread)(void *ptr, size_t size, size_t nmemb, FILE *stream);
+  size_t (*fwrite)(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+  off_t (*lseek)(int fd, off_t offset, int whence);
 };
 } // namespace midas
 
