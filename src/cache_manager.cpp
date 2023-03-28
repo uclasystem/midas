@@ -54,16 +54,9 @@ inline void CachePool::CacheStats::reset() noexcept {
 }
 
 CacheManager::CacheManager() : terminated_(false), profiler_(nullptr) {
-  assert(create_pool(default_pool_name));
+  // assert(create_pool(default_pool_name));
   auto sig_handler = SigHandler::global_sighandler();
   sig_handler->init();
-  // profiler_ = std::make_unique<std::thread>([&] {
-  //   constexpr static uint64_t PROF_INTERVAL = 2; // about 2s
-  //   while (!terminated_) {
-  //     std::this_thread::sleep_for(std::chrono::seconds(PROF_INTERVAL));
-  //     profile_pools();
-  //   }
-  // });
 }
 
 StatsMsg CacheManager::profile_pools() {
