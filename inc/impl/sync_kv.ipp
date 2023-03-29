@@ -13,6 +13,11 @@ SyncKV<NBuckets, Alloc, Lock>::SyncKV(CachePool *pool) : pool_(pool) {
   memset(buckets_, 0, sizeof(buckets_));
 }
 
+template <size_t NBuckets, typename Alloc, typename Lock>
+SyncKV<NBuckets, Alloc, Lock>::~SyncKV() {
+  clear();
+}
+
 /** Storage layout in soft memory:
  *    | KeyLen (8B) | ValueLen (8B) | Key (`KeyLen`B) | Value (`ValueLen`B) |
  */

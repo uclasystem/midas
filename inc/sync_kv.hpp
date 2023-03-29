@@ -76,6 +76,7 @@ class SyncKV {
 public:
   SyncKV();
   SyncKV(CachePool *pool);
+  ~SyncKV();
 
   /** Basic Interfaces */
   void *get(const void *key, size_t klen, size_t *vlen);
