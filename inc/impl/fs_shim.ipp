@@ -1,7 +1,7 @@
 #pragma once
 
 namespace midas {
-PageCacheInterceptor::PageCacheInterceptor() {
+FSShim::FSShim() {
   open = (int (*)(const char *, int, mode_t))dlsym(RTLD_NEXT, "open");
   open64 = (int (*)(const char *, int, mode_t))dlsym(RTLD_NEXT, "open64");
   creat = (int (*)(const char *, int, mode_t))dlsym(RTLD_NEXT, "creat");
@@ -32,17 +32,17 @@ PageCacheInterceptor::PageCacheInterceptor() {
     MIDAS_ABORT("%s", error);
 }
 
-inline PageCacheInterceptor *PageCacheInterceptor::global_interceptor() {
+inline FSShim *FSShim::global_shim() {
   static std::mutex mtx_;
-  static std::unique_ptr<PageCacheInterceptor> intor_;
+  static std::unique_ptr<FSShim> shim_;
 
-  if (intor_)
-    return intor_.get();
+  if (shim_)
+    return shim_.get();
   std::unique_lock<std::mutex> ul(mtx_);
-  if (intor_)
-    return intor_.get();
-  intor_ = std::make_unique<PageCacheInterceptor>();
-  assert(intor_);
-  return intor_.get();
+  if (shim_)
+    return shim_.get();
+  shim_ = std::make_unique<FSShim>();
+  assert(shim_);
+  return shim_.get();
 }
 } // namespace midas

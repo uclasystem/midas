@@ -50,11 +50,11 @@ off_t lseek(int fd, off_t offset, int whence);
 
 #include "logging.hpp"
 namespace midas {
-class PageCacheInterceptor {
+class FSShim {
 public:
-  PageCacheInterceptor();
+  FSShim();
 
-  static inline PageCacheInterceptor *global_interceptor();
+  static inline FSShim *global_shim();
 
   // origial syscalls
   int (*open)(const char *pathname, int flags, mode_t mode);
@@ -80,6 +80,6 @@ public:
 };
 } // namespace midas
 
-#include "impl/page_cache.ipp"
+#include "impl/fs_shim.ipp"
 
 #endif // HIJACK_FS_SYSCALLS
