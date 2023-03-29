@@ -116,10 +116,10 @@ bool SyncKV<NBuckets, Alloc, Lock>::remove(const K &&k) {
   return remove(&k, sizeof(K));
 }
 
-// Only support int
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename V>
-bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset, V* value) {
+bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset,
+                                        V *value) {
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
@@ -142,7 +142,8 @@ bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset, V* v
   }
   assert(node);
 
-  if (stored_vn != sizeof(V) || node->pair.null() || !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn))) {
+  if (stored_vn != sizeof(V) || node->pair.null() ||
+      !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn))) {
     return false;
   }
   *value = *value + offset;

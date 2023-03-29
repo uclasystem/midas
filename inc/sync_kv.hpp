@@ -94,8 +94,14 @@ public:
   bool remove(const kv_types::Key &key);
   template <typename K> bool remove(const K &&k);
 
+  /* V should be addable such as [u]int[_64_t]. */
+  template <typename V>
+  bool inc(const void *key, size_t klen, V offset, V *value);
+  // TODO: add support for reloaded versions
+
+  /* add only when key doesn't exist. */
   bool add(const void *key, size_t klen, const void *value, size_t vlen);
-  template <typename V> bool inc(const void *key, size_t klen, V offset, V* value);
+  // TODO: add support for reloaded versions
 
   bool clear();
   // std::vector<Pair> get_all_pairs();
