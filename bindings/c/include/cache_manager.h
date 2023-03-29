@@ -15,6 +15,7 @@ bool midas_create_cache_pool(const char name[]);
 bool midas_delete_cache_pool(const char name[]);
 CachePool midas_get_cache_pool(const char name[]);
 CachePool midas_get_global_cache_pool(void);
+int midas_pool_update_limit(CachePool pool, uint64_t limit_in_bytes);
 
 typedef int (*midas_construct_func_t)(void *arg);
 
