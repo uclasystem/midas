@@ -19,6 +19,12 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::SyncHashMap(
 
 template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
+SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::~SyncHashMap() {
+  clear();
+}
+
+template <size_t NBuckets, typename Key, typename Tp, typename Hash,
+          typename Pred, typename Alloc, typename Lock>
 template <typename K1>
 std::unique_ptr<Tp>
 SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {

@@ -21,6 +21,7 @@ class SyncHashMap {
 public:
   SyncHashMap();
   SyncHashMap(CachePool *pool);
+  ~SyncHashMap();
 
   template <typename K1> std::unique_ptr<Tp> get(K1 &&key);
   template <typename K1> bool get(K1 &&key, Tp &v);
