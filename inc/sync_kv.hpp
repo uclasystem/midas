@@ -94,7 +94,8 @@ public:
   bool remove(const kv_types::Key &key);
   template <typename K> bool remove(const K &&k);
 
-  bool inc(const void *key, size_t klen, int offset, int* value);
+  bool add(const void *key, size_t klen, const void *value, size_t vlen);
+  template <typename V> bool inc(const void *key, size_t klen, V offset, V* value);
 
   bool clear();
   // std::vector<Pair> get_all_pairs();
