@@ -47,6 +47,8 @@ inline bool ResourceManager::reclaim_trigger() const noexcept {
 inline int64_t ResourceManager::reclaim_target() const noexcept {
   int64_t nr_avail = NumRegionAvail();
   int64_t nr_limit = NumRegionLimit();
+  if (nr_limit <= 1)
+    return 0;
   float avail_ratio = nr_limit ? (static_cast<float>(nr_avail) / nr_limit) : 0.;
   int64_t nr_to_reclaim = nr_pending;
   if (avail_ratio < 0.01 || nr_avail <= 1)
