@@ -1,8 +1,19 @@
 #pragma once
 
 namespace midas {
-inline FSShim::FSShim() {
-  capture_syscalls();
+inline File::File(CachePool *pool)
+    : offset(0), cache(std::make_shared<PageMap>(pool)) {}
+
+inline FSShim::FSShim() { capture_syscalls(); }
+
+inline void FSShim::init_cache() {
+  if (pool_)
+    return;
+  auto cmanager = CacheManager::global_cache_manager();
+  assert(cmanager->create_pool(pool_name));
+  pool_ = cmanager->get_pool(pool_name);
+  assert(pool_);
+  pool_->update_limit(kPageCacheLimit);
 }
 
 inline void FSShim::capture_syscalls() {
@@ -36,6 +47,29 @@ inline void FSShim::capture_syscalls() {
     MIDAS_ABORT("%s", error);
 }
 
+inline void FSShim::exclude_interpose(int fd) {
+  if (fd <= STDERR_FILENO)
+    return;
+  std::unique_lock<std::mutex> ul(bl_mtx_);
+  black_list_.emplace(fd);
+  // MIDAS_LOG(kError) << fd;
+}
+
+inline void FSShim::reset_interpose(int fd) {
+  if (fd <= STDERR_FILENO)
+    return;
+  std::unique_lock<std::mutex> ul(bl_mtx_);
+  black_list_.erase(fd);
+  // MIDAS_LOG(kError) << fd;
+}
+
+inline bool FSShim::is_excluded(int fd) {
+  if (fd <= STDERR_FILENO)
+    return true;
+  std::unique_lock<std::mutex> ul(bl_mtx_);
+  return black_list_.find(fd) != black_list_.cend();
+}
+
 inline FSShim *FSShim::global_shim() {
   static std::mutex mtx_;
   static std::unique_ptr<FSShim> shim_;
@@ -49,6 +83,16 @@ inline FSShim *FSShim::global_shim() {
   assert(shim_);
   return shim_.get();
 }
+
+constexpr static ino_t INV_INODE = -1;
+static inline ino_t get_inode(int fd) {
+  struct stat file_stat;
+  if (fstat(fd, &file_stat) < 0)
+    return INV_INODE;
+  return file_stat.st_ino;
+}
+
+static inline bool invalid_inode(ino_t inode) { return inode == INV_INODE; }
 
 static inline bool is_shm_file(const char *pathname) {
   constexpr static char shm_prefix[] = "/dev/shm";

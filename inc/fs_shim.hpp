@@ -39,12 +39,43 @@ extern "C" {
 
 #include <memory>
 #include <mutex>
+#include <unordered_map>
+#include <set>
 
 #include "logging.hpp"
+#include "sync_hashmap.hpp"
+#include "utils.hpp"
+
 namespace midas {
+using pfn_t = int64_t; // page frame number
+using Page = char[kPageSize];
+constexpr static int32_t kNumPageCacheBuckets = 1 << 4;
+using PageMap = SyncHashMap<kNumPageCacheBuckets, pfn_t, Page>;
+
+struct File {
+  File() = default;
+  File(CachePool *pool);
+
+  off_t offset;
+  std::shared_ptr<PageMap> cache;
+};
+
 class FSShim {
 public:
   FSShim();
+
+  bool on_open(int fd);
+  bool on_close(int fd);
+  ssize_t on_read(int fd, void *buf, size_t count, bool upd_offset,
+                  off_t offset = 0);
+  ssize_t on_write(int fd, const void *buf, size_t count, bool upd_offset,
+                   off_t offset = 0);
+  bool on_lseek(int fd, off_t offset);
+
+  // As we use shm files for IPC now, we need to exclude them from interposition
+  void exclude_interpose(int fd);
+  void reset_interpose(int fd);
+  bool is_excluded(int fd);
 
   static inline FSShim *global_shim();
 
@@ -72,8 +103,19 @@ public:
 
 private:
   void capture_syscalls();
+  void init_cache();
+
+  std::mutex mtx_;
+  std::unordered_map<ino_t, File> files_; // file's inode number to its cache
+  std::mutex bl_mtx_;
+  std::set<int> black_list_; // we need to exclude shm files from interposition
+  CachePool *pool_;
+  constexpr static char pool_name[] = "page-cache";
+  constexpr static int64_t kPageCacheLimit = 100ul * 1024 * 1024; // 100 MB
 };
 
+static inline ino_t get_inode(int fd);
+static inline bool invalid_inode(ino_t inode);
 static inline bool is_shm_file(const char *pathname);
 } // namespace midas
 
