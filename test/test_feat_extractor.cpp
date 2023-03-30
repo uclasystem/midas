@@ -1,3 +1,4 @@
+#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <fstream>
@@ -29,6 +30,8 @@ constexpr static double kSkewness = 0.9;  // zipf
 
 constexpr static bool kSimulate = true;
 constexpr static int kSimuNumImgs = 1000 * 1000;
+
+constexpr static int kStatInterval = 5; // seconds
 
 const static std::string data_dir =
     "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/data/";
@@ -377,20 +380,40 @@ int FeatExtractor::simu_warmup_cache() {
 }
 
 void FeatExtractor::perf() {
+  std::atomic_int_fast32_t nr_succ{0};
+  bool stop = false;
   auto stt = std::chrono::high_resolution_clock::now();
+  std::thread perf_thd([&] {
+    while (!stop) {
+      std::this_thread::sleep_for(std::chrono::seconds(kStatInterval));
+      std::cout << "Tput " << nr_succ / 1000.0 / kStatInterval << " Kops"
+                << std::endl;
+      nr_succ = 0;
+    }
+  });
   std::vector<std::thread> worker_thds;
   for (int tid = 0; tid < kNrThd; tid++) {
     worker_thds.push_back(std::thread([&, tid = tid]() {
+      int cnt = 0;
       for (int i = 0; i < KPerThdLoad; i++) {
         // auto req = gen_req(tid);
         serve_req(reqs[tid][i]);
+        cnt++;
+        if (cnt % 100 == 0) {
+          nr_succ += 100;
+          cnt = 0;
+        }
       }
+      nr_succ += cnt;
+      cnt = 0;
     }));
   }
 
   for (auto &thd : worker_thds) {
     thd.join();
   }
+  stop = true;
+  perf_thd.join();
 
   auto end = std::chrono::high_resolution_clock::now();
   auto duration =
