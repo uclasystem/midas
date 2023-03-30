@@ -1,7 +1,11 @@
 #pragma once
 
 namespace midas {
-FSShim::FSShim() {
+inline FSShim::FSShim() {
+  capture_syscalls();
+}
+
+inline void FSShim::capture_syscalls() {
   open = (int (*)(const char *, int, mode_t))dlsym(RTLD_NEXT, "open");
   open64 = (int (*)(const char *, int, mode_t))dlsym(RTLD_NEXT, "open64");
   creat = (int (*)(const char *, int, mode_t))dlsym(RTLD_NEXT, "creat");
