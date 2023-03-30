@@ -49,4 +49,10 @@ inline FSShim *FSShim::global_shim() {
   assert(shim_);
   return shim_.get();
 }
+
+static inline bool is_shm_file(const char *pathname) {
+  constexpr static char shm_prefix[] = "/dev/shm";
+  constexpr static int prefix_len = sizeof(shm_prefix) - 1;
+  return std::strncmp(pathname, shm_prefix, prefix_len) == 0;
+}
 } // namespace midas

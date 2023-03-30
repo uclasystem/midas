@@ -73,6 +73,8 @@ public:
 private:
   void capture_syscalls();
 };
+
+static inline bool is_shm_file(const char *pathname);
 } // namespace midas
 
 #include "impl/fs_shim.ipp"
