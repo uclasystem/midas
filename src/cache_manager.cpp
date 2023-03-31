@@ -28,6 +28,7 @@ inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
   if (stats.hits > 0 || stats.misses > 0 || stats.victim_hits > 0)
     MIDAS_LOG_PRINTF(kInfo,
                      "CachePool %s:\n"
+                     "\t     Region used: %ld/%ld\n"
                      "\tCache hit ratio:  %.4f\n"
                      "\t   miss penalty:  %.2f\n"
                      "\t     hit counts:  %lu\n"
@@ -37,9 +38,10 @@ inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
                      "\t       perf gain: %.4f\n"
                      "\t           count: %lu\n"
                      "\t            size: %lu\n",
-                     name_.c_str(), hit_ratio, miss_penalty, stats.hits.load(),
-                     stats.misses.load(), victim_hit_ratio, victim_hits,
-                     perf_gain, vcache_->count(), vcache_->size());
+                     name_.c_str(), get_rmanager()->NumRegionInUse(),
+                     get_rmanager()->NumRegionLimit(), hit_ratio, miss_penalty,
+                     stats.hits.load(), stats.misses.load(), victim_hit_ratio,
+                     victim_hits, perf_gain, vcache_->count(), vcache_->size());
 
   stats.timestamp = curr_ts;
   stats.reset();
