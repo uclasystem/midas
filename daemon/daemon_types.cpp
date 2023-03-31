@@ -131,11 +131,13 @@ bool Client::free_region(int64_t region_id) {
   return ret == CtrlRetCode::MEM_SUCC;
 }
 
-bool Client::update_limit(uint64_t region_limit) {
-  if (region_limit == region_limit_)
+bool Client::update_limit(uint64_t new_limit) {
+  return force_reclaim(new_limit);
+
+  if (new_limit == region_limit_)
     return true;
-  daemon_->charge(region_limit - region_limit_);
-  region_limit_ = region_limit;
+  daemon_->charge(new_limit - region_limit_);
+  region_limit_ = new_limit;
 
   std::unique_lock<std::mutex> ul(tx_mtx);
   CtrlMsg msg{.op = CtrlOpCode::UPDLIMIT,
@@ -144,13 +146,32 @@ bool Client::update_limit(uint64_t region_limit) {
   txqp.send(&msg, sizeof(msg));
   CtrlMsg ack;
   if (txqp.timed_recv(&ack, sizeof(ack), kReclaimTimeout) != 0) {
-    MIDAS_LOG(kError) << "Client " << id << " reclamation timed out!";
+    MIDAS_LOG(kError) << "Client " << id << " timed out!";
     return false;
   }
   assert(ack.mmsg.size <= region_cnt_);
   if (ack.ret != CtrlRetCode::MEM_SUCC) {
-    MIDAS_LOG(kError) << "Client " << id << " failed to reclaim" << region_cnt_
+    MIDAS_LOG(kError) << "Client " << id << " failed to reclaim " << region_cnt_
                       << "/" << region_limit_;
+  }
+  return true;
+}
+
+bool Client::force_reclaim(uint64_t new_limit) {
+  std::unique_lock<std::mutex> ul(tx_mtx);
+  CtrlMsg msg{.op = CtrlOpCode::FORCE_RECLAIM,
+              .ret = CtrlRetCode::MEM_FAIL,
+              .mmsg{.size = region_limit_}};
+  txqp.send(&msg, sizeof(msg));
+  CtrlMsg ack;
+  if (txqp.timed_recv(&ack, sizeof(ack), kReclaimTimeout) != 0) {
+    MIDAS_LOG(kError) << "Client " << id << " timed out!";
+    return false;
+  }
+  assert(ack.mmsg.size <= region_cnt_);
+  if (ack.ret != CtrlRetCode::MEM_SUCC) {
+    MIDAS_LOG(kError) << "Client " << id << " failed to force reclaim "
+                      << region_cnt_ << "/" << region_limit_;
   }
   return true;
 }
