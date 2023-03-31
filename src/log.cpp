@@ -152,7 +152,8 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
       assert(alloced_size > 0);
       break;
     }
-    assert(pcab->sealed());
+    if (!kEnableFaultHandler)
+      assert(pcab->sealed()); // could be seg fault caused failure
     pcab = stashed_pcabs_.pop_front();
   }
   remaining_size -= alloced_size;

@@ -1,6 +1,7 @@
 #include "object.hpp"
 #include "logging.hpp"
 #include "obj_locker.hpp"
+#include "utils.hpp"
 
 namespace midas {
 LockID ObjectPtr::lock() {
@@ -229,7 +230,8 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
         remaining_len, optr.data_size_in_segment() - remaining_offset);
     if (!optr.obj_.copy_from(src_tptr, copy_len, 0,
                              sizeof(LargeObjectHdr) + remaining_offset)) {
-      MIDAS_LOG(kError);
+      if (!kEnableFaultHandler)
+        MIDAS_LOG(kError);
       return RetCode::Fault;
     }
     remaining_offset = 0; // copy from the beginning for non-head parts
