@@ -76,9 +76,12 @@ private:
 
   void pressure_handler();
   void do_update_limit(CtrlMsg &msg);
+  void do_force_reclaim(CtrlMsg &msg);
   void do_profile_stats(CtrlMsg &msg);
   void do_disconnect(CtrlMsg &msg);
-  bool do_reclaim();
+
+  bool reclaim();
+  bool force_reclaim();
 
   CachePool *cpool_;
 

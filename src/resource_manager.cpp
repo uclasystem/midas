@@ -136,6 +136,9 @@ void ResourceManager::pressure_handler() {
     case PROF_STATS:
       do_profile_stats(msg);
       break;
+    case FORCE_RECLAIM:
+      do_force_reclaim(msg);
+      break;
     case DISCONNECT:
       do_disconnect(msg);
     default:
@@ -152,19 +155,31 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
   region_limit_ = new_region_limit;
 
   CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = CtrlRetCode::MEM_SUCC};
-  if (NumRegionAvail() <= 0) {
+  if (NumRegionAvail() < 0) { // under memory pressure
     auto before_usage = NumRegionInUse();
     MIDAS_LOG_PRINTF(kInfo, "Memory shrinkage: %ld to reclaim (%ld->%ld).\n",
                      -NumRegionAvail(), NumRegionInUse(), NumRegionLimit());
-    if (!do_reclaim()) // failed to reclaim enough memory
+    if (!reclaim()) // failed to reclaim enough memory
       ack.ret = CtrlRetCode::MEM_FAIL;
     auto after_usage = NumRegionInUse();
     auto nr_reclaimed = before_usage - after_usage;
     MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld reclaimed (%ld/%ld).\n",
                      nr_reclaimed, NumRegionInUse(), NumRegionLimit());
-  } else if (reclaim_trigger()) {
+  } else if (reclaim_trigger()) { // concurrent GC if needed
     cpool_->get_evacuator()->signal_gc();
   }
+  ack.mmsg.size = region_map_.size() + freelist_.size();
+  rxqp_.send(&ack, sizeof(ack));
+}
+
+void ResourceManager::do_force_reclaim(CtrlMsg &msg) {
+  assert(msg.mmsg.size != 0);
+  auto new_region_limit = msg.mmsg.size;
+  MIDAS_LOG(kError) << "Client " << id_ << " update limit: " << region_limit_
+                    << "->" << new_region_limit;
+  region_limit_ = new_region_limit;
+
+  CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = CtrlRetCode::MEM_SUCC};
   ack.mmsg.size = region_map_.size() + freelist_.size();
   rxqp_.send(&ack, sizeof(ack));
 }
@@ -182,7 +197,7 @@ void ResourceManager::do_disconnect(CtrlMsg &msg) {
   exit(-1);
 }
 
-inline bool ResourceManager::do_reclaim() {
+bool ResourceManager::reclaim() {
   if (NumRegionInUse() < NumRegionLimit())
     return true;
 
@@ -205,6 +220,24 @@ inline bool ResourceManager::do_reclaim() {
   return NumRegionAvail() > 0;
 }
 
+bool ResourceManager::force_reclaim() {
+  if (NumRegionInUse() < NumRegionLimit())
+    return true;
+
+  {
+    std::unique_lock<std::mutex> ul(mtx_);
+    while (!freelist_.empty()) {
+      auto region = freelist_.back();
+      freelist_.pop_back();
+      free_region(region, true);
+    }
+  }
+
+  while (NumRegionAvail() < 0)
+    cpool_->get_evacuator()->force_reclaim();
+  return NumRegionAvail() >= 0;
+}
+
 void ResourceManager::UpdateLimit(size_t size) noexcept {
   CtrlMsg msg{
       .id = id_, .op = CtrlOpCode::UPDLIMIT_REQ, .mmsg = {.size = size}};
@@ -215,13 +248,14 @@ int64_t ResourceManager::AllocRegion(bool overcommit) noexcept {
   int retry_cnt = 0;
 retry:
   if (retry_cnt >= kMaxAllocRetry) {
-    MIDAS_LOG(kDebug) << "Cannot allocate new region after " << retry_cnt << " retires!";
+    MIDAS_LOG(kDebug) << "Cannot allocate new region after " << retry_cnt
+                      << " retires!";
     return -1;
   }
   retry_cnt++;
   if (!overcommit && reclaim_trigger()) {
     if (NumRegionAvail() <= 0) // block waiting for reclamation
-      do_reclaim();
+      reclaim();
     else
       cpool_->get_evacuator()->signal_gc();
   }
@@ -316,7 +350,8 @@ inline size_t ResourceManager::free_region(std::shared_ptr<Region> region,
           memory allocated by the evacuator);
    *  (3) freelist is not full.
    */
-  if (kEnableFreeList && !enforce && NumRegionAvail() > 0 && freelist_.size() < kFreeListSize) {
+  if (kEnableFreeList && !enforce && NumRegionAvail() > 0 &&
+      freelist_.size() < kFreeListSize) {
     freelist_.emplace_back(region);
   } else {
     CtrlMsg msg{.id = id_,
