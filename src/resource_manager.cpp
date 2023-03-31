@@ -204,13 +204,15 @@ bool ResourceManager::reclaim() {
   nr_pending++;
   cpool_->get_evacuator()->signal_gc();
   for (int rep = 0; rep < kReclaimRepeat; rep++) {
-    std::unique_lock<std::mutex> ul(mtx_);
-    while (!freelist_.empty()) {
-      auto region = freelist_.back();
-      freelist_.pop_back();
-      free_region(region, true);
+    {
+      std::unique_lock<std::mutex> ul(mtx_);
+      while (!freelist_.empty()) {
+        auto region = freelist_.back();
+        freelist_.pop_back();
+        free_region(region, true);
+      }
+      cv_.wait_for(ul, kReclaimTimeout, [&] { return NumRegionAvail() > 0; });
     }
-    cv_.wait_for(ul, kReclaimTimeout, [&] { return NumRegionAvail() > 0; });
     if (NumRegionAvail() > 0)
       break;
     cpool_->get_evacuator()->signal_gc();
