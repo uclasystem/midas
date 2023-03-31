@@ -30,6 +30,7 @@ public:
   void signal_gc();
   int64_t serial_gc();
   void parallel_gc(int nr_workers);
+  int64_t force_reclaim();
 
 private:
   void init();

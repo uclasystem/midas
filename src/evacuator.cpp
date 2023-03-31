@@ -179,6 +179,36 @@ void Evacuator::parallel_gc(int nr_workers) {
   }
 }
 
+int64_t Evacuator::force_reclaim() {
+  int64_t nr_reclaimed = 0;
+
+  auto stt = chrono_utils::now();
+  int nr_thds = 16;
+  std::vector<std::thread> thds;
+  for (int i = 0; i < nr_thds; i++) {
+    thds.emplace_back([&] {
+      auto &segments = allocator_->segments_;
+      while (rmanager_->NumRegionAvail() < 0) {
+        auto segment = segments.pop_front();
+        if (!segment)
+          break;
+        segment->destroy();
+        nr_reclaimed++;
+      }
+    });
+  }
+  for (auto &thd : thds)
+    thd.join();
+  auto end = chrono_utils::now();
+
+  if (nr_reclaimed)
+    MIDAS_LOG(kInfo) << "GC: " << nr_reclaimed << " force reclaimed ("
+                     << chrono_utils::duration(stt, end) << "s). ";
+
+  return nr_reclaimed;
+}
+
+/** util functions */
 inline bool Evacuator::segment_ready(LogSegment *segment) {
   return segment->sealed_ && !segment->destroyed();
 }
