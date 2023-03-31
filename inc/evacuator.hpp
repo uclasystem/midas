@@ -44,7 +44,8 @@ private:
 
   /** Helper funcs */
   bool segment_ready(LogSegment *segment);
-  bool iterate_segment(LogSegment *segment, uint64_t &pos, ObjectPtr &optr);
+  using RetCode = ObjectPtr::RetCode;
+  RetCode iterate_segment(LogSegment *segment, uint64_t &pos, ObjectPtr &optr);
 
   CachePool *pool_;
   std::shared_ptr<LogAllocator> allocator_;
