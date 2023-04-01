@@ -686,7 +686,8 @@ failed:
   // only re-construct for non-batched calls
   if (kEnableConstruct && !plug && construct && pool_->get_construct_func()) {
     ConstructArgs args = {k, kn, stored_v, stored_vn};
-    auto stt = Time::get_cycles_stt();
+    ConstructPlug plug;
+    pool_->construct_stt(plug);
     bool succ = pool_->construct(&args) == 0;
     if (!succ) { // failed to re-construct
       if (!v)    // stored_v is newly allocated
@@ -697,10 +698,10 @@ failed:
     stored_v = args.value;
     stored_vn = args.value_len;
     set(k, kn, stored_v, stored_vn);
-    auto end = Time::get_cycles_end();
+    pool_->construct_add(stored_vn, plug);
+    pool_->construct_end(plug);
     if (vn)
       *vn = stored_vn;
-    pool_->record_miss_penalty(end - stt, stored_vn);
     return stored_v;
   }
   return nullptr;
