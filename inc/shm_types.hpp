@@ -14,6 +14,7 @@ enum CtrlOpCode {
   FREE,
   UPDLIMIT,
   UPDLIMIT_REQ,
+  FORCE_RECLAIM,
   PROF_STATS,
 };
 

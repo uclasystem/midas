@@ -74,14 +74,15 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
 failed:
   if (kEnableConstruct && pool_->get_construct_func()) {
     ConstructArgs args = {&k, sizeof(k), &v, sizeof(v)};
-    auto stt = Time::get_cycles_stt();
+    ConstructPlug plug;
+    pool_->construct_stt(plug);
     bool succ = pool_->construct(&args) == 0;
     if (!succ) // failed to re-construct
       return false;
     // successfully re-constructed
     set(k, v);
-    auto end = Time::get_cycles_end();
-    pool_->record_miss_penalty(end - stt, sizeof(v));
+    pool_->construct_add(sizeof(v), plug);
+    pool_->construct_end(plug);
     return succ;
   }
   return false;

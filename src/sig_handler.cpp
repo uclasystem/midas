@@ -42,7 +42,7 @@ bool SigHandler::softfault_handler(siginfo_t *info, ucontext_t *ctx) {
 
   void *ip = (void *)ctx->uc_mcontext.gregs[REG_RIP];
   uint64_t *bp = (uint64_t *)ctx->uc_mcontext.gregs[REG_RBP];
-  MIDAS_LOG_PRINTF(kError, "fault @ %p, ip = %p, bp = %p\n", info->si_addr, ip,
+  MIDAS_LOG_PRINTF(kDebug, "fault @ %p, ip = %p, bp = %p\n", info->si_addr, ip,
                    bp);
   // return false;
 

@@ -30,6 +30,7 @@ public:
   void signal_gc();
   int64_t serial_gc();
   void parallel_gc(int nr_workers);
+  int64_t force_reclaim();
 
 private:
   void init();
@@ -43,7 +44,8 @@ private:
 
   /** Helper funcs */
   bool segment_ready(LogSegment *segment);
-  bool iterate_segment(LogSegment *segment, uint64_t &pos, ObjectPtr &optr);
+  using RetCode = ObjectPtr::RetCode;
+  RetCode iterate_segment(LogSegment *segment, uint64_t &pos, ObjectPtr &optr);
 
   CachePool *pool_;
   std::shared_ptr<LogAllocator> allocator_;

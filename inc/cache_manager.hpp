@@ -5,17 +5,30 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <unordered_map>
 #include <thread>
+#include <unordered_map>
 
 #include "evacuator.hpp"
 #include "log.hpp"
 #include "object.hpp"
 #include "resource_manager.hpp"
 #include "shm_types.hpp"
+#include "time.hpp"
 #include "victim_cache.hpp"
 
 namespace midas {
+
+struct ConstructPlug {
+  uint64_t stt_cycles{0};
+  uint64_t end_cycles{0};
+  int64_t bytes{0};
+
+  void reset() {
+    stt_cycles = 0;
+    end_cycles = 0;
+    bytes = 0;
+  }
+};
 
 class CachePool {
 public:
@@ -36,6 +49,12 @@ public:
   using DestructFunc = std::function<int(ObjectPtr *)>;
   int destruct(ObjectPtr *optr);
   DestructFunc get_destruct_func() const noexcept;
+
+  // Construct helper functions for recording penalty
+  void construct_stt(ConstructPlug &plug) noexcept; // mark stt/end of
+  void construct_end(ConstructPlug &plug) noexcept; // the construct path
+  void construct_add(uint64_t bytes,
+                     ConstructPlug &plug) noexcept; // add up missed bytes
 
   // Allocator shortcuts
   inline std::optional<ObjectPtr> alloc(size_t size);

@@ -184,6 +184,74 @@ bool SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
+template <typename V>
+bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset,
+                                        V *value) {
+  auto key_hash = hash_(k, kn);
+  auto bucket_idx = key_hash % NBuckets;
+
+  auto &lock = locks_[bucket_idx];
+  lock.lock();
+
+  auto prev_next = &buckets_[bucket_idx];
+  BNPtr node = buckets_[bucket_idx];
+  bool found = false;
+  size_t stored_vn = 0;
+
+  while (node) {
+    found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
+    if (found)
+      break;
+  }
+  if (!found) {
+    lock.unlock();
+    return false;
+  }
+  assert(node);
+
+  if (stored_vn != sizeof(V) || node->pair.null() ||
+      !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn))) {
+    return false;
+  }
+  *value = *value + offset;
+  if (!node->pair.copy_from(value, sizeof(V), layout::v_offset(kn))) {
+    return false;
+  }
+  lock.unlock();
+  LogAllocator::count_access();
+  return true;
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
+bool SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
+                                        size_t vn) {
+  auto key_hash = hash_(k, kn);
+  auto bucket_idx = key_hash % NBuckets;
+
+  auto &lock = locks_[bucket_idx];
+  lock.lock();
+
+  size_t stored_vn = 0;
+  auto prev_next = &buckets_[bucket_idx];
+  auto node = buckets_[bucket_idx];
+  while (node) {
+    auto found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
+    if (found) {
+      return true;
+    }
+  }
+  auto new_node = create_node(key_hash, k, kn, v, vn);
+  if (!new_node) {
+    lock.unlock();
+    return false;
+  }
+  *prev_next = new_node;
+  lock.unlock();
+  LogAllocator::count_access();
+  return true;
+}
+
+template <size_t NBuckets, typename Alloc, typename Lock>
 bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
                                         size_t vn) {
   auto key_hash = hash_(k, kn);
@@ -685,7 +753,8 @@ failed:
   // only re-construct for non-batched calls
   if (kEnableConstruct && !plug && construct && pool_->get_construct_func()) {
     ConstructArgs args = {k, kn, stored_v, stored_vn};
-    auto stt = Time::get_cycles_stt();
+    ConstructPlug plug;
+    pool_->construct_stt(plug);
     bool succ = pool_->construct(&args) == 0;
     if (!succ) { // failed to re-construct
       if (!v)    // stored_v is newly allocated
@@ -696,10 +765,10 @@ failed:
     stored_v = args.value;
     stored_vn = args.value_len;
     set(k, kn, stored_v, stored_vn);
-    auto end = Time::get_cycles_end();
+    pool_->construct_add(stored_vn, plug);
+    pool_->construct_end(plug);
     if (vn)
       *vn = stored_vn;
-    pool_->record_miss_penalty(end - stt, stored_vn);
     return stored_v;
   }
   return nullptr;

@@ -55,6 +55,23 @@ inline std::optional<ObjectPtr> CachePool::alloc(size_t size) {
   return allocator_->alloc(size);
 }
 
+inline void CachePool::construct_stt(ConstructPlug &plug) noexcept {
+  plug.reset();
+  plug.stt_cycles = Time::get_cycles_stt();
+}
+
+inline void CachePool::construct_end(ConstructPlug &plug) noexcept {
+  plug.end_cycles = Time::get_cycles_end();
+  auto cycles = plug.end_cycles - plug.stt_cycles;
+  if (plug.bytes && cycles)
+    record_miss_penalty(cycles, plug.bytes);
+}
+
+inline void CachePool::construct_add(uint64_t bytes,
+                                     ConstructPlug &plug) noexcept {
+  plug.bytes += bytes;
+}
+
 inline bool CachePool::alloc_to(size_t size, ObjectPtr *dst) {
   return allocator_->alloc_to(size, dst);
 }
