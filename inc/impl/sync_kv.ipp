@@ -143,10 +143,12 @@ bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset, V* v
   assert(node);
 
   if (stored_vn != sizeof(V) || node->pair.null() || !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn))) {
+    lock.unlock();
     return false;
   }
   *value = *value + offset;
   if (!node->pair.copy_from(value, sizeof(V), layout::v_offset(kn))) {
+    lock.unlock();
     return false;
   }
   lock.unlock();
@@ -155,7 +157,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset, V* v
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
-bool SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
+int SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
                                         size_t vn) {
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
@@ -169,18 +171,19 @@ bool SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
   while (node) {
     auto found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
     if (found) {
-      return true;
+      lock.unlock();
+      return 2;
     }
   }
   auto new_node = create_node(key_hash, k, kn, v, vn);
   if (!new_node) {
     lock.unlock();
-    return false;
+    return 0;
   }
   *prev_next = new_node;
   lock.unlock();
   LogAllocator::count_access();
-  return true;
+  return 1;
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
