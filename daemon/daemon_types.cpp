@@ -132,8 +132,6 @@ bool Client::free_region(int64_t region_id) {
 }
 
 bool Client::update_limit(uint64_t new_limit) {
-  return force_reclaim(new_limit);
-
   if (new_limit == region_limit_)
     return true;
   daemon_->charge(new_limit - region_limit_);
