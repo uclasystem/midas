@@ -100,7 +100,7 @@ public:
   // TODO: add support for reloaded versions
 
   /* add only when key doesn't exist. */
-  bool add(const void *key, size_t klen, const void *value, size_t vlen);
+  int add(const void *key, size_t klen, const void *value, size_t vlen);
   // TODO: add support for reloaded versions
 
   bool clear();
