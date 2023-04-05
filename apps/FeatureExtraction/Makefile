@@ -10,7 +10,7 @@ LIBS += -lredis++ -lhiredis -lcrypto -pthread
 
 # libmidas_lib = $(wildcard ../../src/*.o)
 # libmidas_lib := $(filter-out $(wildcard ../../src/daemon_main.o),$(libmidas_lib))
-libmidas_lib := ../../libmidas.a -lrt -ldl
+libmidas_lib := ../../lib/libmidas++.a -lrt -ldl
 LIBS += $(libmidas_lib)
 
 APP_BIN = img2vec
