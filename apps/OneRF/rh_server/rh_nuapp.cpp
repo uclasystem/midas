@@ -3,10 +3,12 @@
 #include <cstdint>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <random>
 
 #include "fback.hpp"
+#include "mysql.hpp"
 #include "rh_nuapp.hpp"
 
 namespace onerf {
@@ -42,9 +44,15 @@ void SizeGen::init(const std::map<std::string, float> &buckets) {
 SubSystem::SubSystem(std::string type, int max_cache_conns, int max_back_conns)
     : cache_sem(max_cache_conns), back_sem(max_back_conns) {
   if (type == "fb") {
-    FBack::Param param;
-
-    back_client = std::make_unique<FBack>(kDefaultFBParam, max_back_conns);
+    FBack::Param kFBParam{
+        .Hardness = 400, .IdCount = 1, .SizeLower = 7, .SizeUpper = 16};
+    back_client = std::make_unique<FBack>(kFBParam, max_back_conns);
+  } else if (type == "mysql") {
+    constexpr static FBack::Param kMySqlParam{
+        .Hardness = 425, .IdCount = 1, .SizeLower = 10, .SizeUpper = 19};
+    back_client = std::make_unique<FBack>(kMySqlParam, max_back_conns);
+    // NOTE: RobinHood didn't provide mysql config so we use FB to simulate it.
+    // back_client = std::make_unique<MySqlBack>(33000);
   }
 }
 
@@ -201,7 +209,20 @@ bool RHAppServer::ParseRequest(const QueryLayerSlice &layers) {
 void RHAppServer::init_subsystems() {
   int max_cache_conns = 100;
   int max_back_conns = 100;
-  subs_["39f00c48"] =
-      std::make_unique<SubSystem>("fb", max_cache_conns, max_back_conns);
+  std::vector<std::string> fb_instances{
+      "63956c27", "5b63fdf5", "812126d3", "64c1ce15", "df1794e4", "ac59f41b",
+      "4607349c", "6a2ef110", "c1042784", "e8fc6018", "b02bdd0d"};
+  std::vector<std::string> mysql_instances{"d6018659", "b4fbebd8", "7385c12d",
+                                           "b293d37d", "9ee74b0b", "39f00c48",
+                                           "e5fffc73", "1289b3bb", "30eaf8be"};
+
+  for (auto &instance : fb_instances) {
+    subs_[instance] =
+        std::make_unique<SubSystem>("fb", max_cache_conns, max_back_conns);
+  }
+  for (auto &instance : mysql_instances) {
+    subs_[instance] =
+        std::make_unique<SubSystem>("mysql", max_cache_conns, max_back_conns);
+  }
 }
 } // namespace onerf
