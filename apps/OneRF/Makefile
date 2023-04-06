@@ -5,10 +5,12 @@ CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
 
 BUILD_DIR = build
 
+INC += -Ithird_party/json/build/
+INC += -I/usr/include/mysql-cppconn-8/
+LIBS += -lmysqlcppconn8
+
 INC += -Iinc
 LIBS += -pthread
-
-INC += -Ithird_party/json/build/
 
 # INC += -I../../inc
 # libmidas_lib := ../../lib/libmidas++.a -lrt -ldl
@@ -26,11 +28,11 @@ all: $(RH_APP_BIN)
 $(RH_APP_BIN) : $(BUILD_DIR)/$(RH_APP_BIN)
 
 $(BUILD_DIR)/$(RH_APP_BIN) : $(RH_APP_OBJ)
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 $(BUILD_DIR)/%.o : %.cpp Makefile
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 ifneq ($(MAKECMDGOALS),clean)

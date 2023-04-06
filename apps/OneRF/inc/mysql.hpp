@@ -3,18 +3,28 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "backend.hpp"
+#include <mysqlx/xdevapi.h>
 
 namespace onerf {
 class MySqlBack : public Backend {
 public:
-  MySqlBack();
+  MySqlBack(int port = 33000);
   ~MySqlBack() override;
   bool Request(const std::vector<std::string> &ids,
                std::map<std::string, Item> &ret_map) override;
+  void connect();
+  void disconnect();
 
 private:
-  void *data;
+  std::unique_ptr<mysqlx::Session> session_;
+  // std::unique_ptr<mysqlx::Schema> db_;
+  int port_;
+
+  const std::string kDBUser = "onerf";
+  const std::string kDBPasswd = "onerf";
+  const std::string kDBName = "onerfdb";
 };
 } // namespace onerf
