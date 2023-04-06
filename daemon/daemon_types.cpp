@@ -27,7 +27,7 @@ constexpr static float kPerfZeroThresh = 0.1;
 constexpr static uint32_t kProfInterval = 5;   // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
-constexpr static float kExpandThresh = 0.5;
+constexpr static float kExpandThresh = 0.9;
 constexpr static float kExpandFactor = 0.5;
 /** Server related */
 constexpr static uint32_t kAliveTimeout = 3;   // in seconds
@@ -581,7 +581,9 @@ void Daemon::on_mem_rebalance() {
   std::vector<std::shared_ptr<Client>> clients;
   {
     std::unique_lock<std::mutex> ul(mtx_);
-    for (auto &[_, client] : clients_)
+    for (auto &[_, client] : clients_) {
+      if (client->region_limit_ <= 1)
+        continue;
       clients.emplace_back(client);
   }
   std::sort(clients.begin(), clients.end(),
