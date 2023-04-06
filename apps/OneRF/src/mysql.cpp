@@ -2,6 +2,8 @@
 #include <iostream>
 #include <memory>
 
+#ifndef DISABLE_MYSQL_BACK
+
 namespace onerf {
 MySqlBack::MySqlBack(int port) : port_(port) {
   connect();
@@ -60,3 +62,5 @@ void MySqlBack::disconnect() {
     session_->close();
 }
 } // namespace onerf
+
+#endif // DISABLE_MYSQL_BACK

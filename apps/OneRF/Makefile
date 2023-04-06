@@ -6,8 +6,8 @@ CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
 BUILD_DIR = build
 
 INC += -Ithird_party/json/build/
-INC += -I/usr/include/mysql-cppconn-8/
-LIBS += -lmysqlcppconn8
+# INC += -I/usr/include/mysql-cppconn-8/
+# LIBS += -lmysqlcppconn8
 
 INC += -Iinc
 LIBS += -pthread

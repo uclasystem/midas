@@ -1,5 +1,8 @@
 #pragma once
 
+#define DISABLE_MYSQL_BACK
+#ifndef DISABLE_MYSQL_BACK
+
 #include <map>
 #include <string>
 #include <vector>
@@ -28,3 +31,5 @@ private:
   const std::string kDBName = "onerfdb";
 };
 } // namespace onerf
+
+#endif // DISABLE_MYSQL_BACK
