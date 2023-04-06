@@ -10,20 +10,30 @@
 #include "backend.hpp"
 #include "fback.hpp"
 #include "mysql.hpp"
+#include "nuapp.hpp"
 #include "query_types.hpp"
 #include "semaphore.hpp"
-#include "nuapp.hpp"
+
+// [midas cache]
+#include "cache_manager.hpp"
+#include "sync_kv.hpp"
+constexpr static int kNumBuckets = 1 << 20;
 
 namespace onerf {
 struct SubSystem {
-  void *cache_client;
+  std::string name;
   Semaphore cache_sem;
+  std::unique_ptr<midas::SyncKV<kNumBuckets>> cache_client;
 
   Semaphore back_sem;
   std::unique_ptr<Backend> back_client;
   void *shadow_cache;
 
-  SubSystem(std::string type, int max_cache_conns, int max_back_conns);
+  SubSystem(std::string name, std::string type, int max_cache_conns,
+            int max_back_conns);
+
+private:
+  midas::CachePool *pool_;
 };
 
 struct SizeGen {

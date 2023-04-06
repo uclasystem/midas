@@ -11,11 +11,16 @@
 #include "mysql.hpp"
 #include "rh_nuapp.hpp"
 
+// [midas cache]
+#include "cache_manager.hpp"
+#include "sync_kv.hpp"
+
 namespace onerf {
 
 constexpr static int64_t kTimeout = 10ll * 1000 * 1000 * 1000; // 10s
 constexpr static FBack::Param kDefaultFBParam{
     .Hardness = 100, .IdCount = 1, .SizeLower = 8, .SizeUpper = 17};
+constexpr static bool kBypassCache = false;
 
 SizeGen::SizeGen() : gen(rd()) {}
 SizeGen::SizeGen(const std::map<std::string, float> &buckets) : gen(rd()) {
@@ -41,8 +46,17 @@ void SizeGen::init(const std::map<std::string, float> &buckets) {
   }
 }
 
-SubSystem::SubSystem(std::string type, int max_cache_conns, int max_back_conns)
-    : cache_sem(max_cache_conns), back_sem(max_back_conns) {
+SubSystem::SubSystem(std::string name_, std::string type, int max_cache_conns,
+                     int max_back_conns)
+    : name(name_), cache_sem(max_cache_conns), back_sem(max_back_conns) {
+  auto cmanager = midas::CacheManager::global_cache_manager();
+  if (!cmanager->create_pool(name)) {
+    std::cerr << "Failed to create cache pool " << name << std::endl;
+    exit(-1);
+  }
+  pool_ = cmanager->get_pool(name);
+  pool_->update_limit(1ll * 1024 * 1024 * 1024); // 1GB
+  cache_client = std::make_unique<midas::SyncKV<kNumBuckets>>(pool_);
   if (type == "fb") {
     FBack::Param kFBParam{
         .Hardness = 400, .IdCount = 1, .SizeLower = 7, .SizeUpper = 16};
@@ -79,13 +93,32 @@ bool RHAppServer::ExecSubQuery(std::mutex &lats_mtx,
     cache_queries.emplace_back(dep + ":" + k);
   }
   auto fulfilled = 0;
-  // TODO: cache query
+  if (!kBypassCache && subsys->cache_client) { // cache query
+    auto cache_client = subsys->cache_client.get();
+    midas::kv_types::BatchPlug plug;
+    cache_client->batch_stt(plug);
+    for (auto &k : cache_queries) {
+      std::string real_key = k.substr((dep + ":").length());
+      auto cache_key = midas::kv_utils::make_key(k.c_str(), k.length());
+      auto [value, vlen] = cache_client->bget_single(cache_key, plug);
+      if (value) {
+        cache_hits[real_key] = true;
+        real_size[real_key] = vlen;
+        fulfilled++;
+        free(value);
+      } else {
+        back_queries.emplace_back(real_key);
+      }
+    }
+    cache_client->batch_end(plug);
+  } else {
+    for (auto &k : cache_queries) {
+      std::string real_key = k.substr((dep + ":").length());
+      back_queries.emplace_back(real_key);
+    }
+  }
   auto hit_time = std::chrono::high_resolution_clock::now();
   auto miss_time = hit_time;
-  for (auto &k : cache_queries) {
-    std::string real_key = k.substr((dep + ":").length());
-    back_queries.emplace_back(real_key);
-  }
   // cache miss path
   if (!has_error && !back_queries.empty()) {
     std::map<std::string, Item> vals;
@@ -96,7 +129,11 @@ bool RHAppServer::ExecSubQuery(std::mutex &lats_mtx,
       for (auto &[key, item] : vals) {
         real_size[key] = item.length();
         fulfilled++;
-        // TODO: set into cache
+        // set into cache
+        std::string cache_key = dep + ":" + key;
+        auto cache_client = subsys->cache_client.get();
+        cache_client->set(cache_key.c_str(), cache_key.length(), item.c_str(),
+                          item.length());
       }
     } else {
       std::cerr << "Backend error " << dep << std::endl;
@@ -217,12 +254,12 @@ void RHAppServer::init_subsystems() {
                                            "e5fffc73", "1289b3bb", "30eaf8be"};
 
   for (auto &instance : fb_instances) {
-    subs_[instance] =
-        std::make_unique<SubSystem>("fb", max_cache_conns, max_back_conns);
+    subs_[instance] = std::make_unique<SubSystem>(
+        instance, "fb", max_cache_conns, max_back_conns);
   }
   for (auto &instance : mysql_instances) {
-    subs_[instance] =
-        std::make_unique<SubSystem>("mysql", max_cache_conns, max_back_conns);
+    subs_[instance] = std::make_unique<SubSystem>(
+        instance, "mysql", max_cache_conns, max_back_conns);
   }
 }
 } // namespace onerf

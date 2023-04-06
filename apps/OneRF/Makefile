@@ -9,12 +9,12 @@ INC += -Ithird_party/json/build/
 # INC += -I/usr/include/mysql-cppconn-8/
 # LIBS += -lmysqlcppconn8
 
+INC += -I../../inc
+libmidas_lib := ../../lib/libmidas++.a -lrt -ldl
+LIBS += $(libmidas_lib)
+
 INC += -Iinc
 LIBS += -pthread
-
-# INC += -I../../inc
-# libmidas_lib := ../../lib/libmidas++.a -lrt -ldl
-# LIBS += $(libmidas_lib)
 
 SRC = $(wildcard src/*.cpp)
 
