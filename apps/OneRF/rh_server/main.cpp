@@ -5,7 +5,8 @@ int main(int argc, char *argv[]) {
   onerf::RHAppServer app_server;
   onerf::Requestor requestor(&app_server);
 
-  requestor.Perf();
+  for (int i = 1; i <= 10; i++)
+    requestor.Perf(i);
 
   return 0;
 }
