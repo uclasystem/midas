@@ -18,7 +18,7 @@
 #include "utils.hpp"
 
 namespace midas {
-constexpr static int32_t kMaxAllocRetry = 10;
+constexpr static int32_t kMaxAllocRetry = 5;
 constexpr static int32_t kReclaimRepeat = 10;
 constexpr static auto kReclaimTimeout =
     std::chrono::milliseconds(100);           // milliseconds
