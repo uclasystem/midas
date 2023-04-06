@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <thread>
 #include <vector>
 
 #include "fback.hpp"
@@ -64,10 +65,10 @@ bool FBack::GetIDs(const Param &param, std::vector<uint32_t> &data) {
 void FBack::Report() {
   while (!terminated_) {
     auto sentq = sent_q_.load();
-    if (sentq > 0) {
-      std::cout << sentq << " " << hardness_ << " " << width_s_ / sentq << " "
-                << conc_reqs_ << std::endl;
-    }
+    // if (sentq > 0) {
+    //   std::cout << sentq << " " << hardness_ << " " << width_s_ / sentq << " "
+    //             << conc_reqs_ << std::endl;
+    // }
     sent_q_ = 0;
     hardness_ = 0;
     width_s_ = 0;
@@ -89,13 +90,13 @@ void FBack::calculate(int hardness) {
 
 bool FBack::dot(const Matrix &x, const Matrix &y, Matrix &z) {
   // this essentially restricts x and y to be square matrices
-  if (x.width != y.height || x.height != y.width) {
+  if (x.cols != y.rows || x.rows != y.cols) {
     std::cerr << "Wrong matrix format!" << std::endl;
     return false;
   }
-  z.init(x.height, y.width);
-  for (int i = 0; i < x.height; i++) {
-    for (int j = 0; j < y.height; j++) {
+  z.init(x.rows, y.rows);
+  for (int i = 0; i < x.rows; i++) {
+    for (int j = 0; j < y.rows; j++) {
       z.data[i][j] = x.data[i][j] * y.data[j][i];
     }
   }
@@ -103,13 +104,16 @@ bool FBack::dot(const Matrix &x, const Matrix &y, Matrix &z) {
   return true;
 }
 
-FBack::Matrix::Matrix() : data(nullptr), height(0), width(0) {}
+FBack::Matrix::Matrix() : data(nullptr), rows(0), cols(0) {}
+FBack::Matrix::~Matrix() { free(); }
 
-void FBack::Matrix::init(int height, int width) {
-  data = new float *[height];
-  for (int i = 0; i < height; i++) {
-    data[i] = new float[width];
-    for (int j = 0; j < width; j++) {
+void FBack::Matrix::init(int rows_, int cols_) {
+  rows = rows_;
+  cols = cols_;
+  data = new float *[rows];
+  for (int i = 0; i < rows; i++) {
+    data[i] = new float[cols];
+    for (int j = 0; j < cols; j++) {
       data[i][j] = i + j; // random fill
     }
   }
@@ -118,10 +122,10 @@ void FBack::Matrix::init(int height, int width) {
 void FBack::Matrix::free() {
   if (!data)
     return;
-  for (int i = 0; i < height; i++)
+  for (int i = 0; i < rows; i++)
     delete[] data[i];
   delete[] data;
   data = nullptr;
-  height = width = 0;
+  rows = cols = 0;
 }
 } // namespace onerf

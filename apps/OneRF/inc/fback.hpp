@@ -23,11 +23,12 @@ public:
   };
   struct Matrix {
     float **data;
-    int height;
-    int width;
+    int rows;
+    int cols;
 
     Matrix();
-    void init(int height_, int width_);
+    ~Matrix();
+    void init(int rows_, int cols_);
     void free();
   };
 
