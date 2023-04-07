@@ -5,7 +5,7 @@
 
 namespace midas {
 
-constexpr static uint32_t kCPUFreq = 2600;
+constexpr static uint32_t kCPUFreq = 2095;
 constexpr static uint32_t kNumCPUs = 128;
 constexpr static uint32_t kSmallObjSizeUnit = sizeof(uint64_t);
 

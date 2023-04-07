@@ -8,6 +8,8 @@
 namespace midas {
 struct Time {
 public:
+  static inline uint64_t get_us() { return get_us_stt(); };
+  static inline uint64_t get_cycles() { return get_cycles_stt(); };
   static inline uint64_t get_us_stt();
   static inline uint64_t get_us_end();
   static inline uint64_t get_cycles_stt();
