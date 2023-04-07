@@ -1,5 +1,5 @@
-CXX = ccache g++
-LDXX = ccache g++
+CXX = g++
+LDXX = g++
 CXXFLAGS += -std=c++1z -O2
 CXXFLAGS += -march=native # required for avx-enhanced rmemcpy
 
