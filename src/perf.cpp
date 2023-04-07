@@ -1,10 +1,13 @@
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <memory>
 #include <numeric>
 #include <random>
 #include <thread>
 #include <vector>
 
+#include "logging.hpp"
 #include "perf.hpp"
 #include "time.hpp"
 
@@ -16,7 +19,7 @@ Trace::Trace(uint64_t absl_start_us_, uint64_t start_us_, uint64_t duration_us_)
       duration_us(duration_us_) {}
 
 Perf::Perf(PerfAdapter &adapter)
-    : adapter_(adapter), trace_format_(kUnsorted), real_kops_(0) {}
+    : adapter_(adapter), trace_format_(kUnsorted), real_kops_(0), succ_ops(0) {}
 
 void Perf::reset() {
   traces_.clear();
@@ -24,9 +27,9 @@ void Perf::reset() {
   real_kops_ = 0;
 }
 
-void Perf::gen_reqs(std::vector<PerfRequestWithTime> *all_reqs,
-                    uint32_t num_threads, double target_kops,
-                    uint64_t duration_us) {
+uint64_t Perf::gen_reqs(std::vector<PerfRequestWithTime> *all_reqs,
+                        uint32_t num_threads, double target_kops,
+                        uint64_t duration_us, uint64_t start_us) {
   std::vector<std::thread> threads;
 
   for (uint32_t i = 0; i < num_threads; i++) {
@@ -34,9 +37,10 @@ void Perf::gen_reqs(std::vector<PerfRequestWithTime> *all_reqs,
       std::random_device rd;
       std::mt19937 gen(rd());
       std::exponential_distribution<double> d(target_kops / 1000 / num_threads);
-      uint64_t cur_us = 0;
+      uint64_t cur_us = start_us;
+      uint64_t end_us = cur_us + duration_us;
 
-      while (cur_us < duration_us) {
+      while (cur_us < end_us) {
         auto interval = std::max(1l, std::lround(d(gen)));
         PerfRequestWithTime req_with_time;
         req_with_time.start_us = cur_us;
@@ -50,6 +54,36 @@ void Perf::gen_reqs(std::vector<PerfRequestWithTime> *all_reqs,
   for (auto &thread : threads) {
     thread.join();
   }
+  return start_us + duration_us;
+}
+
+uint64_t Perf::gen_phased_reqs(std::vector<PerfRequestWithTime> *all_reqs,
+                               uint32_t num_threads,
+                               std::vector<double> &target_kops_vec,
+                               std::vector<uint64_t> &duration_us_vec,
+                               std::vector<uint64_t> &transition_us_vec,
+                               uint64_t start_us) {
+  const auto nr_phases = target_kops_vec.size();
+  auto cur_us = start_us;
+  for (uint32_t phase = 0; phase < nr_phases; phase++) {
+    auto target_kops = target_kops_vec[phase];
+    auto duration_us = duration_us_vec[phase];
+    cur_us = gen_reqs(all_reqs, num_threads, target_kops_vec[phase],
+                      duration_us, cur_us);
+    if (phase == nr_phases)
+      break;
+    // transition phase
+    const auto trans_dur_step_us = transition_us_vec[phase] / kTransSteps;
+    const auto next_target_kops = target_kops_vec[phase + 1];
+    const auto trans_step_kops = (next_target_kops - target_kops) / kTransSteps;
+    auto transition_kops = target_kops;
+    for (uint32_t step = 0; step < kTransSteps; step++) {
+      cur_us = gen_reqs(all_reqs, num_threads, transition_kops,
+                        trans_dur_step_us, cur_us);
+    }
+  }
+
+  return cur_us;
 }
 
 std::vector<Trace> Perf::benchmark(std::vector<PerfRequestWithTime> *all_reqs,
@@ -65,6 +99,7 @@ std::vector<Trace> Perf::benchmark(std::vector<PerfRequestWithTime> *all_reqs,
   for (uint32_t i = 0; i < num_threads; i++) {
     threads.emplace_back(
         [&, &reqs = all_reqs[i], &traces = all_traces[i], tid = i] {
+          int nr_succ = 0;
           auto start_us = Time::get_us();
 
           for (const auto &req : reqs) {
@@ -82,6 +117,11 @@ std::vector<Trace> Perf::benchmark(std::vector<PerfRequestWithTime> *all_reqs,
             trace.duration_us = Time::get_us() - start_us - trace.start_us;
             if (ok) {
               traces.push_back(trace);
+              nr_succ++;
+              if (nr_succ % kReportBatch == 0) {
+                succ_ops += nr_succ;
+                nr_succ = 0;
+              }
             }
           }
         });
@@ -106,8 +146,66 @@ void Perf::run(uint32_t num_threads, double target_kops, uint64_t duration_us,
   gen_reqs(all_warmup_reqs, num_threads, target_kops, warmup_us);
   gen_reqs(all_perf_reqs, num_threads, target_kops, duration_us);
   benchmark(all_warmup_reqs, num_threads, miss_ddl_thresh_us);
+
+  bool stop = false;
+  std::unique_ptr<std::thread> report_thd;
+  if (kEnableReporter) {
+    report_thd = std::make_unique<std::thread>([&] {
+      while (!stop) {
+        uint64_t duration_us = kReportInterval * to_us;
+        std::this_thread::sleep_for(std::chrono::microseconds(duration_us));
+        report_tput(duration_us);
+      }
+    });
+  }
+
   traces_ =
       std::move(benchmark(all_perf_reqs, num_threads, miss_ddl_thresh_us));
+
+  stop = true;
+  if (report_thd)
+    report_thd->join();
+
+  auto real_duration_us =
+      std::accumulate(traces_.begin(), traces_.end(), static_cast<uint64_t>(0),
+                      [](uint64_t ret, Trace t) {
+                        return std::max(ret, t.start_us + t.duration_us);
+                      });
+  real_kops_ = static_cast<double>(traces_.size()) / (real_duration_us / 1000);
+}
+
+void Perf::run_phased(uint32_t num_threads, std::vector<double> target_kops_vec,
+                      std::vector<uint64_t> &duration_us_vec,
+                      std::vector<uint64_t> &transition_us_vec,
+                      double warmup_kops, uint64_t warmup_us,
+                      uint64_t miss_ddl_thresh_us) {
+  std::vector<PerfRequestWithTime> all_warmup_reqs[num_threads];
+  std::vector<PerfRequestWithTime> all_perf_reqs[num_threads];
+  auto cur_us = gen_reqs(all_warmup_reqs, num_threads, warmup_kops, warmup_us);
+  gen_phased_reqs(all_perf_reqs, num_threads, target_kops_vec, duration_us_vec,
+                  transition_us_vec, cur_us);
+
+  benchmark(all_warmup_reqs, num_threads, miss_ddl_thresh_us);
+
+  bool stop = false;
+  std::unique_ptr<std::thread> report_thd;
+  if (kEnableReporter) {
+    report_thd = std::make_unique<std::thread>([&] {
+      while (!stop) {
+        uint64_t duration_us = kReportInterval * to_us;
+        std::this_thread::sleep_for(std::chrono::microseconds(duration_us));
+        report_tput(duration_us);
+      }
+    });
+  }
+
+  traces_ =
+      std::move(benchmark(all_perf_reqs, num_threads, miss_ddl_thresh_us));
+
+  stop = true;
+  if (report_thd)
+    report_thd->join();
+
   auto real_duration_us =
       std::accumulate(traces_.begin(), traces_.end(), static_cast<uint64_t>(0),
                       [](uint64_t ret, Trace t) {
@@ -178,4 +276,9 @@ std::vector<Trace> Perf::get_timeseries_nth_lats(uint64_t interval_us,
 double Perf::get_real_kops() const { return real_kops_; }
 
 const std::vector<Trace> &Perf::get_traces() const { return traces_; }
+
+void Perf::report_tput(uint64_t duration_us) {
+  MIDAS_LOG(kInfo) << "Tput: " << succ_ops * 1000.0 / duration_us << " Kops";
+  succ_ops = 0;
+}
 } // namespace midas
