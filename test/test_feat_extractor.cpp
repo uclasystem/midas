@@ -8,6 +8,7 @@
 #include <memory>
 #include <openssl/md5.h>
 #include <random>
+#include <ratio>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -31,7 +32,7 @@ constexpr static double kSkewness = 0.9;  // zipf
 constexpr static bool kSimulate = true;
 constexpr static int kSimuNumImgs = 1000 * 1000;
 
-constexpr static int kStatInterval = 5; // seconds
+constexpr static int kStatInterval = 2; // seconds
 
 const static std::string data_dir =
     "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/data/";
@@ -154,6 +155,13 @@ struct FeatReq {
   int rid;
   std::string filename;
   Feature *feat;
+  uint64_t start_us;
+};
+
+struct Trace {
+  uint64_t absl_start_us;
+  uint64_t start_us;
+  uint64_t duration;
 };
 
 class FeatExtractor {
@@ -162,13 +170,13 @@ public:
   ~FeatExtractor();
   int warmup_cache();
   int simu_warmup_cache();
-  void perf();
+  void perf(uint64_t miss_ddl_us = 10ul * 1000 * 1000); // 10s
+  void gen_load();
 
 private:
   size_t load_imgs();
   size_t load_feats();
 
-  void gen_load();
   bool serve_req(const FeatReq &img_req);
   // To re-construct cache-miss objects
   int construct_callback(void *arg);
@@ -212,7 +220,7 @@ FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
     std::random_device rd;
     gens[i] = std::make_shared<std::mt19937>(rd());
   }
-  gen_load();
+  // gen_load();
 }
 
 FeatExtractor::~FeatExtractor() {
@@ -243,19 +251,65 @@ void FeatExtractor::gen_load() {
   midas::zipf_table_distribution<> zipf_dist(nr_imgs, kSkewness);
   std::uniform_int_distribution<> uni_dist(0, nr_imgs - 1);
 
+  int nr_tests = 10;
+  std::vector<double> target_kopss;
+  std::vector<uint64_t> durations;
+  for (int i = 0; i < nr_tests; i++) {
+    target_kopss.emplace_back(i + 1);
+    durations.emplace_back(10); // seconds
+  }
+  const uint64_t us = 1000 * 1000;
+  uint64_t transit_dur = 10; // seconds
+  int transit_stages = 10;
+  uint64_t stage_us = transit_dur * us / transit_stages;
+
   std::vector<std::thread> thds;
   for (int tid = 0; tid < kNrThd; tid++) {
-    reqs[tid].clear();
-    for (int o = 0; o < KPerThdLoad; o++) {
-      int id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
-      id = nr_imgs - 1 - id;
-      FeatReq req{.tid = tid,
-                  .rid = id,
-                  .filename = imgs.at(id % imgs.size()),
-                  .feat = feats.at(id % feats.size()).get()};
-      reqs[tid].push_back(req);
-    }
+    thds.emplace_back([&, tid = tid] {
+      reqs[tid].clear();
+      uint64_t cur_us = 0;
+      for (int i = 0; i < nr_tests; i++) {
+        auto target_kops = target_kopss[i];
+        auto duration_us = cur_us + durations[i] * us; // seconds -> us
+        std::exponential_distribution<double> ed(target_kops / 1000 / kNrThd);
+        while (cur_us < duration_us) {
+          auto interval = std::max(1l, std::lround(ed(*gens[tid])));
+          int id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
+          id = nr_imgs - 1 - id;
+          FeatReq req{
+            .tid = tid, .rid = id, .filename = imgs.at(id % imgs.size()),
+            .feat = feats.at(id % feats.size()).get(),
+            .start_us = cur_us};
+          reqs[tid].emplace_back(req);
+          cur_us += interval;
+        }
+        if (i == nr_tests - 1) // transition
+          break;
+        const auto transit_kops_step =
+            (target_kopss[i + 1] - target_kopss[i]) / transit_stages;
+        for (int j = 0; j < transit_stages; j++) {
+          auto transit_kops = target_kops + transit_kops_step * j;
+          std::exponential_distribution<double> ed(transit_kops / 1000 /
+                                                   kNrThd);
+          auto duration_us = cur_us + stage_us;
+          while (cur_us < duration_us) {
+            auto interval = std::max(1l, std::lround(ed(*gens[tid])));
+            int id = kSkewedDist ? zipf_dist(*gens[tid]) : uni_dist(*gens[tid]);
+            id = nr_imgs - 1 - id;
+            FeatReq req{.tid = tid,
+                        .rid = id,
+                        .filename = imgs.at(id % imgs.size()),
+                        .feat = feats.at(id % feats.size()).get(),
+                        .start_us = cur_us};
+            reqs[tid].emplace_back(req);
+            cur_us += interval;
+          }
+        }
+      }
+    });
   }
+  for (auto &thd : thds)
+    thd.join();
   std::cout << "Finish load generation." << std::endl;
 }
 
@@ -379,7 +433,9 @@ int FeatExtractor::simu_warmup_cache() {
   return 0;
 }
 
-void FeatExtractor::perf() {
+void FeatExtractor::perf(uint64_t miss_ddl_us) {
+  gen_load();
+
   std::atomic_int_fast32_t nr_succ{0};
   bool stop = false;
   auto stt = std::chrono::high_resolution_clock::now();
@@ -391,21 +447,36 @@ void FeatExtractor::perf() {
       nr_succ = 0;
     }
   });
+
+  std::vector<Trace> all_traces[kNrThd];
   std::vector<std::thread> worker_thds;
   for (int tid = 0; tid < kNrThd; tid++) {
-    worker_thds.push_back(std::thread([&, tid = tid]() {
+    worker_thds.emplace_back(std::thread([&, tid = tid] {
+      auto start_us = midas::Time::get_us_stt();
+      auto &thd_reqs = reqs[tid];
+      auto &thd_traces = all_traces[tid];
       int cnt = 0;
-      for (int i = 0; i < KPerThdLoad; i++) {
-        // auto req = gen_req(tid);
-        serve_req(reqs[tid][i]);
+      for (auto &req : thd_reqs) {
+        auto relative_us = midas::Time::get_us_stt() - start_us;
+        if (req.start_us > relative_us) {
+          std::this_thread::sleep_for(
+              std::chrono::microseconds(req.start_us - relative_us));
+        } else if (req.start_us + miss_ddl_us < relative_us) {
+          continue;
+        }
+        Trace trace;
+        trace.absl_start_us = midas::Time::get_us_stt();
+        trace.start_us = trace.absl_start_us - start_us;
+        serve_req(req);
+        trace.duration =
+            midas::Time::get_us_stt() - start_us - trace.start_us;
+        thd_traces.emplace_back(trace);
         cnt++;
         if (cnt % 100 == 0) {
           nr_succ += 100;
           cnt = 0;
         }
       }
-      nr_succ += cnt;
-      cnt = 0;
     }));
   }
 
@@ -422,6 +493,13 @@ void FeatExtractor::perf() {
   std::cout << "Perf done. Duration: " << duration
             << " ms, Throughput: " << tput << " Kops" << std::endl;
   report_hit_rate();
+
+  std::vector<Trace> gathered_traces;
+  for (int i = 0; i < kNrThd; i++) {
+    gathered_traces.insert(gathered_traces.end(), all_traces[i].begin(),
+                           all_traces[i].end());
+  }
+  std::cout << gathered_traces.size() << std::endl;
 }
 
 void FeatExtractor::report_hit_rate() {
