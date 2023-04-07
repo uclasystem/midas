@@ -93,12 +93,12 @@ bin: bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_skewed_hashmap \
 	bin/test_fs_shim \
 	bin/test_sighandler \
-	bin/test_memcpy \
-	bin/test_feat_extractor bin/test_feat_extractor_kv
+	bin/test_memcpy
+
+# bin/test_feat_extractor bin/test_feat_extractor_kv
+# bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3
 
 daemon: bin/daemon_main
-
-# bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3 \
 
 bin/daemon_main: $(daemon_main_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
@@ -170,11 +170,11 @@ lib/libmidas++.a: $(lib_obj)
 	mkdir -p lib
 	$(AR) rcs $@ $^
 
-bin/test_feat_extractor: $(test_feat_extractor_obj) $(lib_obj)
-	$(LDXX) -o $@ $^ -lcrypto $(LDFLAGS)
+# bin/test_feat_extractor: $(test_feat_extractor_obj) $(lib_obj)
+# 	$(LDXX) -o $@ $^ -lcrypto $(LDFLAGS)
 
-bin/test_feat_extractor_kv: $(test_feat_extractor_kv_obj) $(lib_obj)
-	$(LDXX) -o $@ $^ -lcrypto $(LDFLAGS)
+# bin/test_feat_extractor_kv: $(test_feat_extractor_kv_obj) $(lib_obj)
+# 	$(LDXX) -o $@ $^ -lcrypto $(LDFLAGS)
 
 %.o: %.cpp Makefile
 	$(CXX) $(CXXFLAGS) $(INC) -MMD -MP -c $< -o $@
