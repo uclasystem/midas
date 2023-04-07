@@ -585,6 +585,7 @@ void Daemon::on_mem_rebalance() {
       if (client->region_limit_ <= 1)
         continue;
       clients.emplace_back(client);
+    }
   }
   std::sort(clients.begin(), clients.end(),
             [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
