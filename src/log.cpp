@@ -30,7 +30,8 @@ inline std::optional<ObjectPtr> LogSegment::alloc_small(size_t size) {
   }
   ObjectPtr obj_ptr;
   if (obj_ptr.init_small(pos_, size) != RetCode::Succ) {
-    MIDAS_LOG(kError);
+    if (!kEnableFaultHandler)
+      MIDAS_LOG(kError);
     seal();
     return std::nullopt;
   }
@@ -219,7 +220,8 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   return obj_ptr;
 
 failed:
-  MIDAS_LOG(kDebug) << "allocation failed!";
+  if (!kEnableFaultHandler)
+    MIDAS_LOG(kDebug) << "allocation failed!";
   for (auto &tptr : alloced_ptrs) {
     MetaObjectHdr mhdr;
     if (!load_hdr(mhdr, tptr))
