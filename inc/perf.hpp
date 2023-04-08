@@ -59,6 +59,7 @@ private:
   std::vector<Trace> traces_;
   TraceFormat trace_format_;
   double real_kops_;
+  std::vector<float> tputs_;
   std::atomic_int32_t succ_ops;
   friend class Test;
 
@@ -76,9 +77,10 @@ private:
                                uint64_t miss_ddl_thresh_us);
 
   void report_tput(uint64_t duration_us);
+  void dump_tput();
 
   constexpr static bool kEnableReporter = true;
-  constexpr static int kReportInterval = 1; // seconds
+  constexpr static int kReportInterval = 5; // seconds
   constexpr static int kReportBatch = 10;  // update counter batch size
   constexpr static int kTransSteps = 10;
 };
