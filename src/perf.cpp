@@ -6,6 +6,7 @@
 #include <random>
 #include <thread>
 #include <vector>
+#include <fstream>
 
 #include "logging.hpp"
 #include "perf.hpp"
@@ -25,6 +26,7 @@ void Perf::reset() {
   traces_.clear();
   trace_format_ = kUnsorted;
   real_kops_ = 0;
+  tputs_.clear();
 }
 
 uint64_t Perf::gen_reqs(std::vector<PerfRequestWithTime> *all_reqs,
@@ -157,6 +159,7 @@ void Perf::run(uint32_t num_threads, double target_kops, uint64_t duration_us,
         std::this_thread::sleep_for(std::chrono::microseconds(duration_us));
         report_tput(duration_us);
       }
+      dump_tput();
     });
   }
 
@@ -197,6 +200,7 @@ void Perf::run_phased(uint32_t num_threads, std::vector<double> target_kops_vec,
         std::this_thread::sleep_for(std::chrono::microseconds(duration_us));
         report_tput(duration_us);
       }
+      dump_tput();
     });
   }
 
@@ -279,7 +283,19 @@ double Perf::get_real_kops() const { return real_kops_; }
 const std::vector<Trace> &Perf::get_traces() const { return traces_; }
 
 void Perf::report_tput(uint64_t duration_us) {
-  MIDAS_LOG(kInfo) << "Tput: " << succ_ops * 1000.0 / duration_us << " Kops";
+  float tput = succ_ops * 1000.0 / duration_us;
+  MIDAS_LOG(kInfo) << "Tput: " << tput << " Kops";
+  tputs_.emplace_back(tput);
   succ_ops = 0;
+}
+
+void Perf::dump_tput() {
+  std::ofstream tput_file("tput.txt");
+  if (!tput_file.good())
+    return;
+  for (auto tput : tputs_)
+    tput_file << tput << "\t";
+  tput_file << std::endl;
+  tput_file.close();
 }
 } // namespace midas
