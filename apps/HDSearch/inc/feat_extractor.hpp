@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <random>
 #include <vector>
 
@@ -8,24 +9,30 @@
 
 // [midas]
 #include "cache_manager.hpp"
+#include "perf.hpp"
 #include "sync_hashmap.hpp"
+#include "zipf.hpp"
 
 namespace hdsearch {
-class FeatExtractor {
+
+struct FeatReq : midas::PerfRequest {
+  int tid;
+  int rid;
+  std::string filename;
+  Feature *feat;
+};
+
+class FeatExtractor : public midas::PerfAdapter {
 public:
   FeatExtractor();
   ~FeatExtractor();
-  int warmup_cache();
-  int simu_warmup_cache();
-  std::vector<Trace> perf(uint64_t miss_ddl_us = 10ul * 1000 * 1000); // 10s
-  void gen_load();
-  std::vector<Trace> get_timeseries_nth_lats(uint64_t interval_us, double nth);
+  std::unique_ptr<midas::PerfRequest> gen_req(int tid) override;
+  bool serve_req(int tid, const midas::PerfRequest *img_req) override;
 
 private:
   size_t load_imgs();
   size_t load_feats();
 
-  bool serve_req(const FeatReq &img_req);
   // To re-construct cache-miss objects
   int construct_callback(void *arg);
 
@@ -36,14 +43,17 @@ private:
   char *raw_feats;
   std::vector<std::shared_ptr<Feature>> feats;
 
+  std::unique_ptr<midas::zipf_table_distribution<>> zipf_dist;
+  std::unique_ptr<std::uniform_int_distribution<>> uni_dist;
+  std::shared_ptr<std::mt19937> gens[kNrThd];
+
   struct {
     int nr_hit = 0;
     int nr_miss = 0;
   } perthd_cnts[kNrThd];
   void report_hit_rate();
-  std::vector<FeatReq> reqs[kNrThd];
-  std::shared_ptr<std::mt19937> gens[kNrThd];
 
+  // midas cache
   midas::CachePool *cpool;
   std::shared_ptr<midas::SyncHashMap<kNumBuckets, MD5Key, Feature>> feat_map;
 };

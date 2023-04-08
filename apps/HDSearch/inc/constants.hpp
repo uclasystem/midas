@@ -8,7 +8,6 @@ constexpr static int kMD5Len = 32;
 
 constexpr static int kMissPenalty = 1; // ms
 constexpr static int kNrThd = 24;
-constexpr static int KPerThdLoad = 100000;
 constexpr static int kNumBuckets = 1 << 20;
 
 constexpr static bool kSkewedDist = true; // false for uniform distribution

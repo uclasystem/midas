@@ -29,14 +29,6 @@ struct Feature {
 static_assert(sizeof(Feature) == sizeof(float) * kFeatDim,
               "Feature struct size incorrect");
 
-struct FeatReq {
-  int tid;
-  int rid;
-  std::string filename;
-  Feature *feat;
-  uint64_t start_us;
-};
-
 struct Trace {
   uint64_t absl_start_us;
   uint64_t start_us;

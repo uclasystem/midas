@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <iostream>
 
 #include "constants.hpp"
@@ -5,6 +6,7 @@
 #include "utils.hpp"
 
 // [midas]
+#include "perf.hpp"
 #include "cache_manager.hpp"
 
 namespace hdsearch {
@@ -26,11 +28,30 @@ int main(int argc, char *argv[]) {
   pool->update_limit(cache_size * cache_ratio);
 
   FeatExtractor client;
-  if (kSimulate)
-    client.simu_warmup_cache();
-  else
-    client.warmup_cache();
-  client.perf();
+
+  midas::Perf perf(client);
+  std::vector<double> target_kops_vec;
+  std::vector<uint64_t> duration_us_vec;
+  std::vector<uint64_t> transition_us_vec;
+  for (int i = 0; i < 10; i++) {
+    target_kops_vec.emplace_back(i + 1);
+    duration_us_vec.emplace_back(10 * midas::to_us);
+    transition_us_vec.emplace_back(5);
+  }
+  perf.run_phased(kNrThd, target_kops_vec, duration_us_vec, transition_us_vec,
+                  10, 20 * midas::to_us);
+  // perf.run(kNrThd, 1.0, 10 * 1000 * 1000);
+  auto real_kops = perf.get_real_kops();
+  std::cout << real_kops << std::endl;
+  std::cout << perf.get_nth_lat(50) << " " << perf.get_nth_lat(99) << " "
+            << perf.get_nth_lat(99.9) << std::endl;
+  auto timeseries = perf.get_timeseries_nth_lats(1 * 1000 * 1000, 99);
+  std::cout << "P99 time series: ";
+  for (auto &ts : timeseries) {
+    std::cout << ts.duration_us << " ";
+  }
+  std::cout << std::endl;
   std::cout << "Test passed!" << std::endl;
+
   return 0;
 }
