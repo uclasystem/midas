@@ -70,7 +70,7 @@ uint64_t Perf::gen_phased_reqs(std::vector<PerfRequestWithTime> *all_reqs,
     auto duration_us = duration_us_vec[phase];
     cur_us = gen_reqs(all_reqs, num_threads, target_kops_vec[phase],
                       duration_us, cur_us);
-    if (phase == nr_phases)
+    if (phase == nr_phases - 1)
       break;
     // transition phase
     const auto trans_dur_step_us = transition_us_vec[phase] / kTransSteps;
@@ -80,6 +80,7 @@ uint64_t Perf::gen_phased_reqs(std::vector<PerfRequestWithTime> *all_reqs,
     for (uint32_t step = 0; step < kTransSteps; step++) {
       cur_us = gen_reqs(all_reqs, num_threads, transition_kops,
                         trans_dur_step_us, cur_us);
+      transition_kops += trans_step_kops;
     }
   }
 

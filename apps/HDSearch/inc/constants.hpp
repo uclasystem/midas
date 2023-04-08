@@ -6,7 +6,6 @@ namespace hdsearch {
 constexpr static int kFeatDim = 2048;
 constexpr static int kMD5Len = 32;
 
-constexpr static int kMissPenalty = 1; // ms
 constexpr static int kNrThd = 24;
 constexpr static int kNumBuckets = 1 << 20;
 
@@ -16,7 +15,8 @@ constexpr static double kSkewness = 0.9;  // zipf
 constexpr static bool kSimulate = true;
 constexpr static int kSimuNumImgs = 1000 * 1000;
 
-constexpr static int kStatInterval = 2; // seconds
+constexpr static float kMissPenalty = 1; // ms
+constexpr static int kNrBackends = 4;
 
 const static std::string data_dir =
     "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/data/";

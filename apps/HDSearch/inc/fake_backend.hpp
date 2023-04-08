@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -49,7 +51,8 @@ private:
       });
 
       while (_arrival_req_id.load() > _processed_req_id.load()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(kMissPenalty));
+        std::this_thread::sleep_for(
+            std::chrono::microseconds(std::lround(kMissPenalty * 1000)));
         _processed_req_id.fetch_add(1);
       }
     }

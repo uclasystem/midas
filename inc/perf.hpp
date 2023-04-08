@@ -79,7 +79,7 @@ private:
 
   constexpr static bool kEnableReporter = true;
   constexpr static int kReportInterval = 1; // seconds
-  constexpr static int kReportBatch = 100;  // update counter batch size
+  constexpr static int kReportBatch = 10;  // update counter batch size
   constexpr static int kTransSteps = 10;
 };
 } // namespace midas
