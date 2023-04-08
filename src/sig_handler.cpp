@@ -75,9 +75,10 @@ static inline bool softfault_handler(siginfo_t *info, ucontext_t *ptr) {
 static void signal_segv(int signum, siginfo_t *info, void *ptr) {
   ucontext_t *ctx = reinterpret_cast<ucontext_t *>(ptr);
   MIDAS_LOG(kDebug) << "Segmentation Fault!";
-  // print_callstack(info, ctx);
   if (softfault_handler(info, ctx))
     return;
+  MIDAS_LOG(kError) << "Cannot handle error @ " << ptr;
+  print_callstack(info, ctx);
   exit(-1);
 }
 
