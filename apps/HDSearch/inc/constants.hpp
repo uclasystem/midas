@@ -6,16 +6,16 @@ namespace hdsearch {
 constexpr static int kFeatDim = 2048;
 constexpr static int kMD5Len = 32;
 
-constexpr static int kNrThd = 24;
+constexpr static int kNrThd = 32;
 constexpr static int kNumBuckets = 1 << 20;
 
 constexpr static bool kSkewedDist = true; // false for uniform distribution
 constexpr static double kSkewness = 0.9;  // zipf
 
 constexpr static bool kSimulate = true;
-constexpr static int kSimuNumImgs = 1000 * 1000;
+constexpr static int kSimuNumImgs = 1900 * 1000; // 1.9M images
 
-constexpr static float kMissPenalty = 1; // ms
+constexpr static float kMissPenalty = 4; // ms
 constexpr static int kNrGPUs = 4;
 
 const static std::string data_dir =
