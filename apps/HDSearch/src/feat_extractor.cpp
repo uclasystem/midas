@@ -7,6 +7,7 @@
 
 // [midas]
 #include "perf.hpp"
+#include "utils.hpp"
 #include "zipf.hpp"
 
 namespace hdsearch {
@@ -104,6 +105,30 @@ bool FeatExtractor::serve_req(int tid, const midas::PerfRequest *req_) {
 
   cpool->record_miss_penalty(end - stt, sizeof(*req->feat));
   return true;
+}
+
+void FeatExtractor::warmup() {
+  std::vector<std::thread> thds;
+  for (int i = 0; i < kNrThd; i++) {
+    thds.emplace_back([&, tid = i] {
+      for (int j = tid; j < nr_imgs; j += kNrThd) {
+        auto value = feats.at(j % feats.size()).get();
+        MD5Key md5;
+        if (kSimulate) {
+          std::ostringstream oss;
+          oss << std::setw(32) << std::setfill('0') << j;
+          std::string md5_str = oss.str();
+          md5_str.copy(md5.data, kMD5Len);
+        } else {
+          md5_from_file(md5, imgs.at(j));
+        }
+        feat_map->set(md5, *value);
+      }
+    });
+  }
+  for (auto &thd : thds)
+    thd.join();
+  std::cout << "Done warm up!" << std::endl;
 }
 
 size_t FeatExtractor::load_imgs() {

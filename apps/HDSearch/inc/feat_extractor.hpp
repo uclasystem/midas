@@ -29,6 +29,7 @@ public:
   ~FeatExtractor();
   std::unique_ptr<midas::PerfRequest> gen_req(int tid) override;
   bool serve_req(int tid, const midas::PerfRequest *img_req) override;
+  void warmup();
 
 private:
   size_t load_imgs();
