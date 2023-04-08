@@ -37,10 +37,7 @@ void Evacuator::init() {
 }
 
 int64_t Evacuator::gc(SegmentList &stash_list) {
-  auto nr_target = rmanager_->reclaim_target();
-  auto nr_inuse = rmanager_->NumRegionInUse();
-  auto nr_avail = rmanager_->NumRegionAvail();
-  if (nr_avail >= nr_target)
+  if (!rmanager_->reclaim_trigger())
     return 0;
 
   int nr_skipped = 0;
@@ -49,14 +46,14 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   auto &segments = allocator_->segments_;
 
   auto stt = chrono_utils::now();
-  while (rmanager_->NumRegionAvail() < nr_target) {
+  while (rmanager_->reclaim_trigger()) {
     auto segment = segments.pop_front();
     if (!segment)
       continue;
     if (!segment->sealed()) { // put in-used segment back to list
       segments.push_back(segment);
       nr_skipped++;
-      if (nr_skipped > nr_inuse * 1.5) { // we have been in loop for too long
+      if (nr_skipped > rmanager_->NumRegionLimit()) { // be in loop for too long
         MIDAS_LOG(kDebug) << "Encountered too many unsealed segments during "
                              "GC, skip GC this round.";
         return -1;
@@ -90,22 +87,19 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   }
   auto end = chrono_utils::now();
 
-  auto nr_reclaimed = rmanager_->NumRegionAvail() - nr_avail;
-  assert(nr_reclaimed > 0);
+  auto nr_avail = rmanager_->NumRegionAvail();
+  // assert(nr_avail > 0);
 
   if (nr_scanned)
     MIDAS_LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
-                      << " evacuated, " << nr_reclaimed << " reclaimed ("
+                      << " evacuated, " << nr_avail << " available ("
                       << chrono_utils::duration(stt, end) << "s).";
 
-  return nr_reclaimed;
+  return nr_avail;
 }
 
 int64_t Evacuator::serial_gc() {
-  auto nr_target = rmanager_->reclaim_target();
-  auto nr_inuse = rmanager_->NumRegionInUse();
-  auto nr_avail = rmanager_->NumRegionAvail();
-  if (nr_avail >= nr_target)
+  if (!rmanager_->reclaim_trigger())
     return 0;
 
   int64_t nr_skipped = 0;
@@ -114,14 +108,14 @@ int64_t Evacuator::serial_gc() {
   auto &segments = allocator_->segments_;
 
   auto stt = chrono_utils::now();
-  while (rmanager_->NumRegionAvail() < nr_target) {
+  while (rmanager_->reclaim_trigger()) {
     auto segment = segments.pop_front();
     if (!segment)
       continue;
     if (!segment->sealed()) { // put in-used segment back to list
       segments.push_back(segment);
       nr_skipped++;
-      if (nr_skipped > nr_inuse * 1.5) { // we have been in loop for too long
+      if (nr_skipped > rmanager_->NumRegionLimit()) { // be in loop for too long
         MIDAS_LOG(kDebug) << "Encountered too many unsealed segments during "
                              "GC, skip GC this round.";
         return -1;
@@ -154,14 +148,14 @@ int64_t Evacuator::serial_gc() {
   }
   auto end = chrono_utils::now();
 
-  auto nr_reclaimed = rmanager_->NumRegionAvail() - nr_avail;
+  auto nr_avail = rmanager_->NumRegionAvail();
 
   if (nr_scanned)
     MIDAS_LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
-                      << " evacuated, " << nr_reclaimed << " reclaimed ("
+                      << " evacuated, " << nr_avail << " available ("
                       << chrono_utils::duration(stt, end) << "s).";
 
-  return nr_reclaimed;
+  return nr_avail;
 }
 
 bool Evacuator::parallel_gc(int nr_workers) {
