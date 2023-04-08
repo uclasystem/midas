@@ -8,7 +8,7 @@
 namespace midas {
 
 constexpr static uint64_t to_us = 1000 * 1000;     // 1s = 10^6 us
-constexpr static uint64_t kMissDDL = 10ul * to_us; // 10s -> us
+constexpr static uint64_t kMissDDL = 100ul * to_us; // 100 s -> us
 
 struct PerfRequest {
   virtual ~PerfRequest() = default;
