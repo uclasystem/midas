@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < 10; i++) {
     target_kops_vec.emplace_back(i + 1);
     duration_us_vec.emplace_back(10 * midas::to_us);
-    transition_us_vec.emplace_back(5);
+    transition_us_vec.emplace_back(10 * midas::to_us);
   }
   perf.run_phased(kNrThd, target_kops_vec, duration_us_vec, transition_us_vec,
                   10, 20 * midas::to_us);
