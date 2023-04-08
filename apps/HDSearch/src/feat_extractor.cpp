@@ -2,6 +2,7 @@
 #include <random>
 
 #include "constants.hpp"
+#include "fake_backend.hpp"
 #include "feat_extractor.hpp"
 
 // [midas]
@@ -9,7 +10,8 @@
 #include "zipf.hpp"
 
 namespace hdsearch {
-FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
+FeatExtractor::FeatExtractor()
+    : raw_feats(nullptr), nr_imgs(0), fakeGPUBackend(kNrGPUs) {
   cpool = midas::CacheManager::global_cache_manager()->get_pool(cachepool_name);
   if (!cpool) {
     std::cerr << "Failed to get cache pool!" << std::endl;
@@ -32,7 +34,7 @@ FeatExtractor::FeatExtractor() : raw_feats(nullptr), nr_imgs(0) {
   uni_dist = std::make_unique<std::uniform_int_distribution<>>(0, nr_imgs - 1);
   for (int i = 0; i < kNrThd; i++) {
     std::random_device rd;
-    gens[i] = std::make_shared<std::mt19937>(rd());
+    gens[i] = std::make_unique<std::mt19937>(rd());
   }
 }
 

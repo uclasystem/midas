@@ -14,9 +14,10 @@
 namespace hdsearch {
 class FakeBackend {
 public:
-  FakeBackend() : _arrival_req_id(-1), _processed_req_id(-1), _alive(true) {
-    int kProcessors = 2;
-    for (int i = 0; i < kProcessors; i++) {
+  FakeBackend(int nr_processors = 2)
+      : _nr_processors(nr_processors), _arrival_req_id(-1),
+        _processed_req_id(-1), _alive(true) {
+    for (int i = 0; i < _nr_processors; i++) {
       processor_thds.push_back(std::thread([&]() { processor(); }));
     }
   }
@@ -45,10 +46,12 @@ public:
 private:
   int processor() {
     while (_alive) {
-      std::unique_lock<std::mutex> plk(_p_mtx);
-      _p_cv.wait(plk, [&] {
-        return !_alive || _arrival_req_id.load() > _processed_req_id.load();
-      });
+      {
+        std::unique_lock<std::mutex> plk(_p_mtx);
+        _p_cv.wait(plk, [&] {
+          return !_alive || _arrival_req_id.load() > _processed_req_id.load();
+        });
+      }
 
       while (_arrival_req_id.load() > _processed_req_id.load()) {
         std::this_thread::sleep_for(
@@ -58,8 +61,13 @@ private:
     }
     return 0;
   }
+
+  int _nr_processors;
+
   std::mutex _p_mtx;
   std::condition_variable _p_cv;
+  // std::mutex _c_mtx;
+  // std::condition_variable _c_cv;
 
   std::atomic<int> _arrival_req_id;
   std::atomic<int> _processed_req_id;

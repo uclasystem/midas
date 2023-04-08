@@ -4,6 +4,7 @@
 #include <random>
 #include <vector>
 
+#include "constants.hpp"
 #include "fake_backend.hpp"
 #include "utils.hpp"
 
@@ -45,7 +46,7 @@ private:
 
   std::unique_ptr<midas::zipf_table_distribution<>> zipf_dist;
   std::unique_ptr<std::uniform_int_distribution<>> uni_dist;
-  std::shared_ptr<std::mt19937> gens[kNrThd];
+  std::unique_ptr<std::mt19937> gens[kNrThd];
 
   struct {
     int nr_hit = 0;

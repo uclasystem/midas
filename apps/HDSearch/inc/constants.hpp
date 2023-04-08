@@ -16,7 +16,7 @@ constexpr static bool kSimulate = true;
 constexpr static int kSimuNumImgs = 1000 * 1000;
 
 constexpr static float kMissPenalty = 1; // ms
-constexpr static int kNrBackends = 4;
+constexpr static int kNrGPUs = 4;
 
 const static std::string data_dir =
     "/mnt/ssd/yifan/code/cachebank/apps/FeatureExtraction/data/";
