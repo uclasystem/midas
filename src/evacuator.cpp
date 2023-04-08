@@ -27,8 +27,11 @@ void Evacuator::init() {
         gc_cv_.wait(
             lk, [this] { return terminated_ || rmanager_->reclaim_trigger(); });
       }
-      parallel_gc(16);
-      // serial_gc();
+      auto succ = parallel_gc(kNumEvacThds);
+      // auto succ = serial_gc() < 0;
+
+      if (!succ)
+        force_reclaim();
     }
   });
 }
@@ -53,10 +56,10 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
     if (!segment->sealed()) { // put in-used segment back to list
       segments.push_back(segment);
       nr_skipped++;
-      if (nr_skipped > nr_inuse) { // we have been in loop for too long
+      if (nr_skipped > nr_inuse * 1.5) { // we have been in loop for too long
         MIDAS_LOG(kDebug) << "Encountered too many unsealed segments during "
                              "GC, skip GC this round.";
-        break;
+        return -1;
       }
       continue;
     }
@@ -88,6 +91,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   auto end = chrono_utils::now();
 
   auto nr_reclaimed = rmanager_->NumRegionAvail() - nr_avail;
+  assert(nr_reclaimed > 0);
 
   if (nr_scanned)
     MIDAS_LOG(kDebug) << "GC: " << nr_scanned << " scanned, " << nr_evaced
@@ -99,10 +103,12 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
 
 int64_t Evacuator::serial_gc() {
   auto nr_target = rmanager_->reclaim_target();
+  auto nr_inuse = rmanager_->NumRegionInUse();
   auto nr_avail = rmanager_->NumRegionAvail();
   if (nr_avail >= nr_target)
     return 0;
 
+  int64_t nr_skipped = 0;
   int64_t nr_scanned = 0;
   int64_t nr_evaced = 0;
   auto &segments = allocator_->segments_;
@@ -114,6 +120,12 @@ int64_t Evacuator::serial_gc() {
       continue;
     if (!segment->sealed()) { // put in-used segment back to list
       segments.push_back(segment);
+      nr_skipped++;
+      if (nr_skipped > nr_inuse * 1.5) { // we have been in loop for too long
+        MIDAS_LOG(kDebug) << "Encountered too many unsealed segments during "
+                             "GC, skip GC this round.";
+        return -1;
+      }
       continue;
     }
     EvacState ret = scan_segment(segment.get(), true);
@@ -152,12 +164,16 @@ int64_t Evacuator::serial_gc() {
   return nr_reclaimed;
 }
 
-void Evacuator::parallel_gc(int nr_workers) {
+bool Evacuator::parallel_gc(int nr_workers) {
   SegmentList stash_list;
 
+  std::atomic_int nr_failed{0};
   std::vector<std::thread> gc_thds;
   for (int tid = 0; tid < nr_workers; tid++) {
-    gc_thds.push_back(std::thread([&, tid = tid]() { gc(stash_list); }));
+    gc_thds.push_back(std::thread([&, tid = tid]() {
+      if (gc(stash_list) < 0)
+        nr_failed++;
+    }));
   }
 
   for (auto &thd : gc_thds)
@@ -176,18 +192,20 @@ void Evacuator::parallel_gc(int nr_workers) {
       segments.push_back(segment);
     }
   }
+  return nr_failed > 0;
 }
 
 int64_t Evacuator::force_reclaim() {
+  if (!kEnableFaultHandler)
+    return 0;
   int64_t nr_reclaimed = 0;
 
   auto stt = chrono_utils::now();
-  int nr_thds = 16;
   std::vector<std::thread> thds;
-  for (int i = 0; i < nr_thds; i++) {
+  for (int i = 0; i < kNumEvacThds; i++) {
     thds.emplace_back([&] {
       auto &segments = allocator_->segments_;
-      while (rmanager_->NumRegionAvail() < 0) {
+      while (rmanager_->NumRegionAvail() <= 0) {
         auto segment = segments.pop_front();
         if (!segment)
           break;
@@ -306,7 +324,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
                 /* FIX: so far we cannot tell whether fault happens in src obj
                  * or dst obj, and in which segment. Ideally we should only goto
                  * faulted iff. fault is in the current segment. */
-                // goto faulted;
+                goto faulted;
               }
               if (rref && !rref->is_victim()) {
                 auto vcache = pool_->get_vcache();

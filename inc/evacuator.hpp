@@ -29,7 +29,7 @@ public:
   ~Evacuator();
   void signal_gc();
   int64_t serial_gc();
-  void parallel_gc(int nr_workers);
+  bool parallel_gc(int nr_workers);
   int64_t force_reclaim();
 
 private:
@@ -56,6 +56,8 @@ private:
   std::shared_ptr<std::thread> gc_thd_;
   std::condition_variable gc_cv_;
   std::mutex gc_mtx_;
+
+  constexpr static int kNumEvacThds = 16;
 };
 
 } // namespace midas
