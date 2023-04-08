@@ -226,6 +226,7 @@ bool ResourceManager::force_reclaim() {
   if (NumRegionInUse() < NumRegionLimit())
     return true;
 
+  nr_pending++;
   {
     std::unique_lock<std::mutex> ul(mtx_);
     while (!freelist_.empty()) {
@@ -235,9 +236,10 @@ bool ResourceManager::force_reclaim() {
     }
   }
 
-  while (NumRegionAvail() < 0)
+  while (NumRegionAvail() <= 0)
     cpool_->get_evacuator()->force_reclaim();
-  return NumRegionAvail() >= 0;
+  nr_pending--;
+  return NumRegionAvail() > 0;
 }
 
 void ResourceManager::UpdateLimit(size_t size) noexcept {
@@ -256,9 +258,12 @@ retry:
   }
   retry_cnt++;
   if (!overcommit && reclaim_trigger()) {
-    if (NumRegionAvail() <= 0) // block waiting for reclamation
-      reclaim();
-    else
+    if (NumRegionAvail() <= 0) { // block waiting for reclamation
+      if (kEnableFaultHandler && retry_cnt >= kMaxAllocRetry)
+        force_reclaim();
+      else
+        reclaim();
+    } else
       cpool_->get_evacuator()->signal_gc();
   }
 
