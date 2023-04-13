@@ -5,9 +5,9 @@
 extern "C" {
 #endif
 
-typedef void * ResourceManager;
+typedef void * resource_manager_t;
 
-ResourceManager midas_get_global_manager(void);
+resource_manager_t midas_get_global_manager(void);
 
 #ifdef __cplusplus
 }
