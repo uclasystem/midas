@@ -31,7 +31,7 @@ void get_timeseries_nth_lats(midas::Perf &perf, double nth) {
   std::cout << "P" << nth << " time series: ";
   for (auto &ts : timeseries) {
     std::cout << ts.duration_us << " ";
-    nth_file << ts.duration_us << "\t";
+    nth_file << ts.duration_us << "\n";
   }
   std::cout << std::endl;
   nth_file << std::endl;
