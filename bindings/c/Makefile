@@ -37,8 +37,9 @@ dep = $(obj:.o=.d)
 .PHONY: all clean install
 
 target = lib/libmidas.a \
-	 libmidas.so \
 	 test
+
+# libmidas.so \
 
 all: $(target)
 
