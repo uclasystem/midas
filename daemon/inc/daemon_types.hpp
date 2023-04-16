@@ -84,6 +84,12 @@ public:
 
   static Daemon *get_daemon();
 
+  enum class Policy {
+    Midas,
+    CliffHanger,
+    RobinHood
+  };
+
 private:
   int do_connect(const CtrlMsg &msg);
   int do_disconnect(const CtrlMsg &msg);
@@ -102,6 +108,7 @@ private:
   void on_mem_shrink();
   void on_mem_expand();
   void on_mem_rebalance();
+  void on_mem_rebalance_cliffhanger();
 
   enum class MemStatus {
     NORMAL,
