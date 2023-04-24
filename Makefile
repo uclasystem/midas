@@ -12,6 +12,7 @@ INC += -I/mnt/ssd/yifan/tools/boost_1_79_0
 
 override LDFLAGS += -lrt -lpthread
 # For stacktrace logging
+override LDFLAGS += -rdynamic
 override LDFLAGS += -ldl
 
 lib_src = $(wildcard src/*.cpp)
