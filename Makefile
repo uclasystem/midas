@@ -7,8 +7,6 @@ CXX = g++
 LDXX = g++
 
 INC += -Iinc
-INC += -I/mnt/ssd/yifan/tools/boost_1_79_0
-
 
 override LDFLAGS += -lrt -lpthread
 # For stacktrace logging
@@ -165,7 +163,7 @@ bin/test_batched_kv: $(test_batched_kv_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_fs_shim: $(test_fs_shim_obj) $(lib_obj)
-	$(LDXX) -o $@ $^ -pthread -lrt -ldl
+	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 lib/libmidas++.a: $(lib_obj)
 	mkdir -p lib
