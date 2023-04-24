@@ -8,6 +8,8 @@
 #include <sys/ucontext.h>
 #include <ucontext.h>
 
+#include <boost/stacktrace.hpp>
+
 #include "logging.hpp"
 #include "sig_handler.hpp"
 
@@ -78,7 +80,9 @@ static void signal_segv(int signum, siginfo_t *info, void *ptr) {
   if (softfault_handler(info, ctx))
     return;
   MIDAS_LOG(kError) << "Cannot handle error @ " << ptr;
-  print_callstack(info, ctx);
+  // print_callstack(info, ctx);
+  std::cerr << "Stack Trace:\n" << boost::stacktrace::stacktrace() << std::endl;
+
   exit(-1);
 }
 
