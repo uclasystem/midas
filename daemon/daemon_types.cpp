@@ -1,6 +1,7 @@
 #include <atomic>
 #include <boost/interprocess/exceptions.hpp>
 #include <chrono>
+#include <cstdint>
 #include <fstream>
 #include <future>
 #include <memory>
@@ -16,7 +17,7 @@
 namespace midas {
 /** Global control flags */
 constexpr static bool kEnableDynamicRebalance = true;
-constexpr static Daemon::Policy policy = Daemon::Policy::CliffHanger;
+constexpr static Daemon::Policy policy = Daemon::Policy::Midas;
 // WARNING: two flags below should always be enabled to adapt clients' memory
 // usage to the amount of server's idle memory
 constexpr static bool kEnableProfiler = true;
@@ -28,9 +29,10 @@ constexpr static float kPerfZeroThresh = 0.1;
 constexpr static uint32_t kProfInterval = 5; // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
-constexpr static float kExpandThresh = 0.9;
+constexpr static float kFullFactor = 0.9;
 constexpr static float kExpandFactor = 0.5;
 constexpr static uint32_t kMaxExpandThresh = 128;
+constexpr static int32_t kWarmupRounds = 2;
 /** Server related */
 constexpr static uint32_t kAliveTimeout = 3;   // in seconds
 constexpr static uint32_t kReclaimTimeout = 5; // in seconds
@@ -39,7 +41,7 @@ constexpr static uint32_t kServeTimeout = 1;   // in seconds
 /** Client */
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
     : daemon_(daemon), status(ClientStatusCode::INIT), id(id_), region_cnt_(0),
-      region_limit_(region_limit),
+      region_limit_(region_limit), warmup_ttl_(0),
       cq(utils::get_ackq_name(kNameCtrlQ, id), false),
       txqp(std::to_string(id), false) {
   daemon_->charge(region_limit_);
@@ -550,7 +552,7 @@ void Daemon::on_mem_expand() {
     return;
   double total_gain = 0.0;
   for (auto client : active_clients) {
-    auto thresh = std::max<int64_t>(client->region_limit_ * kExpandThresh,
+    auto thresh = std::max<int64_t>(client->region_limit_ * kFullFactor,
                                     client->region_limit_ - kMaxExpandThresh);
     if (client->region_cnt_ < thresh)
       continue;
@@ -559,7 +561,7 @@ void Daemon::on_mem_expand() {
   if (total_gain < kPerfZeroThresh)
     return;
   for (auto client : active_clients) {
-    auto thresh = std::max<int64_t>(client->region_limit_ * kExpandThresh,
+    auto thresh = std::max<int64_t>(client->region_limit_ * kFullFactor,
                                     client->region_limit_ - kMaxExpandThresh);
     if (client->region_cnt_ < thresh)
       continue;
@@ -590,56 +592,105 @@ void Daemon::on_mem_expand() {
 }
 
 void Daemon::on_mem_rebalance() {
+  constexpr static int kNumRepeats = 3;
+  constexpr static uint64_t kMaxDemand = 128;
+  constexpr static uint64_t kMaxReclaim = 64;
   if (!kEnableDynamicRebalance)
     return;
-  constexpr static uint64_t kMaxStepSize = 64;
-  static uint64_t kStepSize = 4ul;
-  static uint64_t prev_winner = -1ul;
-  double total_gain = 0.;
 
-  std::vector<std::shared_ptr<Client>> clients;
+  std::vector<std::shared_ptr<Client>> gainers;
+  std::vector<std::shared_ptr<Client>> victims;
   {
     std::unique_lock<std::mutex> ul(mtx_);
     for (auto &[_, client] : clients_) {
       if (client->region_limit_ <= 1)
         continue;
-      clients.emplace_back(client);
-      total_gain += client->stats.perf_gain;
+      if (client->warmup_ttl_ > 0) {
+        client->warmup_ttl_--;
+        continue;
+      }
+      if (client->stats.perf_gain > kPerfZeroThresh &&
+          client->region_cnt_ >= client->region_limit_ * kFullFactor) {
+        gainers.emplace_back(client);
+      } else
+        victims.emplace_back(client);
     }
   }
-  std::sort(clients.begin(), clients.end(),
+  std::sort(gainers.begin(), gainers.end(),
             [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
               return c1->stats.perf_gain < c2->stats.perf_gain;
             });
-
-  if (clients.size() <= 1)
-    return;
-
-  std::shared_ptr<Client> winner = nullptr;
-  while (!clients.empty()) {
-    winner = clients.back();
-    clients.pop_back();
-    if (winner->stats.perf_gain > kPerfZeroThresh ||
-        winner->region_cnt_ >= winner->region_limit_ * kExpandThresh)
-      break;
+  std::sort(victims.begin(), victims.end(),
+            [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
+              return c1->region_limit_ > c2->region_limit_;
+            });
+  bool rebalanced = false;
+  while (!gainers.empty()) {
+    auto gainer = gainers.back();
+    gainers.pop_back();
+    auto demand = kMaxDemand;
+    int64_t total_reclaimed = 0;
+    // mild reclaim: only reclaim idle memory
+    for (int i = 0; i < kNumRepeats; i++) {
+      for (auto victim : victims) {
+        auto avail = victim->region_limit_ - victim->region_cnt_;
+        auto reclaim = std::min<int64_t>(avail * 0.5, kMaxReclaim);
+        if (reclaim > 0) {
+          bool succ = victim->update_limit(victim->region_limit_ - reclaim);
+          total_reclaimed += reclaim;
+          if (total_reclaimed >= demand)
+            break;
+        }
+      }
+      if (total_reclaimed >= demand)
+        break;
+    }
+    if (total_reclaimed >= demand) {
+      rebalanced = true;
+      gainer->update_limit(gainer->region_limit_ + total_reclaimed);
+      gainer->warmup_ttl_ = kWarmupRounds;
+      continue;
+    }
+    // normal reclaim: reclaim all memory of victims
+    for (int i = 0; i < kNumRepeats; i++) {
+      for (auto victim : victims) {
+        auto avail = victim->region_limit_;
+        auto reclaim = std::min<int64_t>(avail * 0.5, kMaxReclaim);
+        if (reclaim > 0) {
+          bool succ = victim->update_limit(victim->region_limit_ - reclaim);
+          total_reclaimed += reclaim;
+          if (total_reclaimed >= demand)
+            break;
+        }
+      }
+      if (total_reclaimed >= demand)
+        break;
+    }
+    demand /= 2;
+    if (total_reclaimed >= demand) {
+      rebalanced = true;
+      gainer->update_limit(gainer->region_limit_ + total_reclaimed);
+      gainer->warmup_ttl_ = kWarmupRounds;
+      continue;
+    }
+    // eager reclaim: reclaim other gainers' memory
+    for (auto victim : gainers) {
+      auto avail = victim->region_limit_;
+      auto reclaim = std::min<int64_t>(avail - 1, kMaxReclaim);
+      if (reclaim > 0) {
+        bool succ = victim->update_limit(victim->region_limit_ - reclaim);
+        total_reclaimed += reclaim;
+        if (total_reclaimed >= demand)
+          break;
+      }
+    }
+    if (total_reclaimed > 0) {
+      rebalanced = true;
+      gainer->update_limit(gainer->region_limit_ + total_reclaimed);
+      gainer->warmup_ttl_ = kWarmupRounds;
+    }
   }
-  if (!winner || winner->stats.perf_gain <= kPerfZeroThresh)
-    return;
-  if (winner->id == prev_winner)
-    kStepSize = std::min(kMaxStepSize, kStepSize * 2);
-  else
-    prev_winner = winner->id;
-  MIDAS_LOG(kDebug) << "Winner " << winner->id
-                    << ", perf gain: " << winner->stats.perf_gain;
-  uint64_t nr_reclaimed = 0;
-  for (auto client : clients) {
-    // each client must have at least 1 region
-    auto nr_to_reclaim = std::min(client->region_limit_ - 1, kStepSize);
-    bool succ = client->update_limit(client->region_limit_ - nr_to_reclaim);
-    nr_reclaimed += nr_to_reclaim;
-  }
-  bool succ = winner->update_limit(winner->region_limit_ + nr_reclaimed);
-  if (nr_reclaimed) {
+  if (rebalanced) {
     MIDAS_LOG(kInfo) << "Memory rebalance done! Total regions: " << region_cnt_
                      << "/" << region_limit_;
     std::unique_lock<std::mutex> ul(mtx_);
@@ -650,6 +701,68 @@ void Daemon::on_mem_rebalance() {
     }
   }
 }
+
+// void Daemon::on_mem_rebalance() {
+//   if (!kEnableDynamicRebalance)
+//     return;
+//   constexpr static uint64_t kMaxStepSize = 64;
+//   static uint64_t kStepSize = 4ul;
+//   static uint64_t prev_winner = -1ul;
+//   double total_gain = 0.;
+
+//   std::vector<std::shared_ptr<Client>> clients;
+//   {
+//     std::unique_lock<std::mutex> ul(mtx_);
+//     for (auto &[_, client] : clients_) {
+//       if (client->region_limit_ <= 1)
+//         continue;
+//       clients.emplace_back(client);
+//       total_gain += client->stats.perf_gain;
+//     }
+//   }
+//   std::sort(clients.begin(), clients.end(),
+//             [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
+//               return c1->stats.perf_gain < c2->stats.perf_gain;
+//             });
+
+//   if (clients.size() <= 1)
+//     return;
+
+//   std::shared_ptr<Client> winner = nullptr;
+//   while (!clients.empty()) {
+//     winner = clients.back();
+//     clients.pop_back();
+//     if (winner->stats.perf_gain > kPerfZeroThresh &&
+//         winner->region_cnt_ >= winner->region_limit_ * kFullFactor)
+//       break;
+//   }
+//   if (!winner || winner->stats.perf_gain <= kPerfZeroThresh)
+//     return;
+//   if (winner->id == prev_winner)
+//     kStepSize = std::min(kMaxStepSize, kStepSize * 2);
+//   else
+//     prev_winner = winner->id;
+//   MIDAS_LOG(kDebug) << "Winner " << winner->id
+//                     << ", perf gain: " << winner->stats.perf_gain;
+//   uint64_t nr_reclaimed = 0;
+//   for (auto client : clients) {
+//     // each client must have at least 1 region
+//     auto nr_to_reclaim = std::min(client->region_limit_ - 1, kStepSize);
+//     bool succ = client->update_limit(client->region_limit_ - nr_to_reclaim);
+//     nr_reclaimed += nr_to_reclaim;
+//   }
+//   bool succ = winner->update_limit(winner->region_limit_ + nr_reclaimed);
+//   if (nr_reclaimed) {
+//     MIDAS_LOG(kInfo) << "Memory rebalance done! Total regions: " << region_cnt_
+//                      << "/" << region_limit_;
+//     std::unique_lock<std::mutex> ul(mtx_);
+//     for (auto &[_, client] : clients_) {
+//       MIDAS_LOG(kInfo) << "Client " << client->id
+//                        << " regions: " << client->region_cnt_ << "/"
+//                        << client->region_limit_;
+//     }
+//   }
+// }
 
 void Daemon::on_mem_rebalance_cliffhanger() {
   if (!kEnableDynamicRebalance)

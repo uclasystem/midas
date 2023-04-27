@@ -71,6 +71,7 @@ private:
   Daemon *daemon_;
   uint64_t region_cnt_;
   uint64_t region_limit_;
+  int warmup_ttl_;
 
   friend class Daemon;
 };
