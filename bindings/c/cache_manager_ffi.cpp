@@ -50,6 +50,14 @@ int midas_pool_update_limit(cache_pool_t pool, uint64_t limit_in_bytes) {
   return 0;
 }
 
+int midas_pool_set_weight(cache_pool_t pool, int32_t weight) {
+  auto pool_ = reinterpret_cast<midas::CachePool *>(pool);
+  if (!pool_)
+    return -1;
+  pool_->set_weight(weight);
+  return 0;
+}
+
 void midas_inc_cache_hit(cache_pool_t pool) {
   auto pool_ = reinterpret_cast<midas::CachePool *>(pool);
   if (pool_)
