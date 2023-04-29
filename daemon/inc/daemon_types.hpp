@@ -52,6 +52,7 @@ public:
   bool overcommit_region();
   bool free_region(int64_t region_id);
   bool update_limit(uint64_t new_limit);
+  void set_weight(int32_t weight);
   bool force_reclaim(uint64_t new_limit);
   bool profile_stats();
 
@@ -71,7 +72,8 @@ private:
   Daemon *daemon_;
   uint64_t region_cnt_;
   uint64_t region_limit_;
-  int warmup_ttl_;
+  int32_t weight_;
+  int32_t warmup_ttl_;
 
   friend class Daemon;
 };
@@ -98,6 +100,7 @@ private:
   int do_overcommit(const CtrlMsg &msg);
   int do_free(const CtrlMsg &msg);
   int do_update_limit_req(const CtrlMsg &msg);
+  int do_set_weight(const CtrlMsg &msg);
 
   void charge(int64_t nr_regions);
   void uncharge(int64_t nr_regions);

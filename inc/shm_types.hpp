@@ -16,6 +16,7 @@ enum CtrlOpCode {
   UPDLIMIT_REQ,
   FORCE_RECLAIM,
   PROF_STATS,
+  SET_WEIGHT,
 };
 
 enum CtrlRetCode {

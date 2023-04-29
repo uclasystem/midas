@@ -37,6 +37,10 @@ inline void CachePool::update_limit(size_t limit_in_bytes) {
   rmanager_->UpdateLimit(limit_in_bytes);
 }
 
+inline void CachePool::set_weight(int32_t weight) {
+  rmanager_->SetWeight(weight);
+}
+
 inline void CachePool::set_construct_func(ConstructFunc callback) {
   if (construct_)
     MIDAS_LOG(kWarning) << "Cache pool " << name_

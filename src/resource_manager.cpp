@@ -242,6 +242,13 @@ bool ResourceManager::force_reclaim() {
   return NumRegionAvail() > 0;
 }
 
+void ResourceManager::SetWeight(int32_t weight) noexcept {
+  CtrlMsg msg{.id = id_,
+              .op = CtrlOpCode::SET_WEIGHT,
+              .mmsg = {.size = static_cast<uint64_t>(weight)}};
+  txqp_.send(&msg, sizeof(msg));
+}
+
 void ResourceManager::UpdateLimit(size_t size) noexcept {
   CtrlMsg msg{
       .id = id_, .op = CtrlOpCode::UPDLIMIT_REQ, .mmsg = {.size = size}};
