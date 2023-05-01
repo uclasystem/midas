@@ -31,6 +31,8 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k) {
   Tp *stored_v = reinterpret_cast<Tp *>(::operator new(sizeof(Tp)));
   if (get(std::forward<K1>(k), *stored_v))
     return std::unique_ptr<Tp>(stored_v);
+  if (stored_v)
+    ::operator delete(stored_v);
   return nullptr;
 }
 
