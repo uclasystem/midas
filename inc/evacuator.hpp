@@ -57,7 +57,7 @@ private:
   std::condition_variable gc_cv_;
   std::mutex gc_mtx_;
 
-  constexpr static int kNumEvacThds = 16;
+  constexpr static int kNumEvacThds = 12;
 };
 
 } // namespace midas
