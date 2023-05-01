@@ -1,0 +1,49 @@
+#pragma once
+
+namespace midas {
+template <typename T> Array<T>::Array(int n) : len_(n) {
+  pool_ = CachePool::global_cache_pool();
+  data_ = new ObjectPtr[len_];
+}
+
+template <typename T>
+Array<T>::Array(CachePool *pool, int n) : pool_(pool), len_(n) {
+  data_ = new ObjectPtr[len_];
+}
+
+template <typename T> Array<T>::~Array() {
+  if (data_) {
+    for (int i = 0; i < len_; i++) {
+      if (!data_[i].null())
+        pool_->free(data_[i]);
+    }
+    delete[] data_;
+    data_ = nullptr;
+  }
+}
+
+template <typename T> std::unique_ptr<T> Array<T>::get(int idx) {
+  if (idx >= len_)
+    return nullptr;
+  auto &optr = data_[idx];
+  if (optr.null())
+    return nullptr;
+
+  T *t = reinterpret_cast<T *>(::operator new(sizeof(T)));
+  if (!optr.copy_to(t, sizeof(T)))
+    return nullptr;
+  return std::unique_ptr<T>(t);
+}
+
+template <typename T> bool Array<T>::set(int idx, const T &t) {
+  if (idx >= len_)
+    return false;
+  auto &optr = data_[idx];
+  auto allocator = pool_->get_allocator();
+  if (!optr.null())
+    pool_->free(optr);
+  if (!allocator->alloc_to(sizeof(T), &optr) || !optr.copy_from(&t, sizeof(T)))
+    return false;
+  return true;
+}
+} // namespace midas
