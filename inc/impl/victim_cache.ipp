@@ -25,6 +25,18 @@ inline VictimCache::~VictimCache() {
 inline int64_t VictimCache::size() const noexcept { return size_; }
 inline int64_t VictimCache::count() const noexcept { return cnt_; }
 
+inline bool VictimCache::get(ObjectPtr *optr_addr) noexcept {
+  if (!kEnableVictimCache)
+    return true;
+
+  std::unique_lock<std::mutex> ul(mtx_);
+  auto iter = map_.find(optr_addr);
+  if (iter != map_.cend()) {
+    entries_.splice(entries_.begin(), entries_, iter->second);
+  }
+  return true;
+}
+
 inline bool VictimCache::put(ObjectPtr *optr_addr,
                              void *construct_args) noexcept {
   if (!kEnableVictimCache)

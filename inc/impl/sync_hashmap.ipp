@@ -64,7 +64,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   assert(node);
   if (node->pair.null() || !node->pair.copy_to(&v, sizeof(Tp), sizeof(Key))) {
     if (node->pair.is_victim())
-      pool_->inc_cache_victim_hit();
+      pool_->inc_cache_victim_hit(&node->pair);
     node = delete_node(prev_next, node);
     lock.unlock();
     goto failed;
@@ -253,7 +253,7 @@ SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::iterate_list(
   auto tmp_k = std::launder(reinterpret_cast<Key *>(&k_buf));
   if (node->pair.null() || !node->pair.copy_to(tmp_k, sizeof(Key))) {
     if (node->pair.is_victim())
-      pool_->inc_cache_victim_hit();
+      pool_->inc_cache_victim_hit(&node->pair);
     // prev remains the same when current node is deleted.
     node = delete_node(prev_next, node);
     return false;

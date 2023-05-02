@@ -39,7 +39,7 @@ bool SyncList<Tp, Alloc, Lock>::pop(Tp &v) {
   size_--;
   lock_.unlock();
   if (node->obj.is_victim())
-    pool_->inc_cache_victim_hit();
+    pool_->inc_cache_victim_hit(&node->obj);
   if (node->obj.null() || !node->obj.copy_to(&v, sizeof(Tp))) {
     delete_node(node);
     return false;

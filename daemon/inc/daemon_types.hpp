@@ -87,11 +87,7 @@ public:
 
   static Daemon *get_daemon();
 
-  enum class Policy {
-    Midas,
-    CliffHanger,
-    RobinHood
-  };
+  enum Policy { Static = 0, Midas, CliffHanger, RobinHood, NumPolicy};
 
 private:
   int do_connect(const CtrlMsg &msg);
@@ -124,6 +120,7 @@ private:
   std::condition_variable rbl_cv_;
 
   bool terminated_;
+  Policy policy;
   std::shared_ptr<std::thread> monitor_;
   std::shared_ptr<std::thread> profiler_;
   std::shared_ptr<std::thread> rebalancer_;
@@ -140,6 +137,7 @@ private:
   constexpr static uint64_t kInitRegions = (100ull << 20) / kRegionSize;// 100MB
   constexpr static uint64_t kMaxRegions = (100ull << 30) / kRegionSize; // 100GB
   constexpr static char kDaemonCfgFile[] = "config/mem.config";
+  constexpr static char kPolicyCfgFile[] = "config/policy.config";
 
   friend class Client;
 };

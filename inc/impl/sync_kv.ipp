@@ -655,7 +655,7 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
       if (plug)
         plug->vhits++;
       else
-        pool_->inc_cache_victim_hit();
+        pool_->inc_cache_victim_hit(&node->pair);
     }
     node = delete_node(prev_next, node);
     lock.unlock();
@@ -790,7 +790,7 @@ faulted:
   if (stored_k)
     free(stored_k);
   if (node->pair.is_victim())
-    pool_->inc_cache_victim_hit();
+    pool_->inc_cache_victim_hit(&node->pair);
   // prev remains the same when current node is deleted.
   node = delete_node(prev_next, node);
   return false;

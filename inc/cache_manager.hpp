@@ -65,7 +65,7 @@ public:
   // Profiling
   void inc_cache_hit() noexcept;
   void inc_cache_miss() noexcept;
-  void inc_cache_victim_hit() noexcept;
+  void inc_cache_victim_hit(ObjectPtr *optr_addr = nullptr) noexcept; // TODO: check all callsites
   void record_miss_penalty(uint64_t cycles, uint64_t bytes) noexcept;
   void profile_stats(StatsMsg *msg = nullptr) noexcept;
 

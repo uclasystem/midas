@@ -33,6 +33,7 @@ public:
               int64_t cnt_limit = std::numeric_limits<int64_t>::max());
   ~VictimCache();
 
+  bool get(ObjectPtr *optr_addr) noexcept;
   bool put(ObjectPtr *optr_addr, void *construct_args) noexcept;
   bool remove(ObjectPtr *optr_addr) noexcept;
 

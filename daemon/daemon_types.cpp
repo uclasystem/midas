@@ -17,7 +17,7 @@
 namespace midas {
 /** Global control flags */
 constexpr static bool kEnableDynamicRebalance = true;
-constexpr static Daemon::Policy policy = Daemon::Policy::Midas;
+constexpr static Daemon::Policy kDefaultPolicy = Daemon::Policy::Midas;
 // WARNING: two flags below should always be enabled to adapt clients' memory
 // usage to the amount of server's idle memory
 constexpr static bool kEnableProfiler = true;
@@ -225,8 +225,8 @@ Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
     : cfg_file_(cfg_file), ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
       ctrlq_(ctrlq_name_, true, kDaemonQDepth, kMaxMsgSize), region_cnt_(0),
       region_limit_(kMaxRegions), terminated_(false),
-      status_(MemStatus::NORMAL), monitor_(nullptr), profiler_(nullptr),
-      rebalancer_(nullptr) {
+      status_(MemStatus::NORMAL), policy(kDefaultPolicy), monitor_(nullptr),
+      profiler_(nullptr), rebalancer_(nullptr) {
   monitor_ = std::make_shared<std::thread>([&] { monitor(); });
   if (kEnableProfiler)
     profiler_ = std::make_shared<std::thread>([&] { profiler(); });
@@ -399,15 +399,15 @@ void Daemon::uncharge(int64_t nr_regions) {
 
 void Daemon::monitor() {
   while (!terminated_) {
-    std::ifstream cfg(cfg_file_);
-    if (!cfg.is_open()) {
+    // monitor & update mem limit
+    std::ifstream mem_cfg(cfg_file_);
+    if (!mem_cfg.is_open()) {
       MIDAS_LOG(kError) << "open " << cfg_file_ << " failed!";
       return;
     }
-
     uint64_t upd_mem_limit;
-    cfg >> upd_mem_limit;
-    cfg.close();
+    mem_cfg >> upd_mem_limit;
+    mem_cfg.close();
     uint64_t upd_region_limit = upd_mem_limit / kRegionSize;
     if (region_limit_ != upd_region_limit) {
       MIDAS_LOG(kError) << region_limit_ << " != " << upd_region_limit;
@@ -417,6 +417,17 @@ void Daemon::monitor() {
         status_ = MemStatus::NEED_SHRINK;
         rbl_cv_.notify_one();
       }
+    }
+
+    // monitor & update policy
+    std::ifstream policy_cfg(kPolicyCfgFile);
+    int new_policy;
+    policy_cfg >> new_policy;
+    policy_cfg.close();
+    if (new_policy >= Policy::Static && new_policy < Policy::NumPolicy &&
+        new_policy != policy) {
+      MIDAS_LOG(kError) << "Policy changed " << policy << " -> " << new_policy;
+      policy = static_cast<Policy>(new_policy);
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(kMonitorInteral));
@@ -487,7 +498,9 @@ void Daemon::rebalancer() {
       on_mem_expand();
       break;
     case MemStatus::NEED_REBALANCE:
-      if (policy == Policy::Midas)
+      if (policy == Policy::Static) {
+        /* do nothing */
+      } else if (policy == Policy::Midas)
         on_mem_rebalance();
       else if (policy == Policy::CliffHanger)
         on_mem_rebalance_cliffhanger();
@@ -554,6 +567,8 @@ void Daemon::on_mem_shrink() {
 }
 
 void Daemon::on_mem_expand() {
+  if (policy == Policy::Static)
+    return;
   bool expanded = false;
   int64_t nr_to_grant = region_limit_ - region_cnt_;
   if (nr_to_grant <= 0)

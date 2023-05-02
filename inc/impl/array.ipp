@@ -42,7 +42,7 @@ faulted:
   if (t)
     ::operator delete(t);
   if (optr.is_victim())
-    pool_->inc_cache_victim_hit();
+    pool_->inc_cache_victim_hit(&optr);
 missed:
   pool_->inc_cache_miss();
   return nullptr;
