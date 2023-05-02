@@ -279,7 +279,9 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             alive_bytes += obj_size;
           } else {
             auto rref = reinterpret_cast<ObjectPtr *>(obj_ptr.get_rref());
-            assert(rref);
+            // assert(rref);
+            if (!rref)
+              MIDAS_LOG(kError) << "null rref detected";
             if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
               goto faulted;
             if (rref && !rref->is_victim()) {
@@ -311,7 +313,9 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
               alive_bytes += obj_size;
             } else {
               auto rref = reinterpret_cast<ObjectPtr *>(obj_ptr.get_rref());
-              assert(rref);
+              // assert(rref);
+              if (!rref)
+                MIDAS_LOG(kError) << "null rref detected";
               // This will free all segments belonging to the same object
               if (obj_ptr.free(/* locked = */ true) == RetCode::Fault) {
                 MIDAS_LOG(kWarning);
