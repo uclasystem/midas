@@ -1,7 +1,9 @@
+#include <chrono>
 #include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <random>
+#include <thread>
 
 #include "server.hpp"
 // [Midas]
@@ -24,7 +26,7 @@ Server::Server()
   auto cmanager = midas::CacheManager::global_cache_manager();
   assert(cmanager->create_pool("page-cache"));
   pool_ = cmanager->get_pool("page-cache");
-  pool_->update_limit(160 * 1000ll * 1024 * 1024);
+  pool_->update_limit(5ll * 1024 * 1024 * 1024);
   page_cache_ = std::make_unique<midas::Array<Page>>(pool_, kNumPages);
 
   for (int i = 0; i < kNumThds; i++) {
@@ -55,14 +57,8 @@ bool Server::read(size_t page_idx) {
   if (!cached) {
     std::unique_lock<std::mutex> ul(disk_mtx_);
     auto stt = midas::Time::get_cycles_stt();
-    Page page;
-    // disk_file_.seekg(0); // reset the pointer
-    disk_file_.seekg(page_idx * kPageSize, std::ios::beg);
-    disk_file_.read(page, sizeof(Page));
-    int num_read = disk_file_.gcount();
-    assert(num_read == sizeof(Page));
+    construct(page_idx);
     ul.unlock();
-    bool succ = page_cache_->set(page_idx, page);
     auto end = midas::Time::get_cycles_end();
     pool_->record_miss_penalty(end - stt, sizeof(Page));
   }
@@ -117,8 +113,11 @@ int main(int argc, char *argv[]) {
   storage::Server server;
   server.warmup();
   midas::Perf perf(server);
-  perf.run(storage::kNumThds, 1000, 10ull * midas::to_us, 5ull * midas::to_us,
-           100ull * midas::to_us);
+  auto target_kops = 500;
+  auto duration_us = 1000ull * midas::to_us;
+  auto warmup_us = 1ull * midas::to_us;
+  auto miss_ddl = 10ull * midas::to_us;
+  perf.run(storage::kNumThds, target_kops, duration_us, warmup_us, miss_ddl);
   std::cout << "Real Tput: " << perf.get_real_kops() << " Kops" << std::endl;
   std::cout << "P99 Latency: " << perf.get_nth_lat(99) << " us" << std::endl;
   return 0;
