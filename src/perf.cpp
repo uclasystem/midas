@@ -146,8 +146,11 @@ void Perf::run(uint32_t num_threads, double target_kops, uint64_t duration_us,
                uint64_t warmup_us, uint64_t miss_ddl_thresh_us) {
   std::vector<PerfRequestWithTime> all_warmup_reqs[num_threads];
   std::vector<PerfRequestWithTime> all_perf_reqs[num_threads];
+  MIDAS_LOG(kInfo) << "Start generating requests...";
   gen_reqs(all_warmup_reqs, num_threads, target_kops, warmup_us);
+  MIDAS_LOG(kInfo) << "Finish generating warmup requests...";
   gen_reqs(all_perf_reqs, num_threads, target_kops, duration_us);
+  MIDAS_LOG(kInfo) << "Finish generating perf requests...";
   benchmark(all_warmup_reqs, num_threads, miss_ddl_thresh_us);
 
   bool stop = false;
