@@ -284,7 +284,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
               goto faulted;
             if (rref && !rref->is_victim()) {
               auto vcache = pool_->get_vcache();
-              vcache->push_back(obj_ptr.get_rref(), nullptr);
+              vcache->put(obj_ptr.get_rref(), nullptr);
             }
             nr_freed++;
           }
@@ -322,7 +322,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
               }
               if (rref && !rref->is_victim()) {
                 auto vcache = pool_->get_vcache();
-                vcache->push_back(obj_ptr.get_rref(), nullptr);
+                vcache->put(obj_ptr.get_rref(), nullptr);
               }
 
               nr_freed++;

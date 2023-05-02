@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
       for (int j = 0; j < kNumEntries; j++) {
         auto optr = new midas::ObjectPtr();
         optrs[tid].push_back(optr);
-        vc.push_back(optr, nullptr);
+        vc.put(optr, nullptr);
       }
     });
   }
