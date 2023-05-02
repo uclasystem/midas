@@ -24,7 +24,7 @@ constexpr static char kDiskPath[] = "fake_disk.bin";
 
 using Page = char[kPageSize];
 
-struct PgReq : midas::PerfRequest {
+struct PgReq : public midas::PerfRequest {
   int tid;
   enum { READ, WRITE } op;
   int pg_idx;
@@ -42,7 +42,7 @@ public:
 
   void warmup();
   std::unique_ptr<midas::PerfRequest> gen_req(int tid) override;
-  bool serve_req(int tid, const midas::PerfRequest *img_req) override;
+  bool serve_req(int tid, const midas::PerfRequest *req) override;
 
 private:
   midas::CachePool *pool_;

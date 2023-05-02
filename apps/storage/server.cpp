@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
   server.warmup();
   midas::Perf perf(server);
   auto target_kops = 500;
-  auto duration_us = 1000ull * midas::to_us;
+  auto duration_us = 10000ull * midas::to_us;
   auto warmup_us = 1ull * midas::to_us;
   auto miss_ddl = 10ull * midas::to_us;
   perf.run(storage::kNumThds, target_kops, duration_us, warmup_us, miss_ddl);
