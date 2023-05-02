@@ -18,8 +18,8 @@ inline VictimCache::VictimCache(int64_t size_limit, int64_t cnt_limit)
 
 inline VictimCache::~VictimCache() {
   std::unique_lock<std::mutex> ul(mtx_);
-  while (count() > 0)
-    pop_back_locked();
+  map_.clear();
+  entries_.clear();
 }
 
 inline int64_t VictimCache::size() const noexcept { return size_; }
