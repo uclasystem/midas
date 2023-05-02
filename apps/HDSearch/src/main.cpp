@@ -40,17 +40,27 @@ void get_timeseries_nth_lats(midas::Perf &perf, double nth) {
   nth_file.close();
 }
 
-int phase_workload(int argc, char *argv[]) {
-  if (argc <= 1) {
-    std::cout << "Usage: ./" << argv[0] << " <cache ratio>" << std::endl;
-    exit(-1);
-  }
-  cache_ratio = std::stof(argv[1]);
-  midas::CacheManager::global_cache_manager()->create_pool(cachepool_name);
-  auto pool =
-      midas::CacheManager::global_cache_manager()->get_pool(cachepool_name);
-  pool->update_limit(cache_size * cache_ratio);
+int const_workload(int argc, char *argv[]) {
+  FeatExtractor client;
+  client.warmup();
 
+  midas::Perf perf(client);
+  auto target_kops = 100;
+  auto duration_us = 10000 * midas::to_us;
+  auto warmup_us = 100 * midas::to_us;
+  auto miss_ddl = 10 * midas::to_us;
+  perf.run(kNrThd, target_kops, duration_us, warmup_us, miss_ddl);
+  auto real_kops = perf.get_real_kops();
+  std::cout << real_kops << std::endl;
+  std::cout << perf.get_nth_lat(50) << " " << perf.get_nth_lat(99) << " "
+            << perf.get_nth_lat(99.9) << std::endl;
+  get_timeseries_nth_lats(perf, 99);
+  get_timeseries_nth_lats(perf, 99.9);
+
+  return 0;
+}
+
+int phase_workload(int argc, char *argv[]) {
   FeatExtractor client;
   client.warmup();
 
@@ -79,16 +89,6 @@ int phase_workload(int argc, char *argv[]) {
 }
 
 int stepped_workload(int argc, char *argv[]) {
-  if (argc <= 1) {
-    std::cout << "Usage: ./" << argv[0] << " <cache ratio>" << std::endl;
-    exit(-1);
-  }
-  cache_ratio = std::stof(argv[1]);
-  midas::CacheManager::global_cache_manager()->create_pool(cachepool_name);
-  auto pool =
-      midas::CacheManager::global_cache_manager()->get_pool(cachepool_name);
-  pool->update_limit(cache_size * cache_ratio);
-
   FeatExtractor client;
   client.warmup();
 
@@ -119,6 +119,18 @@ int stepped_workload(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-  return phase_workload(argc, argv);
+  if (argc <= 1) {
+    std::cout << "Usage: ./" << argv[0] << " <cache ratio>" << std::endl;
+    exit(-1);
+  }
+  cache_ratio = std::stof(argv[1]);
+  midas::CacheManager::global_cache_manager()->create_pool(cachepool_name);
+  auto pool =
+      midas::CacheManager::global_cache_manager()->get_pool(cachepool_name);
+  // pool->update_limit(cache_size * cache_ratio);
+  pool->update_limit(5ll * 1024 * 1024 * 1024); // GB
+
+  return const_workload(argc, argv);
+  // return phase_workload(argc, argv);
   // return stepped_workload(argc, argv);
 }
