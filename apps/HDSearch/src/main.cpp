@@ -47,7 +47,7 @@ int const_workload(int argc, char *argv[]) {
   midas::Perf perf(client);
   auto target_kops = 100;
   auto duration_us = 10000 * midas::to_us;
-  auto warmup_us = 100 * midas::to_us;
+  auto warmup_us = 10 * midas::to_us;
   auto miss_ddl = 10 * midas::to_us;
   perf.run(kNrThd, target_kops, duration_us, warmup_us, miss_ddl);
   auto real_kops = perf.get_real_kops();
