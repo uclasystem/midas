@@ -47,7 +47,7 @@ inline bool VictimCache::put(ObjectPtr *optr_addr,
   if (iter != map_.cend()) {
     auto entry = iter->second;
     size_ -= entry->size;
-    MIDAS_LOG(kError) << "Replace an existing optr in victim cache "
+    MIDAS_LOG(kDebug) << "Replace an existing optr in victim cache "
                       << optr_addr << ", prev size " << entry->size
                       << ", curr size " << optr_addr->data_size_in_segment();
     entry->reset(optr_addr, construct_args);
