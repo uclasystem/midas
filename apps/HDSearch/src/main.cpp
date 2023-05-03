@@ -44,18 +44,20 @@ int const_workload(int argc, char *argv[]) {
   FeatExtractor client;
   client.warmup();
 
-  midas::Perf perf(client);
-  auto target_kops = 100;
-  auto duration_us = 10000 * midas::to_us;
-  auto warmup_us = 10 * midas::to_us;
-  auto miss_ddl = 10 * midas::to_us;
-  perf.run(kNrThd, target_kops, duration_us, warmup_us, miss_ddl);
-  auto real_kops = perf.get_real_kops();
-  std::cout << real_kops << std::endl;
-  std::cout << perf.get_nth_lat(50) << " " << perf.get_nth_lat(99) << " "
-            << perf.get_nth_lat(99.9) << std::endl;
-  get_timeseries_nth_lats(perf, 99);
-  get_timeseries_nth_lats(perf, 99.9);
+  for (int i = 0; i < 10; i++) {
+    midas::Perf perf(client);
+    auto target_kops = 20;
+    auto duration_us = 10000 * midas::to_us;
+    auto warmup_us = 10 * midas::to_us;
+    auto miss_ddl = 10 * midas::to_us;
+    perf.run(kNrThd, target_kops, duration_us, warmup_us, miss_ddl);
+    auto real_kops = perf.get_real_kops();
+    std::cout << real_kops << std::endl;
+    std::cout << perf.get_nth_lat(50) << " " << perf.get_nth_lat(99) << " "
+              << perf.get_nth_lat(99.9) << std::endl;
+    get_timeseries_nth_lats(perf, 99);
+    get_timeseries_nth_lats(perf, 99.9);
+  }
 
   return 0;
 }
