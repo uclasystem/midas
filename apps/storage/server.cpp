@@ -112,13 +112,15 @@ bool Server::serve_req(int tid, const midas::PerfRequest *req_) {
 int main(int argc, char *argv[]) {
   storage::Server server;
   server.warmup();
-  midas::Perf perf(server);
-  auto target_kops = 500;
-  auto duration_us = 10000ull * midas::to_us;
-  auto warmup_us = 1ull * midas::to_us;
-  auto miss_ddl = 10ull * midas::to_us;
-  perf.run(storage::kNumThds, target_kops, duration_us, warmup_us, miss_ddl);
-  std::cout << "Real Tput: " << perf.get_real_kops() << " Kops" << std::endl;
-  std::cout << "P99 Latency: " << perf.get_nth_lat(99) << " us" << std::endl;
+  for (int i = 0; i < 100; i++) {
+    midas::Perf perf(server);
+    auto target_kops = 300;
+    auto duration_us = 500ull * midas::to_us;
+    auto warmup_us = 0ull * midas::to_us;
+    auto miss_ddl = 10ull * midas::to_us;
+    perf.run(storage::kNumThds, target_kops, duration_us, warmup_us, miss_ddl);
+    std::cout << "Real Tput: " << perf.get_real_kops() << " Kops" << std::endl;
+    std::cout << "P99 Latency: " << perf.get_nth_lat(99) << " us" << std::endl;
+  }
   return 0;
 }
