@@ -41,9 +41,9 @@ template <typename T> std::unique_ptr<T> Array<T>::get(int idx) {
 faulted:
   if (t)
     ::operator delete(t);
+missed:
   if (optr.is_victim())
     pool_->inc_cache_victim_hit(&optr);
-missed:
   pool_->inc_cache_miss();
   return nullptr;
 }
