@@ -50,7 +50,8 @@ ResourceManager::ResourceManager(CachePool *cpool,
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
                                       true)),
-      rxqp_(std::to_string(id_), true), stop_(false), nr_pending(0) {
+      rxqp_(std::to_string(id_), true), stop_(false), nr_pending(0),
+      alloc_tput_stats_() {
   handler_thd_ = std::make_shared<std::thread>([&]() { pressure_handler(); });
   if (!cpool_)
     cpool_ = CachePool::global_cache_pool();
@@ -187,7 +188,27 @@ void ResourceManager::do_force_reclaim(CtrlMsg &msg) {
 void ResourceManager::do_profile_stats(CtrlMsg &msg) {
   StatsMsg stats{0};
   cpool_->profile_stats(&stats);
+  int32_t headroom = std::min<int32_t>(
+      768, std::max<int32_t>(1, std::max(region_limit_ * 0.1,
+                                         alloc_tput_stats_.alloc_tput * 0.2)));
+  // MIDAS_LOG(kError) << "headroom: " << headroom;
+  stats.headroom = headroom;
   rxqp_.send(&stats, sizeof(stats));
+
+  auto time = Time::get_us();
+  if (alloc_tput_stats_.prev_time == 0) { // init
+    alloc_tput_stats_.prev_time = time;
+    alloc_tput_stats_.prev_alloced = alloc_tput_stats_.nr_alloced;
+  } else {
+    auto dur = time - alloc_tput_stats_.prev_time;
+    auto alloc_tput =
+        (alloc_tput_stats_.nr_alloced - alloc_tput_stats_.prev_alloced) * 1e6 /
+        dur;
+    alloc_tput_stats_.alloc_tput = alloc_tput;
+    alloc_tput_stats_.prev_time = time;
+    alloc_tput_stats_.prev_alloced = alloc_tput_stats_.nr_alloced;
+    MIDAS_LOG(kInfo) << "Allocation Tput: " << alloc_tput;
+  }
 }
 
 void ResourceManager::do_disconnect(CtrlMsg &msg) {
@@ -281,6 +302,7 @@ retry:
     freelist_.pop_back();
     int64_t region_id = region->ID();
     region_map_[region_id] = region;
+    alloc_tput_stats_.nr_alloced++;
     return region_id;
   }
   // 2) Local alloc path. Do reclamation and try local allocation again
@@ -316,6 +338,7 @@ retry:
 
   MIDAS_LOG(kDebug) << "Allocated region: " << region->Addr() << " ["
                     << region->Size() << "]";
+  alloc_tput_stats_.nr_alloced++;
   return region_id;
 }
 

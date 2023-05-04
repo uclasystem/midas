@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
@@ -64,8 +65,8 @@ public:
   uint64_t NumRegionLimit() const noexcept;
   int64_t NumRegionAvail() const noexcept;
 
-  bool reclaim_trigger() const noexcept;
-  int64_t reclaim_target() const noexcept;
+  bool reclaim_trigger() noexcept;
+  int64_t reclaim_target() noexcept;
 
   static std::shared_ptr<ResourceManager> global_manager_shared_ptr() noexcept;
   static ResourceManager *global_manager() noexcept;
@@ -86,18 +87,30 @@ private:
 
   CachePool *cpool_;
 
+  // inter-process comm
   uint64_t id_;
   std::mutex mtx_;
   std::condition_variable cv_;
   QPair txqp_;
   QPair rxqp_;
 
+  // regions
   uint64_t region_limit_;
   std::map<int64_t, std::shared_ptr<Region>> region_map_;
   std::list<std::shared_ptr<Region>> freelist_;
 
   std::shared_ptr<std::thread> handler_thd_;
   bool stop_;
+
+  // stats
+  struct AllocTputStats {
+    std::atomic_int_fast64_t nr_alloced{0};
+    uint64_t prev_time{0};
+    int64_t prev_alloced{0};
+    float alloc_tput{0};
+    float reclaim_tput{0};
+    int32_t headroom{0};
+  } alloc_tput_stats_;
 };
 
 } // namespace midas

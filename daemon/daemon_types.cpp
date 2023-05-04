@@ -210,6 +210,7 @@ bool Client::profile_stats() {
       stats.penalty * KProfWDecay + statsmsg.miss_penalty * (1 - KProfWDecay);
   stats.vhits = stats.vhits * KProfWDecay + statsmsg.vhits * (1 - KProfWDecay);
   stats.perf_gain = weight_ * stats.penalty * stats.vhits;
+  stats.headroom = std::max<int32_t>(1, statsmsg.headroom);
   return true;
 }
 
@@ -587,7 +588,7 @@ void Daemon::on_mem_expand() {
   double total_gain = 0.0;
   for (auto client : active_clients) {
     auto thresh = std::max<int64_t>(client->region_limit_ * kFullFactor,
-                                    client->region_limit_ - kMaxExpandThresh);
+                                    client->region_limit_ - 768);
     if (client->region_cnt_ < thresh)
       continue;
     total_gain += client->stats.perf_gain;
@@ -595,8 +596,9 @@ void Daemon::on_mem_expand() {
   if (total_gain < kPerfZeroThresh)
     return;
   for (auto client : active_clients) {
-    auto thresh = std::max<int64_t>(client->region_limit_ * kFullFactor,
-                                    client->region_limit_ - kMaxExpandThresh);
+    auto thresh =
+        std::max<int64_t>(client->region_limit_ * kFullFactor,
+                          client->region_limit_ - client->stats.headroom);
     if (client->region_cnt_ < thresh)
       continue;
     auto gain = client->stats.perf_gain;

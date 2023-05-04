@@ -44,7 +44,9 @@ struct StatsMsg {
   uint64_t misses;
   double miss_penalty;
   // victim cache stats
-  uint64_t vhits;
+  uint32_t vhits;
+  // full threshold
+  uint32_t headroom;
 };
 static_assert(sizeof(CtrlMsg) == sizeof(StatsMsg),
               "CtrlMsg and StatsMsg have different size!");

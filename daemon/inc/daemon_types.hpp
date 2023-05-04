@@ -34,6 +34,7 @@ struct CacheStats {
   uint64_t vhits{0};
   uint64_t vcache_size{0};
   double perf_gain{0.};
+  int32_t headroom{0};
 };
 
 class Daemon;
