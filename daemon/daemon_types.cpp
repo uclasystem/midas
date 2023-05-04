@@ -626,7 +626,7 @@ void Daemon::on_mem_expand() {
 }
 
 void Daemon::on_mem_rebalance() {
-  constexpr static int kNumRepeats = 3;
+  constexpr static int kNumRepeats = 1;
   constexpr static uint64_t kMaxDemand = 128;
   constexpr static uint64_t kMaxReclaim = 64;
   if (!kEnableDynamicRebalance)
@@ -667,7 +667,9 @@ void Daemon::on_mem_rebalance() {
     // mild reclaim: only reclaim idle memory
     for (int i = 0; i < kNumRepeats; i++) {
       for (auto victim : victims) {
-        auto avail = victim->region_limit_ - victim->region_cnt_;
+        int64_t avail = victim->region_limit_ - victim->region_cnt_;
+        if (avail < 0)
+          continue;
         auto reclaim = std::min<int64_t>(avail * 0.5, kMaxReclaim);
         if (reclaim > 0) {
           bool succ = victim->update_limit(victim->region_limit_ - reclaim);
