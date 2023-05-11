@@ -83,7 +83,9 @@ void Requestor::Perf(double target_kops) {
   auto real_kops =
       static_cast<double>(traces_.size()) * 1000 / real_duration_us;
   std::cout << traces_.size() << std::endl;
-  std::cout << "Target Tput: " << static_cast<double>(kExperimentReqs) * 1000 / real_duration_us << " KOps" << std::endl;
+  std::cout << "Target Tput: "
+            << static_cast<double>(kExperimentReqs) * 1000 / real_duration_us
+            << " KOps" << std::endl;
   std::cout << "Real Tput: " << real_kops << " KOps" << std::endl;
 }
 
@@ -106,7 +108,6 @@ bool Requestor::init_timer() {
 }
 
 inline uint64_t Requestor::microtime() { return rdtscp() / CPU_FREQ; }
-
 
 std::vector<Trace>
 Requestor::benchmark(std::vector<PerfReqWithTime> all_reqs[kNumPerfThds]) {
