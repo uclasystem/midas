@@ -7,8 +7,8 @@
 
 #include "server.hpp"
 // [Midas]
-#include "zipf.hpp"
 #include "perf.hpp"
+#include "zipf.hpp"
 
 namespace storage {
 Server::Server()
