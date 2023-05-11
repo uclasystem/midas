@@ -43,21 +43,21 @@ void *SyncKV<NBuckets, Alloc, Lock>::get(const void *k, size_t kn, size_t *vn) {
 template <size_t NBuckets, typename Alloc, typename Lock>
 kv_types::Value SyncKV<NBuckets, Alloc, Lock>::get(const kv_types::Key &k) {
   size_t vn = 0;
-  auto v = get(k.data, k.size, vn);
+  auto v = get(k.data, k.size, &vn);
   return kv_utils::make_value(v, vn);
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K>
-kv_types::Value SyncKV<NBuckets, Alloc, Lock>::get(const K &&k) {
+kv_types::Value SyncKV<NBuckets, Alloc, Lock>::get(const K &k) {
   return get(kv_utils::make_key(&k, sizeof(K)));
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K, typename V>
-std::unique_ptr<V> SyncKV<NBuckets, Alloc, Lock>::get(const K &&k) {
+std::unique_ptr<V> SyncKV<NBuckets, Alloc, Lock>::get(const K &k) {
   auto [raw_v, vn] = get(k);
-  auto v = std::unique_ptr<V>(raw_v);
+  auto v = std::unique_ptr<V>(reinterpret_cast<V *>(raw_v));
   if (vn != sizeof(V))
     return nullptr; // this will free raw_v as well if it was allocated
   return std::move(v);
@@ -112,7 +112,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::remove(const kv_types::Key &k) {
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K>
-bool SyncKV<NBuckets, Alloc, Lock>::remove(const K &&k) {
+bool SyncKV<NBuckets, Alloc, Lock>::remove(const K &k) {
   return remove(&k, sizeof(K));
 }
 
@@ -233,14 +233,14 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const kv_types::Key &k,
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K>
-bool SyncKV<NBuckets, Alloc, Lock>::set(const K &&k,
+bool SyncKV<NBuckets, Alloc, Lock>::set(const K &k,
                                         const kv_types::CValue &v) {
   return set(&k, sizeof(K), v.data, v.size);
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K, typename V>
-bool SyncKV<NBuckets, Alloc, Lock>::set(const K &&k, const V &v) {
+bool SyncKV<NBuckets, Alloc, Lock>::set(const K &k, const V &v) {
   return set(&k, sizeof(K), &v, sizeof(V));
 }
 
@@ -600,7 +600,7 @@ SyncKV<NBuckets, Alloc, Lock>::bget_single(const kv_types::Key &key,
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K>
 kv_types::Value
-SyncKV<NBuckets, Alloc, Lock>::bget_single(const K &&key,
+SyncKV<NBuckets, Alloc, Lock>::bget_single(const K &key,
                                            kv_types::BatchPlug &plug) {
   size_t vn = 0;
   auto v = get_(&key, sizeof(K), nullptr, &vn, &plug, false);
@@ -610,7 +610,7 @@ SyncKV<NBuckets, Alloc, Lock>::bget_single(const K &&key,
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K, typename V>
 std::unique_ptr<V>
-SyncKV<NBuckets, Alloc, Lock>::bget_single(const K &&k,
+SyncKV<NBuckets, Alloc, Lock>::bget_single(const K &k,
                                            kv_types::BatchPlug &plug) {
   size_t vn = 0;
   auto v = std::unique_ptr<V>(get_(&k, sizeof(K), nullptr, &vn, &plug, false));

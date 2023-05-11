@@ -81,18 +81,18 @@ public:
   /** Basic Interfaces */
   void *get(const void *key, size_t klen, size_t *vlen);
   kv_types::Value get(const kv_types::Key &key);
-  template <typename K> kv_types::Value get(const K &&k);
-  template <typename K, typename V> std::unique_ptr<V> get(const K &&k);
+  template <typename K> kv_types::Value get(const K &k);
+  template <typename K, typename V> std::unique_ptr<V> get(const K &k);
   bool get(const void *key, size_t klen, void *value, size_t vlen);
 
   bool set(const void *key, size_t klen, const void *value, size_t vlen);
   bool set(const kv_types::Key &key, const kv_types::CValue &value);
-  template <typename K> bool set(const K &&k, const kv_types::CValue &value);
-  template <typename K, typename V> bool set(const K &&k, const V &v);
+  template <typename K> bool set(const K &k, const kv_types::CValue &value);
+  template <typename K, typename V> bool set(const K &k, const V &v);
 
   bool remove(const void *key, size_t klen);
   bool remove(const kv_types::Key &key);
-  template <typename K> bool remove(const K &&k);
+  template <typename K> bool remove(const K &k);
 
   /* V should be addable such as [u]int[_64_t]. */
   template <typename V>
@@ -147,9 +147,9 @@ public:
   kv_types::Value bget_single(const kv_types::Key &key,
                               kv_types::BatchPlug &plug);
   template <typename K>
-  kv_types::Value bget_single(const K &&k, kv_types::BatchPlug &plug);
+  kv_types::Value bget_single(const K &k, kv_types::BatchPlug &plug);
   template <typename K, typename V>
-  std::unique_ptr<V> bget_single(const K &&k, kv_types::BatchPlug &plug);
+  std::unique_ptr<V> bget_single(const K &k, kv_types::BatchPlug &plug);
 
 private:
   struct BucketNode {
