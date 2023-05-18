@@ -45,8 +45,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
   auto key_hash = hasher(k);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   auto prev_next = &buckets_[bucket_idx];
   BNPtr node = buckets_[bucket_idx];
@@ -57,7 +56,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
       break;
   }
   if (!found) {
-    lock.unlock();
+    ul.unlock();
     pool_->inc_cache_miss();
     goto failed;
   }
@@ -66,10 +65,10 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::get(K1 &&k,
     if (node->pair.is_victim())
       pool_->inc_cache_victim_hit(&node->pair);
     node = delete_node(prev_next, node);
-    lock.unlock();
+    ul.unlock();
     goto failed;
   }
-  lock.unlock();
+  ul.unlock();
   pool_->inc_cache_hit();
   LogAllocator::count_access();
   return true;
@@ -98,8 +97,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
   auto key_hash = hasher(k);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   auto prev_next = &buckets_[bucket_idx];
   BNPtr node = buckets_[bucket_idx];
@@ -109,13 +107,10 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::remove(K1 &&k) {
     if (found)
       break;
   }
-  if (!found) {
-    lock.unlock();
+  if (!found)
     return false;
-  }
   assert(node);
   delete_node(prev_next, node);
-  lock.unlock();
   /* should not count access for remove() */
   // LogAllocator::count_access();
   return true;
@@ -130,8 +125,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
   auto key_hash = hasher(k);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   auto prev_next = &buckets_[bucket_idx];
   auto node = buckets_[bucket_idx];
@@ -143,7 +137,7 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
       // try to set in place
       if (!node->pair.null() &&
           node->pair.copy_from(&v, sizeof(Tp1), sizeof(Key))) {
-        lock.unlock();
+        ul.unlock();
         LogAllocator::count_access();
         return true;
       } else {
@@ -154,12 +148,10 @@ bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::set(
   }
 
   auto new_node = create_node(key_hash, k, v);
-  if (!new_node) {
-    lock.unlock();
+  if (!new_node)
     return false;
-  }
   *prev_next = new_node;
-  lock.unlock();
+  ul.unlock();
   LogAllocator::count_access();
   return true;
 }
@@ -168,13 +160,11 @@ template <size_t NBuckets, typename Key, typename Tp, typename Hash,
           typename Pred, typename Alloc, typename Lock>
 bool SyncHashMap<NBuckets, Key, Tp, Hash, Pred, Alloc, Lock>::clear() {
   for (int idx = 0; idx < NBuckets; idx++) {
-    auto &lock = locks_[idx];
-    lock.lock();
+    auto ul = std::unique_lock(locks_[idx]);
     auto prev_next = &buckets_[idx];
     auto node = buckets_[idx];
     while (node)
       node = delete_node(prev_next, node);
-    lock.unlock();
   }
   return true;
 }
