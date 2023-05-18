@@ -116,10 +116,10 @@ bool SyncKV<NBuckets, Alloc, Lock>::remove(const K &k) {
   return remove(&k, sizeof(K));
 }
 
-// Only support int
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename V>
-bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset, V* value) {
+bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset,
+                                        V *value) {
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
@@ -142,7 +142,8 @@ bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset, V* v
   }
   assert(node);
 
-  if (stored_vn != sizeof(V) || node->pair.null() || !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn))) {
+  if (stored_vn != sizeof(V) || node->pair.null() ||
+      !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn))) {
     lock.unlock();
     return false;
   }
@@ -158,7 +159,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset, V* v
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 int SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
-                                        size_t vn) {
+                                       size_t vn) {
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
@@ -233,8 +234,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const kv_types::Key &k,
 
 template <size_t NBuckets, typename Alloc, typename Lock>
 template <typename K>
-bool SyncKV<NBuckets, Alloc, Lock>::set(const K &k,
-                                        const kv_types::CValue &v) {
+bool SyncKV<NBuckets, Alloc, Lock>::set(const K &k, const kv_types::CValue &v) {
   return set(&k, sizeof(K), v.data, v.size);
 }
 
