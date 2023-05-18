@@ -173,18 +173,18 @@ int SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
     auto found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
     if (found) {
       lock.unlock();
-      return 2;
+      return kv_types::RetCode::Duplicated;
     }
   }
   auto new_node = create_node(key_hash, k, kn, v, vn);
   if (!new_node) {
     lock.unlock();
-    return 0;
+    return kv_types::RetCode::Failed;
   }
   *prev_next = new_node;
   lock.unlock();
   LogAllocator::count_access();
-  return 1;
+  return kv_types::RetCode::Succ;
 }
 
 template <size_t NBuckets, typename Alloc, typename Lock>

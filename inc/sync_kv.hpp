@@ -57,6 +57,8 @@ struct BatchPlug {
 };
 static_assert(sizeof(BatchPlug) <= sizeof(int64_t),
               "BatchPlug is not correctly aligned!");
+
+enum RetCode { Failed = 0, Succ = 1, Duplicated = 2 };
 } // namespace kv_types
 
 namespace kv_utils {
