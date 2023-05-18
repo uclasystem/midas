@@ -82,8 +82,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::remove(const void *k, size_t kn) {
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   auto prev_next = &buckets_[bucket_idx];
   BNPtr node = buckets_[bucket_idx];
@@ -93,13 +92,10 @@ bool SyncKV<NBuckets, Alloc, Lock>::remove(const void *k, size_t kn) {
     if (found)
       break;
   }
-  if (!found) {
-    lock.unlock();
+  if (!found)
     return false;
-  }
   assert(node);
   delete_node(prev_next, node);
-  lock.unlock();
   /* should not count access for remove() */
   // LogAllocator::count_access();
   return true;
@@ -123,8 +119,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset,
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   auto prev_next = &buckets_[bucket_idx];
   BNPtr node = buckets_[bucket_idx];
@@ -136,23 +131,17 @@ bool SyncKV<NBuckets, Alloc, Lock>::inc(const void *k, size_t kn, V offset,
     if (found)
       break;
   }
-  if (!found) {
-    lock.unlock();
+  if (!found)
     return false;
-  }
   assert(node);
 
   if (stored_vn != sizeof(V) || node->pair.null() ||
-      !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn))) {
-    lock.unlock();
+      !node->pair.copy_to(value, sizeof(V), layout::v_offset(kn)))
     return false;
-  }
   *value = *value + offset;
-  if (!node->pair.copy_from(value, sizeof(V), layout::v_offset(kn))) {
-    lock.unlock();
+  if (!node->pair.copy_from(value, sizeof(V), layout::v_offset(kn)))
     return false;
-  }
-  lock.unlock();
+  ul.unlock();
   LogAllocator::count_access();
   return true;
 }
@@ -163,26 +152,21 @@ int SyncKV<NBuckets, Alloc, Lock>::add(const void *k, size_t kn, const void *v,
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   size_t stored_vn = 0;
   auto prev_next = &buckets_[bucket_idx];
   auto node = buckets_[bucket_idx];
   while (node) {
     auto found = iterate_list(key_hash, k, kn, &stored_vn, prev_next, node);
-    if (found) {
-      lock.unlock();
+    if (found)
       return kv_types::RetCode::Duplicated;
-    }
   }
   auto new_node = create_node(key_hash, k, kn, v, vn);
-  if (!new_node) {
-    lock.unlock();
+  if (!new_node)
     return kv_types::RetCode::Failed;
-  }
   *prev_next = new_node;
-  lock.unlock();
+  ul.unlock();
   LogAllocator::count_access();
   return kv_types::RetCode::Succ;
 }
@@ -193,8 +177,7 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   size_t stored_vn = 0;
   auto prev_next = &buckets_[bucket_idx];
@@ -205,7 +188,6 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
       if (vn <= stored_vn && !node->pair.null() && // try to set in place if fit
           node->pair.copy_from(&vn, sizeof(size_t), layout::vlen_offset()) &&
           node->pair.copy_from(v, vn, layout::v_offset(kn))) {
-        lock.unlock();
         LogAllocator::count_access();
         return true;
       } else {
@@ -216,12 +198,10 @@ bool SyncKV<NBuckets, Alloc, Lock>::set(const void *k, size_t kn, const void *v,
   }
 
   auto new_node = create_node(key_hash, k, kn, v, vn);
-  if (!new_node) {
-    lock.unlock();
+  if (!new_node)
     return false;
-  }
   *prev_next = new_node;
-  lock.unlock();
+  ul.unlock();
   LogAllocator::count_access();
   return true;
 }
@@ -630,8 +610,7 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
   auto key_hash = hash_(k, kn);
   auto bucket_idx = key_hash % NBuckets;
 
-  auto &lock = locks_[bucket_idx];
-  lock.lock();
+  auto ul = std::unique_lock(locks_[bucket_idx]);
 
   size_t stored_vn = 0;
   void *stored_v = nullptr;
@@ -644,7 +623,7 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
       break;
   }
   if (!found) {
-    lock.unlock();
+    ul.unlock();
     goto failed;
   }
   assert(node);
@@ -658,14 +637,14 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
         pool_->inc_cache_victim_hit(&node->pair);
     }
     node = delete_node(prev_next, node);
-    lock.unlock();
+    ul.unlock();
     if (!v) { // stored_v is newly allocated
       free(stored_v);
       stored_v = nullptr;
     }
     goto failed;
   }
-  lock.unlock();
+  ul.unlock();
   if (vn)
     *vn = stored_vn;
 
