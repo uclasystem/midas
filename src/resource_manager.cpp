@@ -1,3 +1,4 @@
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -207,7 +208,7 @@ void ResourceManager::do_profile_stats(CtrlMsg &msg) {
     alloc_tput_stats_.alloc_tput = alloc_tput;
     alloc_tput_stats_.prev_time = time;
     alloc_tput_stats_.prev_alloced = alloc_tput_stats_.nr_alloced;
-    MIDAS_LOG(kInfo) << "Allocation Tput: " << alloc_tput;
+    MIDAS_LOG(kDebug) << "Allocation Tput: " << alloc_tput;
   }
 }
 
