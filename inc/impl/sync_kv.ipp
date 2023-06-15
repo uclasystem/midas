@@ -640,8 +640,8 @@ void *SyncKV<NBuckets, Alloc, Lock>::get_(const void *k, size_t kn, void *v,
     ul.unlock();
     if (!v) { // stored_v is newly allocated
       free(stored_v);
-      stored_v = nullptr;
     }
+    stored_v = nullptr; // reset stored_v
     goto failed;
   }
   ul.unlock();
