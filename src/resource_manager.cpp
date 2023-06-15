@@ -51,7 +51,7 @@ ResourceManager::ResourceManager(CachePool *cpool,
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
                                       true)),
-      rxqp_(std::to_string(id_), true), stop_(false), nr_pending(0),
+      rxqp_(std::to_string(id_), true), stop_(false), nr_pending_(0),
       alloc_tput_stats_() {
   handler_thd_ = std::make_shared<std::thread>([&]() { pressure_handler(); });
   if (!cpool_)
@@ -223,7 +223,7 @@ bool ResourceManager::reclaim() {
   if (NumRegionInUse() < NumRegionLimit())
     return true;
 
-  nr_pending++;
+  nr_pending_++;
   cpool_->get_evacuator()->signal_gc();
   for (int rep = 0; rep < kReclaimRepeat; rep++) {
     {
@@ -240,7 +240,7 @@ bool ResourceManager::reclaim() {
     cpool_->get_evacuator()->signal_gc();
   }
 
-  nr_pending--;
+  nr_pending_--;
   return NumRegionAvail() > 0;
 }
 
@@ -248,7 +248,7 @@ bool ResourceManager::force_reclaim() {
   if (NumRegionInUse() < NumRegionLimit())
     return true;
 
-  nr_pending++;
+  nr_pending_++;
   {
     std::unique_lock<std::mutex> ul(mtx_);
     while (!freelist_.empty()) {
@@ -260,7 +260,7 @@ bool ResourceManager::force_reclaim() {
 
   while (NumRegionAvail() <= 0)
     cpool_->get_evacuator()->force_reclaim();
-  nr_pending--;
+  nr_pending_--;
   return NumRegionAvail() > 0;
 }
 

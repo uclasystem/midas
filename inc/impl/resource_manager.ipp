@@ -50,7 +50,7 @@ inline int64_t ResourceManager::reclaim_target() noexcept {
   if (nr_limit <= 1)
     return 0;
   float avail_ratio = nr_limit ? (static_cast<float>(nr_avail) / nr_limit) : 0.;
-  int64_t nr_to_reclaim = nr_pending;
+  int64_t nr_to_reclaim = nr_pending_;
   // if (avail_ratio < 0.1 || nr_avail <= 512)
   // if ((nr_limit < 5120 && nr_avail <= 512) || (nr_avail <= 768)) // wiredtiger config
   // if (avail_ratio < 0.01 || nr_avail <= 1)
