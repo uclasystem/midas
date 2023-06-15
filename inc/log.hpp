@@ -113,6 +113,16 @@ private:
   /** Thread-local variables */
   // Per Core Allocation Buffer
   // YIFAN: currently implemented as thread local buffers
+  /** FIXME (YIFAN): This is unsafe!!
+   *    pcab is a shared pointer and it could be destructed before
+   * ThreadExiter's destruction, which can break the reference counting of pcab.
+   * For now, we rely on the property that thread_local vars destruct in the
+   * same order as they are declared. But this is not guaranteed so definitely
+   * fix it.
+   */
+  static thread_local struct ThreadExiter {
+    ~ThreadExiter() { LogAllocator::thd_exit(); }
+  } exiter;
   static thread_local std::shared_ptr<LogSegment> pcab;
   static thread_local int32_t access_cnt_;
   static thread_local int32_t alive_cnt_;

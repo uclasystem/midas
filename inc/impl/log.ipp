@@ -149,8 +149,4 @@ inline LogAllocator *LogAllocator::global_allocator() noexcept {
   return global_allocator_shared_ptr().get();
 }
 
-static thread_local struct ThreadExiter {
-  ~ThreadExiter() { LogAllocator::thd_exit(); }
-} exiter;
-
 } // namespace midas
