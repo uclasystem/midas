@@ -21,7 +21,7 @@ using RetCode = ObjectPtr::RetCode;
 
 /** LogSegment */
 inline std::optional<ObjectPtr> LogSegment::alloc_small(size_t size) {
-  if (sealed_)
+  if (sealed_ || destroyed_)
     return std::nullopt;
   auto obj_size = ObjectPtr::obj_size(size);
   if (pos_ - start_addr_ + obj_size > kLogSegmentSize) { // this segment is full
@@ -42,7 +42,7 @@ inline std::optional<ObjectPtr> LogSegment::alloc_small(size_t size) {
 inline std::optional<std::pair<TransientPtr, size_t>>
 LogSegment::alloc_large(size_t size, const TransientPtr head_tptr,
                         TransientPtr prev_tptr) {
-  if (sealed_)
+  if (sealed_ || destroyed_)
     return std::nullopt;
   if (pos_ - start_addr_ + sizeof(LargeObjectHdr) >= kLogSegmentSize) {
     seal();
@@ -77,10 +77,10 @@ inline bool LogSegment::free(ObjectPtr &ptr) {
 }
 
 void LogSegment::destroy() noexcept {
+  destroyed_ = true;
   auto *rmanager = owner_->pool_->get_rmanager();
   rmanager->FreeRegion(region_id_);
   alive_bytes_ = kMaxAliveBytes;
-  destroyed_ = true;
 }
 
 /** LogAllocator */
