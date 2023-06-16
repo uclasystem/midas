@@ -4,6 +4,8 @@
 #include <mutex>
 #include <optional>
 
+#include "robinhood.h"
+
 #include "transient_ptr.hpp"
 
 namespace midas {
@@ -15,7 +17,6 @@ class ObjLocker {
 public:
   std::optional<LockID> try_lock(const TransientPtr &tptr);
   LockID lock(const TransientPtr &tptr);
-  void unlock(const TransientPtr &tptr);
   void unlock(LockID id);
 
   static inline ObjLocker *global_objlocker() noexcept;

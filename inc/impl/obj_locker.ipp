@@ -1,10 +1,5 @@
 #pragma once
 
-#include <memory>
-#include <mutex>
-#include <optional>
-
-#include "robinhood.h"
 
 namespace midas {
 
@@ -14,10 +9,6 @@ inline std::optional<LockID> ObjLocker::try_lock(const TransientPtr &tptr) {
 
 inline LockID ObjLocker::lock(const TransientPtr &tptr) {
   return _lock(tptr.ptr_);
-}
-
-inline void ObjLocker::unlock(const TransientPtr &tptr) {
-  _unlock(tptr.ptr_);
 }
 
 inline void ObjLocker::unlock(LockID id) { mtxes_[id].unlock(); }
