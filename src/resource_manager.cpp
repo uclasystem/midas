@@ -25,7 +25,7 @@ constexpr static auto kReclaimTimeout =
     std::chrono::milliseconds(100);           // milliseconds
 constexpr static int32_t kMonitorTimeout = 1; // seconds
 constexpr static int32_t kDisconnTimeout = 3; // seconds
-constexpr static bool kEnableFreeList = true;
+constexpr static bool kEnableFreeList = false;
 constexpr static int32_t kFreeListSize = 512;
 
 Region::Region(uint64_t pid, uint64_t region_id) noexcept
