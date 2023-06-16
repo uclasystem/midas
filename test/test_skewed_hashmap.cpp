@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "cache_manager.hpp"
 #include "sync_hashmap.hpp"
 #include "utils.hpp"
 #include "zipf.hpp"
@@ -20,7 +21,7 @@ constexpr static double kZipfSkew = 0.9;
 constexpr static int kNBuckets = (1 << 28);
 constexpr static int kNumMutatorThds = 20;
 constexpr static int kNumGCThds = 8;
-constexpr static int kNumTotalKVPairs = 64 * 1024 * 1024;
+constexpr static int64_t kNumTotalKVPairs = 64 * 1024 * 1024;
 constexpr static int kNumOps = 8 * 1024 * 1024;
 constexpr static int kKLen = 18;
 constexpr static int kVLen = 61;
@@ -242,6 +243,9 @@ void signalHandler(int signum) {
 
 int main(int argc, char *argv[]) {
   signal(SIGINT, signalHandler);
+
+  midas::CachePool::global_cache_pool()->update_limit(kNumTotalKVPairs *
+                                                      (kKLen + kVLen));
 
   MidasTest test;
   test.init();
