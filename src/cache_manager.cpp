@@ -7,7 +7,7 @@
 #include "utils.hpp"
 
 namespace midas {
-inline void CachePool::profile_stats(StatsMsg *msg) noexcept {
+void CachePool::profile_stats(StatsMsg *msg) noexcept {
   auto curr_ts = Time::get_us_stt();
   auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
   auto miss_penalty =
