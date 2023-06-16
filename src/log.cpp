@@ -113,14 +113,19 @@ std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
     if (ret)
       return ret;
     assert(pcab->sealed());
+    // put pcab into segments_ and drop the reference so segments_ will be the
+    // only owner.
+    segments_.push_back(pcab);
     pcab = stashed_pcabs_.pop_front();
   }
   // slowpath
   auto segment = allocSegment(overcommit);
   if (!segment)
     return std::nullopt;
-  segments_.push_back(segment);
 
+  // since pcab hold a reference to segment here, don't put segment into
+  // segments_ for now. Instead, putting it back to segments_ when pcab is
+  // sealed and guaranteed not be used anymore.
   pcab = segment;
   auto ret = pcab->alloc_small(size);
   assert(ret);
@@ -153,8 +158,13 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
       assert(alloced_size > 0);
       break;
     }
-    if (!kEnableFaultHandler)
-      assert(pcab->sealed()); // could be seg fault caused failure
+    // could be seg fault caused failure. The fault must happen
+    // on this segment as there is no prev/next segment at
+    // this point.
+    if (!pcab->sealed())
+      pcab->seal();
+    segments_.push_back(pcab);
+
     pcab = stashed_pcabs_.pop_front();
   }
   remaining_size -= alloced_size;
@@ -207,13 +217,18 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   assert(!pcab || pcab->full());
   if (pcab && pcab->full()) {
     pcab->seal();
+    segments_.push_back(pcab);
     pcab.reset();
   }
   assert(!pcab);
   if (!alloced_segs.empty()) {
-    auto seg = alloced_segs.back();
-    if (LIKELY(!seg->sealed()))
-      pcab = alloced_segs.back();
+    auto segment = alloced_segs.back();
+    if (LIKELY(!segment->sealed())) {
+      // If the last segment is not full, use it as pcab so skip putting it into
+      // segments_ here.
+      pcab = segment;
+      alloced_segs.pop_back();
+    }
   }
   for (auto &segment : alloced_segs)
     segments_.push_back(segment);
