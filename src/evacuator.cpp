@@ -213,7 +213,7 @@ int64_t Evacuator::force_reclaim() {
   auto end = chrono_utils::now();
 
   if (nr_reclaimed)
-    MIDAS_LOG(kInfo) << "GC: " << nr_reclaimed << " force reclaimed ("
+    MIDAS_LOG(kDebug) << "GC: " << nr_reclaimed << " force reclaimed ("
                      << chrono_utils::duration(stt, end) << "s). ";
 
   return nr_reclaimed;
@@ -221,7 +221,7 @@ int64_t Evacuator::force_reclaim() {
 
 /** util functions */
 inline bool Evacuator::segment_ready(LogSegment *segment) {
-  return segment->sealed_ && !segment->destroyed();
+  return segment->sealed() && !segment->destroyed();
 }
 
 /** Evacuate a particular segment */
