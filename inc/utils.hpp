@@ -14,7 +14,7 @@ constexpr static uint32_t kPageSize = 4096;                // 4KB
 constexpr static uint32_t kHugePageSize = 512 * kPageSize; // 2MB == Huge Page
 constexpr static uint64_t kVolatileSttAddr = 0x01f'000'000'000;
 constexpr static uint64_t kVolatileEndAddr =
-    0x01f'000'000'000 + 0x040'000'000'000;
+    kVolatileSttAddr + 0x040'000'000'000;
 
 /** Fault Handler related */
 constexpr static bool kEnableFaultHandler = false;
