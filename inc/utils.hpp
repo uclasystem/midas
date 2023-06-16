@@ -17,7 +17,7 @@ constexpr static uint64_t kVolatileEndAddr =
     kVolatileSttAddr + 0x040'000'000'000;
 
 /** Fault Handler related */
-constexpr static bool kEnableFaultHandler = false;
+constexpr static bool kEnableFaultHandler = true;
 /** Log Structured Allocator related */
 constexpr static uint32_t kLogSegmentSize = kHugePageSize;
 constexpr static uint64_t kLogSegmentMask = ~(kLogSegmentSize - 1ull);
