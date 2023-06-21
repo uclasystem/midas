@@ -60,6 +60,7 @@ class SegmentList {
 public:
   void push_back(std::shared_ptr<LogSegment> segment);
   std::shared_ptr<LogSegment> pop_front();
+  size_t size() noexcept;
   bool empty() const noexcept;
 
 private:

@@ -56,6 +56,8 @@ inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
   return nullptr;
 }
 
+inline size_t SegmentList::size() noexcept { return segments_.size(); }
+
 inline bool SegmentList::empty() const noexcept { return segments_.empty(); }
 
 /** LogAllocator */
