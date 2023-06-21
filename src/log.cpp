@@ -102,21 +102,21 @@ std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
     return alloc_large(size, overcommit);
   }
 
-  if (pcab && pcab->owner_ != this) {
-    pcab->owner_->stashed_pcabs_.push_back(pcab);
-    pcab.reset();
+  if (pcab_.local_seg && pcab_.local_seg->owner_ != this) {
+    pcab_.local_seg->owner_->stashed_pcabs_.push_back(pcab_.local_seg);
+    pcab_.local_seg.reset();
   }
-  if (!pcab)
-    pcab = stashed_pcabs_.pop_front();
-  while (LIKELY(pcab.get() != nullptr)) {
-    auto ret = pcab->alloc_small(size);
+  if (!pcab_.local_seg)
+    pcab_.local_seg = stashed_pcabs_.pop_front();
+  while (LIKELY(pcab_.local_seg.get() != nullptr)) {
+    auto ret = pcab_.local_seg->alloc_small(size);
     if (ret)
       return ret;
-    assert(pcab->sealed());
+    assert(pcab_.local_seg->sealed());
     // put pcab into segments_ and drop the reference so segments_ will be the
     // only owner.
-    segments_.push_back(pcab);
-    pcab = stashed_pcabs_.pop_front();
+    segments_.push_back(pcab_.local_seg);
+    pcab_.local_seg = stashed_pcabs_.pop_front();
   }
   // slowpath
   auto segment = allocSegment(overcommit);
@@ -126,8 +126,8 @@ std::optional<ObjectPtr> LogAllocator::alloc_(size_t size, bool overcommit) {
   // since pcab hold a reference to segment here, don't put segment into
   // segments_ for now. Instead, putting it back to segments_ when pcab is
   // sealed and guaranteed not be used anymore.
-  pcab = segment;
-  auto ret = pcab->alloc_small(size);
+  pcab_.local_seg = segment;
+  auto ret = pcab_.local_seg->alloc_small(size);
   assert(ret);
   return ret;
 }
@@ -142,14 +142,14 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   TransientPtr head_tptr, prev_tptr;
   size_t alloced_size = 0;
 
-  if (pcab && pcab->owner_ != this) {
-    pcab->owner_->stashed_pcabs_.push_back(pcab);
-    pcab.reset();
+  if (pcab_.local_seg && pcab_.local_seg->owner_ != this) {
+    pcab_.local_seg->owner_->stashed_pcabs_.push_back(pcab_.local_seg);
+    pcab_.local_seg.reset();
   }
-  if (!pcab)
-    pcab = stashed_pcabs_.pop_front();
-  while (LIKELY(pcab.get() != nullptr)) {
-    auto option = pcab->alloc_large(size, TransientPtr(), TransientPtr());
+  if (!pcab_.local_seg)
+    pcab_.local_seg = stashed_pcabs_.pop_front();
+  while (LIKELY(pcab_.local_seg.get() != nullptr)) {
+    auto option = pcab_.local_seg->alloc_large(size, TransientPtr(), TransientPtr());
     if (option) {
       head_tptr = option->first;
       alloced_size = option->second;
@@ -161,11 +161,11 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
     // could be seg fault caused failure. The fault must happen
     // on this segment as there is no prev/next segment at
     // this point.
-    if (!pcab->sealed())
-      pcab->seal();
-    segments_.push_back(pcab);
+    if (!pcab_.local_seg->sealed())
+      pcab_.local_seg->seal();
+    segments_.push_back(pcab_.local_seg);
 
-    pcab = stashed_pcabs_.pop_front();
+    pcab_.local_seg = stashed_pcabs_.pop_front();
   }
   remaining_size -= alloced_size;
   if (remaining_size <= 0) { // common path.
@@ -214,19 +214,19 @@ std::optional<ObjectPtr> LogAllocator::alloc_large(size_t size,
   if (obj_ptr.init_from_soft(head_tptr) != RetCode::Succ)
     goto failed;
 
-  assert(!pcab || pcab->full());
-  if (pcab && pcab->full()) {
-    pcab->seal();
-    segments_.push_back(pcab);
-    pcab.reset();
+  assert(!pcab_.local_seg || pcab_.local_seg->full());
+  if (pcab_.local_seg && pcab_.local_seg->full()) {
+    pcab_.local_seg->seal();
+    segments_.push_back(pcab_.local_seg);
+    pcab_.local_seg.reset();
   }
-  assert(!pcab);
+  assert(!pcab_.local_seg);
   if (!alloced_segs.empty()) {
     auto segment = alloced_segs.back();
     if (LIKELY(!segment->sealed())) {
       // If the last segment is not full, use it as pcab so skip putting it into
       // segments_ here.
-      pcab = segment;
+      pcab_.local_seg = segment;
       alloced_segs.pop_back();
     }
   }
@@ -251,7 +251,7 @@ failed:
 }
 
 // Define PCAB
-thread_local std::shared_ptr<LogSegment> LogAllocator::pcab;
+thread_local LogAllocator::PCAB LogAllocator::pcab_;
 thread_local int32_t LogAllocator::access_cnt_ = 0;
 thread_local int32_t LogAllocator::alive_cnt_ = 0;
 std::atomic_int64_t LogAllocator::total_access_cnt_{0};

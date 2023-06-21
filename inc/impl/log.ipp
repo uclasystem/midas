@@ -114,9 +114,9 @@ inline void LogAllocator::count_alive(int val) {
   }
 }
 
-inline void LogAllocator::thd_exit() {
-  if (pcab) { // now only segments_ holds the reference
-    pcab->owner_->stashed_pcabs_.push_back(pcab);
+inline void LogAllocator::PCAB::thd_exit() {
+  if (local_seg) { // now only segments_ holds the reference
+    local_seg->owner_->stashed_pcabs_.push_back(local_seg);
   }
 
   if (access_cnt_) {
