@@ -48,8 +48,12 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   auto stt = chrono_utils::now();
   while (rmanager_->reclaim_trigger()) {
     auto segment = segments.pop_front();
-    if (!segment)
+    if (!segment) {
+      nr_skipped++;
+      if (nr_skipped > rmanager_->NumRegionLimit())
+        return -1;
       continue;
+    }
     if (!segment->sealed()) { // put in-used segment back to list
       segments.push_back(segment);
       nr_skipped++;
