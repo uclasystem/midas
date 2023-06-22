@@ -49,6 +49,7 @@ inline std::shared_ptr<LogSegment> SegmentList::pop_front() {
     segments_.pop_front();
     retry++;
     if (segment->destroyed()) {
+      MIDAS_ABORT("impossible");
       continue; // remove destroyed segment (this should never happen though)
     } else
       return std::move(segment);
@@ -115,7 +116,7 @@ inline void LogAllocator::count_alive(int val) {
 }
 
 inline void LogAllocator::PCAB::thd_exit() {
-  if (local_seg) { // now only segments_ holds the reference
+  if (local_seg) { // now only current PCAB holds the reference
     local_seg->owner_->stashed_pcabs_.push_back(local_seg);
   }
 
