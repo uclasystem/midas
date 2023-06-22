@@ -280,8 +280,8 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
           } else {
             auto rref = reinterpret_cast<ObjectPtr *>(obj_ptr.get_rref());
             // assert(rref);
-            if (!rref)
-              MIDAS_LOG(kError) << "null rref detected";
+            // if (!rref)
+            //   MIDAS_LOG(kError) << "null rref detected";
             auto ret = obj_ptr.free(/* locked = */ true);
             if (ret == RetCode::FaultLocal)
               goto faulted;
@@ -289,7 +289,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             assert(ret != RetCode::FaultOther);
             if (rref && !rref->is_victim()) {
               auto vcache = pool_->get_vcache();
-              vcache->put(obj_ptr.get_rref(), nullptr);
+              vcache->put(rref, nullptr);
             }
             nr_freed++;
           }
@@ -317,8 +317,8 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             } else {
               auto rref = reinterpret_cast<ObjectPtr *>(obj_ptr.get_rref());
               // assert(rref);
-              if (!rref)
-                MIDAS_LOG(kError) << "null rref detected";
+              // if (!rref)
+              //   MIDAS_LOG(kError) << "null rref detected";
               // This will free all segments belonging to the same object
               auto ret = obj_ptr.free(/* locked = */ true);
               if (ret == RetCode::FaultLocal)
@@ -326,7 +326,7 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
               // do nothing when ret == FaultOther and continue scanning
               if (rref && !rref->is_victim()) {
                 auto vcache = pool_->get_vcache();
-                vcache->put(obj_ptr.get_rref(), nullptr);
+                vcache->put(rref, nullptr);
               }
 
               nr_freed++;
