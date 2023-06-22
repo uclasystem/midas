@@ -28,20 +28,36 @@ public:
   Region(uint64_t pid, uint64_t region_id) noexcept;
   ~Region() noexcept;
 
+  void map() noexcept;
+  void unmap() noexcept;
+  void free() noexcept;
+
+  inline bool mapped() const noexcept { return vrid_ == INVALID_VRID; };
+
   inline friend bool operator<(const Region &lhs, const Region &rhs) noexcept {
-    return lhs.region_id_ < rhs.region_id_;
+    return lhs.prid_ < rhs.prid_;
   }
 
-  inline void *Addr() const noexcept { return shm_region_->get_address(); }
-  inline uint64_t ID() const noexcept { return region_id_; }
+  inline void *Addr() const noexcept {
+    return reinterpret_cast<void *>(
+        vrid_ == INVALID_VRID ? INVALID_VRID
+                              : kVolatileSttAddr + vrid_ * kRegionSize);
+  }
+  inline uint64_t ID() const noexcept { return prid_; }
   inline int64_t Size() const noexcept { return size_; }
 
 private:
   // generating unique name for the region shared memory file
   uint64_t pid_;
-  uint64_t region_id_;
-  std::shared_ptr<MappedRegion> shm_region_;
+  uint64_t prid_; // physical memory region id
+  uint64_t vrid_; // mapped virtual memory region id
+  std::unique_ptr<MappedRegion> shm_region_;
   int64_t size_; // int64_t to adapt to boost::interprocess::offset_t
+
+  static std::atomic_int64_t
+      global_mapped_rid_; // never reuse virtual addresses
+
+  constexpr static uint64_t INVALID_VRID = -1ul;
 };
 
 class CachePool;

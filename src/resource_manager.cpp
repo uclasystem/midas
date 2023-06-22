@@ -25,23 +25,40 @@ constexpr static auto kReclaimTimeout =
     std::chrono::milliseconds(100);           // milliseconds
 constexpr static int32_t kMonitorTimeout = 1; // seconds
 constexpr static int32_t kDisconnTimeout = 3; // seconds
-constexpr static bool kEnableFreeList = false;
+constexpr static bool kEnableFreeList = true;
 constexpr static int32_t kFreeListSize = 512;
 
+std::atomic_int64_t Region::global_mapped_rid_{0};
+
 Region::Region(uint64_t pid, uint64_t region_id) noexcept
-    : pid_(pid), region_id_(region_id) {
+    : pid_(pid), prid_(region_id), vrid_(INVALID_VRID) {
+  map();
+}
+
+void Region::map() noexcept {
+  assert(vrid_ == INVALID_VRID);
   const auto rwmode = boost::interprocess::read_write;
-  const std::string shm_name_ = utils::get_region_name(pid_, region_id_);
+  const std::string shm_name_ = utils::get_region_name(pid_, prid_);
   SharedMemObj shm_obj(boost::interprocess::open_only, shm_name_.c_str(),
                        rwmode);
   shm_obj.get_size(size_);
-  void *addr =
-      reinterpret_cast<void *>(kVolatileSttAddr + region_id_ * kRegionSize);
-  shm_region_ = std::make_shared<MappedRegion>(shm_obj, rwmode, 0, size_, addr);
+  vrid_ = global_mapped_rid_.fetch_add(1);
+  void *addr = reinterpret_cast<void *>(kVolatileSttAddr + vrid_ * kRegionSize);
+  shm_region_ = std::make_unique<MappedRegion>(shm_obj, rwmode, 0, size_, addr);
+}
+
+void Region::unmap() noexcept {
+  shm_region_.reset();
+  vrid_ = INVALID_VRID;
 }
 
 Region::~Region() noexcept {
-  SharedMemObj::remove(utils::get_region_name(pid_, region_id_).c_str());
+  unmap();
+  free();
+}
+
+void Region::free() noexcept {
+  SharedMemObj::remove(utils::get_region_name(pid_, prid_).c_str());
 }
 
 ResourceManager::ResourceManager(CachePool *cpool,
@@ -301,6 +318,7 @@ retry:
   if (!freelist_.empty()) {
     auto region = freelist_.back();
     freelist_.pop_back();
+    region->map();
     int64_t region_id = region->ID();
     region_map_[region_id] = region;
     alloc_tput_stats_.nr_alloced++;
@@ -390,6 +408,7 @@ inline size_t ResourceManager::free_region(std::shared_ptr<Region> region,
    */
   if (kEnableFreeList && !enforce && NumRegionAvail() > 0 &&
       freelist_.size() < kFreeListSize) {
+    region->unmap();
     freelist_.emplace_back(region);
   } else {
     CtrlMsg msg{.id = id_,
