@@ -119,6 +119,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
       if (iter_large(optr) != RetCode::Succ)
         goto done;
     }
+    assert(remaining_offset < optr.data_size_in_segment());
     // Now optr is pointing to the first part for copy
     int64_t remaining_len = len;
     while (remaining_len > 0) {
@@ -217,10 +218,10 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
 
     LargeObjectHdr lhdr;
     if (!load_hdr(lhdr, optr))
-      return RetCode::Fault;
+      return RetCode::FaultOther; // dst (this) is considered as other
     auto next = lhdr.get_next();
     if (next.null() || optr.init_from_soft(next) != RetCode::Succ)
-      return RetCode::Fault;
+      return RetCode::FaultOther; // dst (this) is considered as other
   }
   // Now optr is pointing to the first part for copy
   auto src_tptr = src.slice(from_offset);
@@ -230,9 +231,14 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
         remaining_len, optr.data_size_in_segment() - remaining_offset);
     if (!optr.obj_.copy_from(src_tptr, copy_len, 0,
                              sizeof(LargeObjectHdr) + remaining_offset)) {
+      // TODO (YIFAN): so far we cannot tell whether fault on src or dst. so we
+      // make a conservative assumption and always return FaultLocal to ensure
+      // correctness and simplicity. This may negatively impact the performance
+      // as FaultLocal will unmap the current segment entirely, but hopefully
+      // the impact is not significant as this is a rare case.
       if (!kEnableFaultHandler)
         MIDAS_LOG(kError);
-      return RetCode::Fault;
+      return RetCode::FaultLocal;
     }
     remaining_offset = 0; // copy from the beginning for non-head parts
     remaining_len -= copy_len;
@@ -241,7 +247,7 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
     src_tptr = src_tptr.slice(copy_len);
 
     if (iter_large(optr) != RetCode::Succ)
-      return RetCode::Fault;
+      return RetCode::FaultOther; // dst (this) is considered as other
   }
   return RetCode::Succ;
 }
@@ -249,14 +255,16 @@ RetCode ObjectPtr::copy_from_large(const TransientPtr &src, size_t len,
 RetCode ObjectPtr::move_large(ObjectPtr &src) noexcept {
   MetaObjectHdr mhdr;
   if (!load_hdr(mhdr, *this))
-    return RetCode::Fault;
-  assert(mhdr.is_present());
+    return RetCode::FaultOther; // dst (this) is considered as other
+  if (!mhdr.is_present())
+    return RetCode::Fail;
+
   assert(!is_small_obj() && is_head_obj());
   assert(!src.is_small_obj() && src.is_head_obj());
 
   auto opt_size = src.large_data_size();
   if (!opt_size)
-    return RetCode::Fault;
+    return RetCode::FaultLocal;
   size_t remaining_len = *opt_size;
   size_t dst_offset = 0;
   ObjectPtr optr = src;
@@ -272,7 +280,7 @@ RetCode ObjectPtr::move_large(ObjectPtr &src) noexcept {
     ret = iter_large(optr);
     if (ret != RetCode::Succ) {
       if (ret == RetCode::Fail)
-        break;
+        return RetCode::Fail;
       return ret;
     }
   }

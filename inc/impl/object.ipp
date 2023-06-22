@@ -221,7 +221,7 @@ inline std::optional<size_t> ObjectPtr::large_data_size() {
   while (!optr.null()) {
     size += optr.data_size_in_segment();
     auto ret = iter_large(optr);
-    if (ret == RetCode::Fault)
+    if (ret == RetCode::FaultLocal || ret == RetCode::FaultOther)
       return std::nullopt;
     else if (ret == RetCode::Fail)
       break;
@@ -252,7 +252,7 @@ inline RetCode ObjectPtr::init_small(uint64_t stt_addr, size_t data_size) {
   SmallObjectHdr hdr;
   hdr.init(size_);
   obj_ = TransientPtr(stt_addr, obj_size());
-  return store_hdr(hdr, obj_) ? RetCode::Succ : RetCode::Fault;
+  return store_hdr(hdr, obj_) ? RetCode::Succ : RetCode::FaultLocal;
 }
 
 inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
@@ -267,7 +267,7 @@ inline RetCode ObjectPtr::init_large(uint64_t stt_addr, size_t data_size,
   LargeObjectHdr hdr;
   hdr.init(data_size, is_head, head, next);
   obj_ = TransientPtr(stt_addr, obj_size());
-  return store_hdr(hdr, obj_) ? RetCode::Succ : RetCode::Fault;
+  return store_hdr(hdr, obj_) ? RetCode::Succ : RetCode::FaultLocal;
 }
 
 inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
@@ -276,7 +276,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
   MetaObjectHdr hdr;
   obj_ = soft_ptr;
   if (!load_hdr(hdr, *this))
-    return RetCode::Fault;
+    return RetCode::FaultLocal;
 
   if (!hdr.is_valid())
     return RetCode::Fail;
@@ -289,7 +289,7 @@ inline RetCode ObjectPtr::init_from_soft(TransientPtr soft_ptr) {
   } else {
     LargeObjectHdr lhdr;
     if (!load_hdr(lhdr, *this))
-      return RetCode::Fault;
+      return RetCode::FaultLocal;
     small_obj_ = false;
     head_obj_ = !MetaObjectHdr::cast_from(&lhdr)->is_continue();
     size_ = lhdr.get_size();
@@ -304,12 +304,12 @@ inline RetCode ObjectPtr::free_small() noexcept {
 
   MetaObjectHdr meta_hdr;
   if (!load_hdr<MetaObjectHdr>(meta_hdr, *this))
-    return RetCode::Fault;
+    return RetCode::FaultLocal;
 
   if (!meta_hdr.is_valid())
     return RetCode::Fail;
   meta_hdr.clr_present();
-  auto ret = store_hdr(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
+  auto ret = store_hdr(meta_hdr, *this) ? RetCode::Succ : RetCode::FaultLocal;
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
     rref->obj_.reset();
@@ -319,17 +319,18 @@ inline RetCode ObjectPtr::free_small() noexcept {
 inline RetCode ObjectPtr::free_large() noexcept {
   assert(!null());
 
-  MetaObjectHdr meta_hdr;
-  if (!load_hdr(meta_hdr, *this))
-    return RetCode::Fault;
-  if (!meta_hdr.is_valid())
-    return RetCode::Fail;
-
   LargeObjectHdr hdr;
   if (!load_hdr(hdr, *this))
-    return RetCode::Fault;
+    return RetCode::FaultLocal;
+  MetaObjectHdr meta_hdr = *MetaObjectHdr::cast_from(&hdr);
+  if (!meta_hdr.is_valid()) {
+    MIDAS_LOG(kError);
+    return RetCode::Fail;
+  }
   meta_hdr.clr_present();
-  auto ret = store_hdr(meta_hdr, *this) ? RetCode::Succ : RetCode::Fault;
+  auto ret = store_hdr(meta_hdr, *this) ? RetCode::Succ : RetCode::FaultLocal;
+  if (ret != RetCode::Succ)
+    return ret;
 
   auto rref = reinterpret_cast<ObjectPtr *>(get_rref());
   if (rref)
@@ -338,15 +339,13 @@ inline RetCode ObjectPtr::free_large() noexcept {
   auto next = hdr.get_next();
   while (!next.null()) {
     ObjectPtr optr;
-    if (optr.init_from_soft(next) != RetCode::Succ || !load_hdr(hdr, optr)) {
-      return RetCode::Fault;
-    }
+    if (optr.init_from_soft(next) != RetCode::Succ || !load_hdr(hdr, optr))
+      return RetCode::FaultOther;
     next = hdr.get_next();
 
     MetaObjectHdr::cast_from(&hdr)->clr_present();
-    if (!store_hdr(hdr, optr)) {
-      return RetCode::Fault;
-    }
+    if (!store_hdr(hdr, optr))
+      return RetCode::FaultOther;
   }
   return ret;
 }
@@ -388,7 +387,7 @@ inline ObjectPtr *ObjectPtr::get_rref() noexcept {
       return nullptr;
     return reinterpret_cast<ObjectPtr *>(hdr.get_rref());
   }
-  MIDAS_LOG(kError) << "impossible to reach here!";
+  MIDAS_ABORT("impossible to reach here!");
   return nullptr;
 }
 
@@ -452,20 +451,20 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
   } else { // large object
     assert(src.is_head_obj());
     assert(!is_small_obj() && is_head_obj());
-    assert(*src.large_data_size() == *large_data_size());
+    // assert(*src.large_data_size() == *large_data_size());
     auto ret = move_large(src);
     if (ret != RetCode::Succ)
       return ret;
     ret = src.free(/* locked = */ true);
     LargeObjectHdr lhdr;
     if (!load_hdr(lhdr, src))
-      return RetCode::Fault;
+      return RetCode::FaultLocal; // src is considered as local
     auto rref = lhdr.get_rref();
     if (!load_hdr(lhdr, *this))
-      return RetCode::Fault;
+      return RetCode::FaultOther; // dst, hereby this, is considered as other
     lhdr.set_rref(rref);
     if (!store_hdr(lhdr, *this))
-      return RetCode::Fault;
+      return RetCode::FaultOther;
     ret = upd_rref();
     if (ret != RetCode::Succ)
       return ret;
@@ -476,11 +475,13 @@ inline RetCode ObjectPtr::move_from(ObjectPtr &src) {
 inline RetCode ObjectPtr::iter_large(ObjectPtr &optr) {
   LargeObjectHdr lhdr;
   if (!load_hdr(lhdr, optr))
-    return RetCode::Fault;
+    return RetCode::FaultLocal; // fault on optr itself
   auto next = lhdr.get_next();
   if (next.null())
     return RetCode::Fail;
-  return optr.init_from_soft(next);
+  if (optr.init_from_soft(next) == RetCode::Succ)
+    return RetCode::Succ;
+  return RetCode::FaultOther; // this must be fault on next segment
 }
 
 inline const std::string ObjectPtr::to_string() noexcept {

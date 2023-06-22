@@ -282,8 +282,11 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             // assert(rref);
             if (!rref)
               MIDAS_LOG(kError) << "null rref detected";
-            if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+            auto ret = obj_ptr.free(/* locked = */ true);
+            if (ret == RetCode::FaultLocal)
               goto faulted;
+            // small objs are impossible to fault on other regions
+            assert(ret != RetCode::FaultOther);
             if (rref && !rref->is_victim()) {
               auto vcache = pool_->get_vcache();
               vcache->put(obj_ptr.get_rref(), nullptr);
@@ -317,13 +320,10 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
               if (!rref)
                 MIDAS_LOG(kError) << "null rref detected";
               // This will free all segments belonging to the same object
-              if (obj_ptr.free(/* locked = */ true) == RetCode::Fault) {
-                MIDAS_LOG(kWarning);
-                /* FIX: so far we cannot tell whether fault happens in src obj
-                 * or dst obj, and in which segment. Ideally we should only goto
-                 * faulted iff. fault is in the current segment. */
+              auto ret = obj_ptr.free(/* locked = */ true);
+              if (ret == RetCode::FaultLocal)
                 goto faulted;
-              }
+              // do nothing when ret == FaultOther and continue scanning
               if (rref && !rref->is_victim()) {
                 auto vcache = pool_->get_vcache();
                 vcache->put(obj_ptr.get_rref(), nullptr);
@@ -361,7 +361,8 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
                     << static_cast<float>(segment->alive_bytes_) /
                            kLogSegmentSize;
 
-  if (ret == RetCode::Fault || nr_faulted) {
+  assert(ret != RetCode::FaultOther);
+  if (ret == RetCode::FaultLocal || nr_faulted) {
     if (!kEnableFaultHandler)
       MIDAS_LOG(kError) << "segment is unmapped under the hood";
     segment->destroy();
@@ -412,7 +413,7 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
         if (ret == RetCode::Succ) {
           nr_moved++;
         } else if (ret == RetCode::Fail) {
-          MIDAS_LOG(kError) << "Failed to move the object!";
+          // MIDAS_LOG(kError) << "Failed to move the object!";
           nr_failed++;
         } else
           goto faulted;
@@ -422,7 +423,7 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
       if (!meta_hdr.is_continue()) { // the head segment of a large object.
         auto opt_data_size = obj_ptr.large_data_size();
         if (!opt_data_size) {
-          MIDAS_LOG(kWarning);
+          // MIDAS_LOG(kWarning);
           nr_freed++;
           obj_ptr.unlock(lock_id);
           continue;
@@ -438,16 +439,14 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
           if (ret == RetCode::Succ) {
             nr_moved++;
           } else if (ret == RetCode::Fail) {
-            MIDAS_LOG(kError) << "Failed to move the object!";
+            // MIDAS_LOG(kError) << "Failed to move the object!";
             nr_failed++;
-          } else { // ret == RetCode::Fault
+          } else if (ret == RetCode::FaultLocal) { // fault on src (obj_ptr)
             if (!kEnableFaultHandler)
               MIDAS_LOG(kWarning);
-            /* FIX: so far we cannot tell whether fault happens in src obj or
-             * dst obj, and in which segment. Ideally we should only goto
-             * faulted iff. fault is in the current segment. */
             goto faulted;
           }
+          // skip when ret == FaultOther, meaning that fault is on dst (new_ptr)
         } else
           nr_failed++;
       } else { // an inner segment of a large obj
@@ -471,7 +470,8 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
 
   if (!kEnableFaultHandler)
     assert(nr_faulted == 0);
-  if (ret == RetCode::Fault || nr_faulted) {
+  assert(ret != RetCode::FaultOther);
+  if (ret == RetCode::FaultLocal || nr_faulted) {
     if (!kEnableFaultHandler)
       MIDAS_LOG(kError) << "segment is unmapped under the hood";
     segment->destroy();
@@ -508,8 +508,10 @@ inline EvacState Evacuator::free_segment(LogSegment *segment) {
         goto faulted;
       else {
         if (meta_hdr.is_present()) {
-          if (obj_ptr.free(/* locked = */ true) == RetCode::Fault)
+          auto ret = obj_ptr.free(/* locked = */ true);
+          if (ret == RetCode::FaultLocal)
             goto faulted;
+          assert(ret != RetCode::FaultOther);
           nr_freed++;
         } else
           nr_non_present++;
@@ -521,12 +523,10 @@ inline EvacState Evacuator::free_segment(LogSegment *segment) {
       else {
         if (!meta_hdr.is_continue()) { // head segment
           if (meta_hdr.is_present()) {
-            if (obj_ptr.free(/* locked = */ true) == RetCode::Fault) {
-              /* FIX: so far we cannot tell whether fault happens in src obj or
-               * dst obj, and in which segment. Ideally we should only goto
-               * faulted iff. fault is in the current segment. */
+            auto ret = obj_ptr.free(/* locked = */ true);
+            if (ret == RetCode::FaultLocal)
               goto faulted;
-            }
+            // skip the object and continue when ret == FaultOther
             nr_freed++;
           } else
             nr_non_present++;
@@ -548,7 +548,8 @@ inline EvacState Evacuator::free_segment(LogSegment *segment) {
 
   if (!kEnableFaultHandler)
     assert(nr_faulted == 0);
-  if (ret == RetCode::Fault || nr_faulted) {
+  assert(ret != RetCode::FaultOther);
+  if (ret == RetCode::FaultLocal || nr_faulted) {
     if (!kEnableFaultHandler)
       MIDAS_LOG(kError) << "segment is unmapped under the hood";
     segment->destroy();

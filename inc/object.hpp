@@ -170,9 +170,10 @@ public:
    * always return 0 to indicate a fault.
    */
   enum class RetCode {
-    Fault = 0,
-    False = 1,
-    True = 2,
+    FaultLocal = 0,
+    FaultOther = 1,
+    False = 2,
+    True = 3,
     Fail = False,
     Succ = True
   };
