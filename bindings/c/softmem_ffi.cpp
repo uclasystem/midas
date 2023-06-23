@@ -10,7 +10,7 @@
 namespace midas {
 namespace ffi {
 constexpr static uint64_t kFreeListSize = 100000;
-static thread_local std::list<ObjectPtr *> local_free_list;
+// static thread_local std::list<ObjectPtr *> local_free_list;
 static std::list<ObjectPtr *> global_free_list;
 static std::mutex fl_mtx;
 
@@ -71,8 +71,8 @@ object_ptr_t midas_alloc_soft(const cache_pool_t pool, size_t size) {
   auto pool_ = reinterpret_cast<midas::CachePool *>(pool);
   if (!pool_)
     return reinterpret_cast<object_ptr_t>(nullptr);
-  auto optr = new midas::ObjectPtr();
-  // auto optr = midas::ffi::alloc_optr();
+  // auto optr = new midas::ObjectPtr();
+  auto optr = midas::ffi::alloc_optr();
   if (!optr) {
     midas::MIDAS_LOG(midas::kError) << "Failed to allocate!";
     return reinterpret_cast<object_ptr_t>(nullptr);
@@ -90,8 +90,8 @@ bool midas_free_soft(const cache_pool_t pool, object_ptr_t optr) {
   auto optr_ = reinterpret_cast<midas::ObjectPtr *>(optr);
   auto pool_ = reinterpret_cast<midas::CachePool *>(pool);
   auto ret = pool_->free(*optr_);
-  delete optr_;
-  // midas::ffi::free_optr(optr_);
+  // delete optr_;
+  midas::ffi::free_optr(optr_);
   return ret;
 }
 
