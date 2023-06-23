@@ -103,7 +103,7 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
   return nr_avail;
 }
 
-int64_t Evacuator::serial_gc() {
+bool Evacuator::serial_gc() {
   if (!rmanager_->reclaim_trigger())
     return 0;
 
@@ -115,8 +115,12 @@ int64_t Evacuator::serial_gc() {
   auto stt = chrono_utils::now();
   while (rmanager_->reclaim_trigger()) {
     auto segment = segments.pop_front();
-    if (!segment)
+    if (!segment) {
+      nr_skipped++;
+      if (nr_skipped > rmanager_->NumRegionLimit()) // be in loop for too long
+        return -1;
       continue;
+    }
     if (!segment->sealed()) { // put in-used segment back to list
       segments.push_back(segment);
       nr_skipped++;
@@ -160,7 +164,7 @@ int64_t Evacuator::serial_gc() {
                       << " evacuated, " << nr_avail << " available ("
                       << chrono_utils::duration(stt, end) << "s).";
 
-  return nr_avail;
+  return nr_avail < 0;
 }
 
 bool Evacuator::parallel_gc(int nr_workers) {

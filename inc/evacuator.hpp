@@ -28,7 +28,7 @@ public:
             std::shared_ptr<LogAllocator> allocator);
   ~Evacuator();
   void signal_gc();
-  int64_t serial_gc();
+  bool serial_gc();
   bool parallel_gc(int nr_workers);
   int64_t force_reclaim();
 
