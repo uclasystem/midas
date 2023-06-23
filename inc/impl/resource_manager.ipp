@@ -54,9 +54,7 @@ inline int64_t ResourceManager::reclaim_target() noexcept {
   // if (avail_ratio < 0.1 || nr_avail <= 512)
   // if ((nr_limit < 5120 && nr_avail <= 512) || (nr_avail <= 768)) // wiredtiger config
   // if (avail_ratio < 0.01 || nr_avail <= 1)
-  auto headroom = std::min<int64_t>(
-      768ll, std::max<int64_t>(1ll, alloc_tput_stats_.alloc_tput * 0.2));
-  alloc_tput_stats_.headroom = headroom;
+  auto headroom = stats_.headroom;
   if (avail_ratio < 0.05 || nr_avail <= headroom)
     nr_to_reclaim += std::max(nr_limit / 50, 2l);
   nr_to_reclaim = std::min(nr_to_reclaim, nr_limit);

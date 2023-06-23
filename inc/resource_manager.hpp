@@ -67,7 +67,6 @@ public:
                   const std::string &daemon_name = kNameCtrlQ) noexcept;
   ~ResourceManager() noexcept;
 
-
   int64_t AllocRegion(bool overcommit = false) noexcept;
   void FreeRegion(int64_t rid) noexcept;
   void FreeRegions(size_t size = kRegionSize) noexcept;
@@ -80,8 +79,15 @@ public:
   uint64_t NumRegionLimit() const noexcept;
   int64_t NumRegionAvail() const noexcept;
 
+  /** trigger evacuation */
   bool reclaim_trigger() noexcept;
   int64_t reclaim_target() noexcept;
+
+  /** profiling stats */
+  void prof_alloc_tput();
+  // called by Evacuator to calculate reclaim tput
+  void prof_reclaim_stt();
+  void prof_reclaim_end(int nr_thds, double dur_s);
 
   static std::shared_ptr<ResourceManager> global_manager_shared_ptr() noexcept;
   static ResourceManager *global_manager() noexcept;
@@ -120,13 +126,22 @@ private:
 
   // stats
   struct AllocTputStats {
+    // Updated by ResourceManager
     std::atomic_int_fast64_t nr_alloced{0};
+    std::atomic_int_fast64_t nr_evac_alloced{
+        0}; // temporarily allocated by the evacuator during evacuation
+    std::atomic_int_fast64_t nr_freed{0};
     uint64_t prev_time{0};
     int64_t prev_alloced{0};
     float alloc_tput{0};
-    float reclaim_tput{0};
+    float reclaim_tput{0}; // per-evacuator-thread
     int32_t headroom{0};
-  } alloc_tput_stats_;
+    // Updated by Evacuator
+    int64_t prev_evac_alloced{0};
+    int64_t prev_freed{0};
+    float accum_evac_dur{0};
+    float accum_nr_reclaimed{0};
+  } stats_;
 };
 
 } // namespace midas

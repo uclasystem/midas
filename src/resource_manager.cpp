@@ -16,6 +16,7 @@
 #include "qpair.hpp"
 #include "resource_manager.hpp"
 #include "shm_types.hpp"
+#include "time.hpp"
 #include "utils.hpp"
 
 namespace midas {
@@ -68,8 +69,7 @@ ResourceManager::ResourceManager(CachePool *cpool,
                                       false),
             std::make_shared<QSingle>(utils::get_ackq_name(daemon_name, id_),
                                       true)),
-      rxqp_(std::to_string(id_), true), stop_(false), nr_pending_(0),
-      alloc_tput_stats_() {
+      rxqp_(std::to_string(id_), true), stop_(false), nr_pending_(0), stats_() {
   handler_thd_ = std::make_shared<std::thread>([&]() { pressure_handler(); });
   if (!cpool_)
     cpool_ = CachePool::global_cache_pool();
@@ -206,27 +206,9 @@ void ResourceManager::do_force_reclaim(CtrlMsg &msg) {
 void ResourceManager::do_profile_stats(CtrlMsg &msg) {
   StatsMsg stats{0};
   cpool_->profile_stats(&stats);
-  int32_t headroom = std::min<int32_t>(
-      768, std::max<int32_t>(1, std::max(region_limit_ * 0.1,
-                                         alloc_tput_stats_.alloc_tput * 0.2)));
-  // MIDAS_LOG(kError) << "headroom: " << headroom;
-  stats.headroom = headroom;
+  prof_alloc_tput();
+  stats.headroom = stats_.headroom;
   rxqp_.send(&stats, sizeof(stats));
-
-  auto time = Time::get_us();
-  if (alloc_tput_stats_.prev_time == 0) { // init
-    alloc_tput_stats_.prev_time = time;
-    alloc_tput_stats_.prev_alloced = alloc_tput_stats_.nr_alloced;
-  } else {
-    auto dur = time - alloc_tput_stats_.prev_time;
-    auto alloc_tput =
-        (alloc_tput_stats_.nr_alloced - alloc_tput_stats_.prev_alloced) * 1e6 /
-        dur;
-    alloc_tput_stats_.alloc_tput = alloc_tput;
-    alloc_tput_stats_.prev_time = time;
-    alloc_tput_stats_.prev_alloced = alloc_tput_stats_.nr_alloced;
-    MIDAS_LOG(kDebug) << "Allocation Tput: " << alloc_tput;
-  }
 }
 
 void ResourceManager::do_disconnect(CtrlMsg &msg) {
@@ -321,7 +303,7 @@ retry:
     region->map();
     int64_t region_id = region->ID();
     region_map_[region_id] = region;
-    alloc_tput_stats_.nr_alloced++;
+    overcommit ? stats_.nr_evac_alloced++ : stats_.nr_alloced++;
     return region_id;
   }
   // 2) Local alloc path. Do reclamation and try local allocation again
@@ -357,11 +339,12 @@ retry:
 
   MIDAS_LOG(kDebug) << "Allocated region: " << region->Addr() << " ["
                     << region->Size() << "]";
-  alloc_tput_stats_.nr_alloced++;
+  overcommit ? stats_.nr_evac_alloced++ : stats_.nr_alloced++;
   return region_id;
 }
 
 void ResourceManager::FreeRegion(int64_t rid) noexcept {
+  stats_.nr_freed++;
   std::unique_lock<std::mutex> lk(mtx_);
   auto region_iter = region_map_.find(rid);
   if (region_iter == region_map_.cend()) {
@@ -371,7 +354,6 @@ void ResourceManager::FreeRegion(int64_t rid) noexcept {
   int64_t freed_bytes = free_region(region_iter->second, false);
   if (freed_bytes == -1) {
     MIDAS_LOG(kError) << "Failed to free region " << rid;
-    return;
   }
 }
 
@@ -393,6 +375,49 @@ void ResourceManager::FreeRegions(size_t size) noexcept {
   }
   MIDAS_LOG(kInfo) << "Freed " << nr_freed_regions << " regions ("
                    << total_freed << "bytes)";
+}
+
+/** Profiling for stats */
+void ResourceManager::prof_alloc_tput() {
+  auto time = Time::get_us();
+  if (stats_.prev_time == 0) { // init
+    stats_.prev_time = time;
+    stats_.prev_alloced = stats_.nr_alloced;
+  } else {
+    auto dur_us = time - stats_.prev_time;
+    auto alloc_tput = (stats_.nr_alloced - stats_.prev_alloced) * 1e6 / dur_us;
+    stats_.alloc_tput = alloc_tput;
+    stats_.prev_time = time;
+    stats_.prev_alloced = stats_.nr_alloced;
+    stats_.headroom = std::min<int32_t>(
+        768, std::max<int32_t>(
+                 1, std::max(region_limit_ * 0.1, stats_.alloc_tput * 0.2)));
+    // MIDAS_LOG(kError) << "headroom: " << headroom;
+    MIDAS_LOG(kDebug) << "Allocation Tput: " << alloc_tput;
+  }
+
+  if (stats_.accum_evac_dur < 1e-6 || stats_.accum_nr_reclaimed < 1) { // < 1us
+    stats_.reclaim_tput = 0;
+  } else {
+    stats_.reclaim_tput = stats_.accum_nr_reclaimed / stats_.accum_evac_dur;
+    MIDAS_LOG(kDebug) << "Reclamation Tput: " << stats_.reclaim_tput;
+    // reset accumulated counters
+    stats_.accum_nr_reclaimed = 0;
+    stats_.accum_evac_dur = 0;
+  }
+}
+
+void ResourceManager::prof_reclaim_stt() {
+  stats_.prev_evac_alloced = stats_.nr_evac_alloced;
+  stats_.prev_freed = stats_.nr_freed;
+}
+
+void ResourceManager::prof_reclaim_end(int nr_thds, double dur_s) {
+  auto nr_freed = stats_.nr_freed - stats_.prev_freed;
+  auto nr_evac_alloced = stats_.nr_evac_alloced - stats_.prev_evac_alloced;
+  stats_.accum_nr_reclaimed +=
+      static_cast<float>(nr_freed - nr_evac_alloced) / nr_thds;
+  stats_.accum_evac_dur += static_cast<float>(dur_s); // to us
 }
 
 /** This function is supposed to be called inside a locked section */

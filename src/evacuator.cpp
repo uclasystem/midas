@@ -163,8 +163,10 @@ int64_t Evacuator::serial_gc() {
 }
 
 bool Evacuator::parallel_gc(int nr_workers) {
-  SegmentList stash_list;
+  auto stt = chrono_utils::now();
+  rmanager_->prof_reclaim_stt();
 
+  SegmentList stash_list;
   std::atomic_int nr_failed{0};
   std::vector<std::thread> gc_thds;
   for (int tid = 0; tid < nr_workers; tid++) {
@@ -190,23 +192,33 @@ bool Evacuator::parallel_gc(int nr_workers) {
       segments.push_back(segment);
     }
   }
+
+  auto end = chrono_utils::now();
+  rmanager_->prof_reclaim_end(nr_workers, chrono_utils::duration(stt, end));
   return nr_failed > 0;
 }
 
 int64_t Evacuator::force_reclaim() {
   if (!kEnableFaultHandler)
     return 0;
-  int64_t nr_reclaimed = 0;
 
   auto stt = chrono_utils::now();
+  rmanager_->prof_reclaim_stt();
+  auto nr_workers = kNumEvacThds;
+
+  int64_t nr_reclaimed = 0;
   std::vector<std::thread> thds;
-  for (int i = 0; i < kNumEvacThds; i++) {
+  for (int i = 0; i < nr_workers; i++) {
     thds.emplace_back([&] {
       auto &segments = allocator_->segments_;
       while (rmanager_->NumRegionAvail() <= 0) {
         auto segment = segments.pop_front();
         if (!segment)
           break;
+        if (segment.use_count() != 1) {
+          MIDAS_LOG(kError) << segment << " " << segment.use_count();
+        }
+        assert(segment.use_count() <= 2);
         segment->destroy();
         nr_reclaimed++;
       }
@@ -215,10 +227,11 @@ int64_t Evacuator::force_reclaim() {
   for (auto &thd : thds)
     thd.join();
   auto end = chrono_utils::now();
+  rmanager_->prof_reclaim_end(nr_workers, chrono_utils::duration(stt, end));
 
   if (nr_reclaimed)
     MIDAS_LOG(kDebug) << "GC: " << nr_reclaimed << " force reclaimed ("
-                     << chrono_utils::duration(stt, end) << "s). ";
+                      << chrono_utils::duration(stt, end) << "s). ";
 
   return nr_reclaimed;
 }
