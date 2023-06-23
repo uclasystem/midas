@@ -27,6 +27,7 @@ constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
 constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 /** Evacuator related */
 constexpr static float kAliveThreshHigh = 0.9;
+constexpr static int kNumEvacThds = 12;
 /** High-Level Data Structures & Interfaces related */
 constexpr static bool kEnableConstruct = true;
 

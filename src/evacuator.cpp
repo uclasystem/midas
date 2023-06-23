@@ -27,7 +27,8 @@ void Evacuator::init() {
         gc_cv_.wait(
             lk, [this] { return terminated_ || rmanager_->reclaim_trigger(); });
       }
-      auto succ = parallel_gc(kNumEvacThds);
+      auto nr_evac_thds = rmanager_->reclaim_nr_thds();
+      auto succ = parallel_gc(nr_evac_thds);
       // auto succ = serial_gc() < 0;
 
       if (!succ)

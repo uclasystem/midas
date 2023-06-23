@@ -82,6 +82,8 @@ public:
   /** trigger evacuation */
   bool reclaim_trigger() noexcept;
   int64_t reclaim_target() noexcept;
+  int32_t reclaim_nr_thds() noexcept;
+  int32_t reclaim_headroom() noexcept;
 
   /** profiling stats */
   void prof_alloc_tput();
@@ -135,10 +137,11 @@ private:
     int64_t prev_alloced{0};
     float alloc_tput{0};
     float reclaim_tput{0}; // per-evacuator-thread
-    int32_t headroom{0};
+    float reclaim_dur{0}; // duration of each reclamation round
     // Updated by Evacuator
     int64_t prev_evac_alloced{0};
     int64_t prev_freed{0};
+    int32_t evac_cnt{0};
     float accum_evac_dur{0};
     float accum_nr_reclaimed{0};
   } stats_;
