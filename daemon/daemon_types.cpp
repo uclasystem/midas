@@ -29,6 +29,10 @@ constexpr static float kPerfZeroThresh = 0.1;
 constexpr static uint32_t kProfInterval = 5; // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
+// constexpr static float kFullFactor = 0.6;
+// constexpr static float kExpandFactor = 0.5;
+// constexpr static uint32_t kMaxExpandThresh = 512;
+// constexpr static int32_t kWarmupRounds = 2;
 constexpr static float kFullFactor = 0.9;
 constexpr static float kExpandFactor = 0.5;
 constexpr static uint32_t kMaxExpandThresh = 128;
@@ -139,6 +143,7 @@ bool Client::free_region(int64_t region_id) {
 
 void Client::set_weight(int32_t weight) {
   weight_ = weight;
+  MIDAS_LOG(kInfo) << "Client " << id << " set weight to " << weight_;
 }
 
 bool Client::update_limit(uint64_t new_limit) {
@@ -570,6 +575,17 @@ void Daemon::on_mem_shrink() {
 void Daemon::on_mem_expand() {
   if (policy == Policy::Static)
     return;
+  if (policy == Policy::ExpandOnly) {
+    int64_t nr_to_grant = region_limit_ - region_cnt_;
+    auto nr_clients = clients_.size();
+    if (nr_clients == 0)
+      return;
+    auto delta = nr_to_grant / nr_clients;
+    for (auto &[_, client] : clients_) {
+      client->update_limit(client->region_limit_ + delta);
+    }
+    return;
+  }
   bool expanded = false;
   int64_t nr_to_grant = region_limit_ - region_cnt_;
   if (nr_to_grant <= 0)

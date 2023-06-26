@@ -88,7 +88,7 @@ public:
 
   static Daemon *get_daemon();
 
-  enum Policy { Static = 0, Midas, CliffHanger, RobinHood, NumPolicy};
+  enum Policy { Static = 0, Midas, CliffHanger, RobinHood, ExpandOnly, NumPolicy};
 
 private:
   int do_connect(const CtrlMsg &msg);
