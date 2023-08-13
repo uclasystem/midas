@@ -72,6 +72,10 @@ test_batched_kv_src = test/test_batched_kv.cpp
 test_batched_kv_obj = $(test_batched_kv_src:.cpp=.o)
 test_fs_shim_src = test/test_fs_shim.cpp
 test_fs_shim_obj = $(test_fs_shim_src:.cpp=.o)
+test_softptr_read_cost_src = test/test_softptr_read_cost.cpp
+test_softptr_read_cost_obj = $(test_softptr_read_cost_src:.cpp=.o)
+test_softptr_write_cost_src = test/test_softptr_write_cost.cpp
+test_softptr_write_cost_obj = $(test_softptr_write_cost_src:.cpp=.o)
 
 test_feat_extractor_src = test/test_feat_extractor.cpp
 test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
@@ -92,7 +96,8 @@ bin: bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_skewed_hashmap \
 	bin/test_fs_shim \
 	bin/test_sighandler \
-	bin/test_memcpy
+	bin/test_memcpy \
+	bin/test_softptr_read_cost bin/test_softptr_write_cost
 
 # bin/test_feat_extractor bin/test_feat_extractor_kv
 # bin/test_concurrent_evacuator bin/test_concurrent_evacuator2 bin/test_concurrent_evacuator3
@@ -163,6 +168,12 @@ bin/test_batched_kv: $(test_batched_kv_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_fs_shim: $(test_fs_shim_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_softptr_read_cost: $(test_softptr_read_cost_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_softptr_write_cost: $(test_softptr_write_cost_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 lib/libmidas++.a: $(lib_obj)
