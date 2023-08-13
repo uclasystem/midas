@@ -2,6 +2,7 @@
 **/libmidas++.so
 
 config/mem.config
+config/policy.config
 
 # Prerequisites
 *.d
