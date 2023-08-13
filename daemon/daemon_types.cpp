@@ -926,7 +926,7 @@ uint64_t check_sys_avail_mem() {
   }
 
   uint64_t avail_mem_bytes = info.freeram * info.mem_unit;
-  MIDAS_LOG(kInfo) << "Available Memory: " << avail_mem_bytes / (1024 * 1024)
+  MIDAS_LOG(kDebug) << "Available Memory: " << avail_mem_bytes / (1024 * 1024)
                     << " MB";
   return avail_mem_bytes;
 }
