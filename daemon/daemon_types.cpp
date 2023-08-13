@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <sys/sysinfo.h>
 
 #include "inc/daemon_types.hpp"
 #include "logging.hpp"
@@ -16,6 +17,10 @@
 
 namespace midas {
 /** Global control flags */
+/* by default set to "false" and Midas deamon will automatically detect system
+ * avail memory. Set it to "true" to simulate memory pressure by arbitrarily
+ * update the memory cfg file. */
+constexpr static bool kEnableMemPressureSimu = false;
 constexpr static bool kEnableDynamicRebalance = true;
 constexpr static Daemon::Policy kDefaultPolicy = Daemon::Policy::Midas;
 // WARNING: two flags below should always be enabled to adapt clients' memory
@@ -227,8 +232,8 @@ void Client::destroy() {
 }
 
 /** Daemon */
-Daemon::Daemon(const std::string cfg_file, const std::string ctrlq_name)
-    : cfg_file_(cfg_file), ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
+Daemon::Daemon(const std::string ctrlq_name)
+    : ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),
       ctrlq_(ctrlq_name_, true, kDaemonQDepth, kMaxMsgSize), region_cnt_(0),
       region_limit_(kMaxRegions), terminated_(false),
       status_(MemStatus::NORMAL), policy(kDefaultPolicy), monitor_(nullptr),
@@ -406,17 +411,13 @@ void Daemon::uncharge(int64_t nr_regions) {
 void Daemon::monitor() {
   while (!terminated_) {
     // monitor & update mem limit
-    std::ifstream mem_cfg(cfg_file_);
-    if (!mem_cfg.is_open()) {
-      MIDAS_LOG(kError) << "open " << cfg_file_ << " failed!";
-      return;
-    }
-    uint64_t upd_mem_limit;
-    mem_cfg >> upd_mem_limit;
-    mem_cfg.close();
+    auto upd_mem_limit = kEnableMemPressureSimu
+                             ? utils::check_file_avail_mem()
+                             : utils::check_sys_avail_mem();
     uint64_t upd_region_limit = upd_mem_limit / kRegionSize;
     if (region_limit_ != upd_region_limit) {
-      MIDAS_LOG(kError) << region_limit_ << " != " << upd_region_limit;
+      if (kEnableMemPressureSimu)
+        MIDAS_LOG(kInfo) << region_limit_ << " != " << upd_region_limit;
       region_limit_ = upd_region_limit;
       if (region_cnt_ > region_limit_) { // invoke rebalancer
         std::unique_lock<std::mutex> ul(rbl_mtx_);
@@ -426,10 +427,7 @@ void Daemon::monitor() {
     }
 
     // monitor & update policy
-    std::ifstream policy_cfg(kPolicyCfgFile);
-    int new_policy;
-    policy_cfg >> new_policy;
-    policy_cfg.close();
+    auto new_policy = utils::check_policy();
     if (new_policy >= Policy::Static && new_policy < Policy::NumPolicy &&
         new_policy != policy) {
       MIDAS_LOG(kError) << "Policy changed " << policy << " -> " << new_policy;
@@ -918,5 +916,43 @@ void Daemon::serve() {
 
   MIDAS_LOG(kInfo) << "Daemon stopped to serve...";
 }
+
+namespace utils {
+uint64_t check_sys_avail_mem() {
+  struct sysinfo info;
+  if (sysinfo(&info) != 0) {
+    MIDAS_LOG(kError) << "Error when calling sysinfo()";
+    return -1;
+  }
+
+  uint64_t avail_mem_bytes = info.freeram * info.mem_unit;
+  MIDAS_LOG(kInfo) << "Available Memory: " << avail_mem_bytes / (1024 * 1024)
+                    << " MB";
+  return avail_mem_bytes;
+}
+
+uint64_t check_file_avail_mem() {
+  std::ifstream mem_cfg(kMemoryCfgFile);
+  if (!mem_cfg.is_open()) {
+    MIDAS_LOG(kError) << "open " << kMemoryCfgFile << " failed!";
+    return -1;
+  }
+  uint64_t upd_mem_limit;
+  mem_cfg >> upd_mem_limit;
+  mem_cfg.close();
+  return upd_mem_limit;
+}
+
+Daemon::Policy check_policy() {
+  std::ifstream policy_cfg(kPolicyCfgFile);
+  int new_policy;
+  policy_cfg >> new_policy;
+  policy_cfg.close();
+  if (new_policy < Daemon::Policy::Static ||
+      new_policy >= Daemon::Policy::NumPolicy)
+    return Daemon::Policy::Invalid;
+  return Daemon::Policy(new_policy);
+}
+} // namespace utils
 
 } // namespace midas

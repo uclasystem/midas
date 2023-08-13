@@ -81,14 +81,21 @@ private:
 
 class Daemon {
 public:
-  Daemon(const std::string cfg_file = kDaemonCfgFile,
-         const std::string ctrlq_name = kNameCtrlQ);
+  Daemon(const std::string ctrlq_name = kNameCtrlQ);
   ~Daemon();
   void serve();
 
   static Daemon *get_daemon();
 
-  enum Policy { Static = 0, Midas, CliffHanger, RobinHood, ExpandOnly, NumPolicy};
+  enum Policy {
+    Invalid = -1,
+    Static = 0,
+    Midas,
+    CliffHanger,
+    RobinHood,
+    ExpandOnly,
+    NumPolicy
+  };
 
 private:
   int do_connect(const CtrlMsg &msg);
@@ -134,14 +141,21 @@ private:
   std::atomic_int_fast64_t region_cnt_;
   uint64_t region_limit_;
   // For simluation
-  std::string cfg_file_;
   constexpr static uint64_t kInitRegions = (100ull << 20) / kRegionSize;// 100MB
   constexpr static uint64_t kMaxRegions = (100ull << 30) / kRegionSize; // 100GB
-  constexpr static char kDaemonCfgFile[] = "config/mem.config";
-  constexpr static char kPolicyCfgFile[] = "config/policy.config";
 
   friend class Client;
 };
+
+namespace utils {
+uint64_t check_sys_avail_mem();
+uint64_t check_file_avail_mem();
+
+Daemon::Policy check_policy();
+
+constexpr static char kMemoryCfgFile[] = "config/mem.config";
+constexpr static char kPolicyCfgFile[] = "config/policy.config";
+}
 
 } // namespace midas
 
