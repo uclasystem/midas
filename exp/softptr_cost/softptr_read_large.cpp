@@ -19,7 +19,8 @@
 
 using data_t = uint64_t;
 
-constexpr static int kMeasureTimes = 1'000'000; // 1M times
+constexpr static int kMeasureTimes = 10'000; // 10K times
+constexpr static bool kPartialAccess = false;
 constexpr static uint64_t kRawMemAccessCycles = 170;
 constexpr static uint64_t kCachePoolSize = 100ull * 1024 * 1024 * 1024; // 100GB
 
@@ -80,6 +81,8 @@ void softptr_read_large_cost() {
     assert(succ);
   }
 
+  static LargeObject obj;
+  static LargeObject scratch;
   uint64_t stt, end;
   std::vector<uint64_t> durs;
   for (int i = 0; i < kMeasureTimes; i++) {
@@ -88,10 +91,13 @@ void softptr_read_large_cost() {
 
     volatile data_t dst;
     stt = midas::Time::get_cycles_stt();
-    {
+    if constexpr (kPartialAccess) {
       data_t dst_;
       objs[idx].copy_to(&dst_, sizeof(dst_), off);
       dst = dst_;
+    } else {
+      objs[idx].copy_to(scratch.data, kLargeObjSize);
+      std::memcpy(&obj, &scratch, sizeof(obj));
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;

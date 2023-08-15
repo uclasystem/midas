@@ -20,7 +20,8 @@
 using data_t = uint64_t;
 constexpr static data_t kWriteContent = 0x1f1f1f1f'1f1f1f1full;
 
-constexpr static int kMeasureTimes = 1'000'000; // 1M times
+constexpr static int kMeasureTimes = 10'000; // 10K times
+constexpr static bool kPartialAccess = false;
 constexpr static uint64_t kRawMemAccessCycles = 170;
 constexpr static uint64_t kCachePoolSize = 100ull * 1024 * 1024 * 1024; // 100GB
 
@@ -66,6 +67,7 @@ void unique_ptr_write_large_cost() {
     objs.push_back(std::make_unique<LargeObject>());
   }
 
+  static LargeObject obj;
   uint64_t stt, end;
   std::vector<uint64_t> durs;
   for (int i = 0; i < kMeasureTimes; i++) {
@@ -73,9 +75,11 @@ void unique_ptr_write_large_cost() {
     auto off = off_dist(mt);
 
     stt = midas::Time::get_cycles_stt();
-    {
+    if constexpr (kPartialAccess) {
       data_t *ptr = reinterpret_cast<data_t *>(objs[idx].get()->data);
       ACCESS_ONCE(ptr[off]) = kWriteContent;
+    } else {
+      std::memcpy(objs[idx].get(), &obj, sizeof(obj));
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;
