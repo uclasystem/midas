@@ -25,17 +25,20 @@ constexpr static uint64_t kRawMemAccessCycles = 170;
 constexpr static uint64_t kCachePoolSize = 100ull * 1024 * 1024 * 1024;
 
 constexpr static int kNumSmallObjs = 1'000'000; // 1M objs
-constexpr static int kSmallObjSize = 64;
+constexpr static int kSmallObjSize = 32;
+constexpr static int kAlignedSize =
+    64 - sizeof(midas::SmallObjectHdr); // cacheline aligned with header
+static_assert(kSmallObjSize <= kAlignedSize, "AlignedSize is incorrect!");
 
 struct SmallObject {
-  char data[kSmallObjSize];
+  char data[kAlignedSize];
 
   SmallObject() {
     static std::random_device rd;
     static std::mt19937 mt(rd());
     static std::uniform_int_distribution<int> dist('A', 'z');
 
-    for (uint32_t i = 0; i < kSmallObjSize; i++) {
+    for (uint32_t i = 0; i < kAlignedSize; i++) {
       data[i] = dist(mt);
     }
   }
@@ -69,7 +72,7 @@ void softptr_write_small_cost() {
     objs.emplace_back(midas::ObjectPtr());
   }
   for (int i = 0; i < kNumSmallObjs; i++) {
-    auto succ = allocator->alloc_to(kSmallObjSize, &objs[i]);
+    auto succ = allocator->alloc_to(kAlignedSize, &objs[i]);
     assert(succ);
   }
   for (int i = 0; i < kNumSmallObjs; i++) {
@@ -78,6 +81,7 @@ void softptr_write_small_cost() {
     assert(succ);
   }
 
+  SmallObject obj;
   uint64_t stt, end;
   std::vector<uint64_t> durs;
   for (int i = 0; i < kMeasureTimes; i++) {
@@ -85,7 +89,7 @@ void softptr_write_small_cost() {
 
     stt = midas::Time::get_cycles_stt();
     {
-      objs[idx].copy_from(&kWriteContent, sizeof(data_t));
+      objs[idx].copy_from(obj.data, kSmallObjSize);
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;
