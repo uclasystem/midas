@@ -25,7 +25,7 @@ constexpr static uint64_t kRawMemAccessCycles = 170;
 constexpr static uint64_t kCachePoolSize = 100ull * 1024 * 1024 * 1024;
 
 constexpr static int kNumSmallObjs = 1'000'000; // 1M objs
-constexpr static int kSmallObjSize = 64;
+constexpr static int kSmallObjSize = 32;
 
 struct SmallObject {
   char data[kSmallObjSize];
@@ -63,6 +63,7 @@ void unique_ptr_write_small_cost() {
     objs.push_back(std::make_unique<SmallObject>());
   }
 
+  SmallObject obj;
   uint64_t stt, end;
   std::vector<uint64_t> durs;
   for (int i = 0; i < kMeasureTimes; i++) {
@@ -70,8 +71,7 @@ void unique_ptr_write_small_cost() {
 
     stt = midas::Time::get_cycles_stt();
     {
-      data_t *ptr = reinterpret_cast<data_t *>(objs[idx].get()->data);
-      ACCESS_ONCE(*ptr) = kWriteContent;
+      *objs[idx].get() = obj;
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;
