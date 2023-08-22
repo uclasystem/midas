@@ -474,10 +474,12 @@ void Daemon::profiler() {
     ul.unlock();
 
     // invoke rebalancer
-    if (region_cnt_ < region_limit_ && nr_active_clients > 0) {
-      std::unique_lock<std::mutex> ul(rbl_mtx_);
-      status_ = MemStatus::NEED_EXPAND;
-      rbl_cv_.notify_one();
+    if (region_cnt_ < region_limit_) {
+      if (nr_active_clients > 0) {
+        std::unique_lock<std::mutex> ul(rbl_mtx_);
+        status_ = MemStatus::NEED_EXPAND;
+        rbl_cv_.notify_one();
+      }
     } else if (region_cnt_ == region_limit_) {
       std::unique_lock<std::mutex> ul(rbl_mtx_);
       status_ = MemStatus::NEED_REBALANCE;
@@ -486,6 +488,8 @@ void Daemon::profiler() {
       std::unique_lock<std::mutex> ul(rbl_mtx_);
       status_ = MemStatus::NEED_SHRINK;
       rbl_cv_.notify_one();
+    } else {
+      MIDAS_ABORT("Impossible to reach here!");
     }
   }
 }
