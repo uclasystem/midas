@@ -554,14 +554,15 @@ void Daemon::on_mem_shrink() {
     }
     if (region_cnt_ <= region_limit_)
       break;
-    double total_gain = 0.0;
+    double total_reciprocal_gain = 0.0;
     for (auto client : active_clients)
-      total_gain += client->stats.perf_gain;
+      total_reciprocal_gain += 1.0 / client->stats.perf_gain;
     for (auto client : active_clients) {
-      auto gain = client->stats.perf_gain;
+      auto reciprocal_gain = 1.0 / client->stats.perf_gain;
       int64_t old_limit = client->region_limit_;
-      int64_t nr_reclaimed =
-          std::max<int64_t>(std::ceil(gain / total_gain * nr_to_reclaim), 1);
+      int64_t nr_reclaimed = std::max<int64_t>(
+          std::ceil(reciprocal_gain / total_reciprocal_gain * nr_to_reclaim),
+          1);
       int64_t new_limit = std::max(1l, old_limit - nr_reclaimed);
       bool succ = client->update_limit(new_limit);
       nr_to_reclaim -= nr_reclaimed;
