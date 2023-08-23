@@ -28,7 +28,10 @@ enum CtrlRetCode {
 
 struct MemMsg {
   int64_t region_id;
-  uint64_t size;
+  union {
+    uint64_t size;
+    float weight;
+  };
 };
 
 struct CtrlMsg {

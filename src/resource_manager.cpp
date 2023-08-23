@@ -363,10 +363,10 @@ bool ResourceManager::force_reclaim() {
   return NumRegionAvail() > 0;
 }
 
-void ResourceManager::SetWeight(int32_t weight) noexcept {
+void ResourceManager::SetWeight(float weight) noexcept {
   CtrlMsg msg{.id = id_,
               .op = CtrlOpCode::SET_WEIGHT,
-              .mmsg = {.size = static_cast<uint64_t>(weight)}};
+              .mmsg = {.weight = weight}};
   txqp_.send(&msg, sizeof(msg));
 }
 

@@ -37,7 +37,7 @@ public:
 
   // Config
   void update_limit(size_t limit_in_bytes);
-  void set_weight(int32_t weight);
+  void set_weight(float weight);
 
   // Callback Functions
   using ConstructFunc = std::function<int(void *)>;

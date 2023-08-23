@@ -37,7 +37,7 @@ inline void CachePool::update_limit(size_t limit_in_bytes) {
   rmanager_->UpdateLimit(limit_in_bytes);
 }
 
-inline void CachePool::set_weight(int32_t weight) {
+inline void CachePool::set_weight(float weight) {
   rmanager_->SetWeight(weight);
 }
 

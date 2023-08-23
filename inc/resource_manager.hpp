@@ -73,7 +73,7 @@ public:
   inline VRange GetRegion(int64_t region_id) noexcept;
 
   void UpdateLimit(size_t size) noexcept;
-  void SetWeight(int32_t weight) noexcept;
+  void SetWeight(float weight) noexcept;
 
   uint64_t NumRegionInUse() const noexcept;
   uint64_t NumRegionLimit() const noexcept;

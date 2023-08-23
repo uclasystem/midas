@@ -391,7 +391,7 @@ int Daemon::do_set_weight(const CtrlMsg &msg) {
     return -1;
   }
   ul.unlock();
-  int32_t weight = msg.mmsg.size;
+  float weight = msg.mmsg.weight;
   auto &client = client_iter->second;
   client->set_weight(weight);
   return 0;
