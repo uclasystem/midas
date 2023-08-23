@@ -138,6 +138,7 @@ private:
     float alloc_tput{0};
     float reclaim_tput{0}; // per-evacuator-thread
     float reclaim_dur{0}; // duration of each reclamation round
+    uint32_t headroom{0};
     // Updated by Evacuator
     int64_t prev_evac_alloced{0};
     int64_t prev_freed{0};

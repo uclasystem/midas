@@ -613,8 +613,11 @@ void Daemon::on_mem_expand() {
     return;
   double total_gain = 0.0;
   for (auto client : active_clients) {
-    auto thresh = std::max<int64_t>(client->region_limit_ * kFullFactor,
-                                    client->region_limit_ - 768);
+    auto thresh = std::max<int64_t>(
+        client->region_limit_ * kFullFactor,
+        client->region_limit_ - std::max(256, 4 * client->stats.headroom));
+    MIDAS_LOG(kError) << client->stats.headroom << " " << thresh << " "
+                      << client->region_cnt_;
     if (client->region_cnt_ < thresh)
       continue;
     total_gain += client->stats.perf_gain;

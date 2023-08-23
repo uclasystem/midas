@@ -120,8 +120,10 @@ int32_t ResourceManager::reclaim_headroom() noexcept {
   else if (stats_.alloc_tput > 300)
     scale_factor = 10;
   auto headroom = std::min<int32_t>(
-      region_limit_ * 0.5, std::max<int32_t>(1, scale_factor * stats_.reclaim_dur *
-                                    stats_.alloc_tput));
+      region_limit_ * 0.5,
+      std::max<int32_t>(16,
+                        scale_factor * stats_.reclaim_dur * stats_.alloc_tput));
+  stats_.headroom = headroom;
   // MIDAS_LOG(kInfo) << "headroom: " << headroom;
   return headroom;
 }
@@ -303,7 +305,7 @@ void ResourceManager::do_profile_stats(CtrlMsg &msg) {
   StatsMsg stats{0};
   cpool_->profile_stats(&stats);
   prof_alloc_tput();
-  stats.headroom = reclaim_headroom();
+  stats.headroom = stats_.headroom;
   rxqp_.send(&stats, sizeof(stats));
 }
 
