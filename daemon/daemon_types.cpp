@@ -6,8 +6,8 @@
 #include <future>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <sys/sysinfo.h>
+#include <thread>
 
 #include "inc/daemon_types.hpp"
 #include "logging.hpp"
@@ -517,7 +517,7 @@ void Daemon::rebalancer() {
         on_mem_rebalance();
       else if (policy == Policy::CliffHanger)
         on_mem_rebalance_cliffhanger();
-      else { // TODO: Robinhood
+      else {
         on_mem_rebalance();
       }
       break;
@@ -764,67 +764,6 @@ void Daemon::on_mem_rebalance() {
   }
 }
 
-// void Daemon::on_mem_rebalance() {
-//   if (!kEnableDynamicRebalance)
-//     return;
-//   constexpr static uint64_t kMaxStepSize = 64;
-//   static uint64_t kStepSize = 4ul;
-//   static uint64_t prev_winner = -1ul;
-//   double total_gain = 0.;
-
-//   std::vector<std::shared_ptr<Client>> clients;
-//   {
-//     std::unique_lock<std::mutex> ul(mtx_);
-//     for (auto &[_, client] : clients_) {
-//       if (client->region_limit_ <= 1)
-//         continue;
-//       clients.emplace_back(client);
-//       total_gain += client->stats.perf_gain;
-//     }
-//   }
-//   std::sort(clients.begin(), clients.end(),
-//             [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
-//               return c1->stats.perf_gain < c2->stats.perf_gain;
-//             });
-
-//   if (clients.size() <= 1)
-//     return;
-
-//   std::shared_ptr<Client> winner = nullptr;
-//   while (!clients.empty()) {
-//     winner = clients.back();
-//     clients.pop_back();
-//     if (winner->stats.perf_gain > kPerfZeroThresh &&
-//         winner->region_cnt_ >= winner->region_limit_ * kFullFactor)
-//       break;
-//   }
-//   if (!winner || winner->stats.perf_gain <= kPerfZeroThresh)
-//     return;
-//   if (winner->id == prev_winner)
-//     kStepSize = std::min(kMaxStepSize, kStepSize * 2);
-//   else
-//     prev_winner = winner->id;
-//   MIDAS_LOG(kDebug) << "Winner " << winner->id
-//                     << ", perf gain: " << winner->stats.perf_gain;
-//   uint64_t nr_reclaimed = 0;
-//   for (auto client : clients) {
-//     // each client must have at least 1 region
-//     auto nr_to_reclaim = std::min(client->region_limit_ - 1, kStepSize);
-//     bool succ = client->update_limit(client->region_limit_ - nr_to_reclaim);
-//     nr_reclaimed += nr_to_reclaim;
-//   }
-//   bool succ = winner->update_limit(winner->region_limit_ + nr_reclaimed);
-//   if (nr_reclaimed) {
-//     MIDAS_LOG(kInfo) << "Memory rebalance done! Total regions: " << region_cnt_
-//                      << "/" << region_limit_;
-//     std::unique_lock<std::mutex> ul(mtx_);
-//     for (auto &[_, client] : clients_) {
-//       MIDAS_LOG(kInfo) << "Client " << client->id
-//                        << " regions: " << client->region_cnt_ << "/"
-//                        << client->region_limit_;
-//     }
-//   }
-// }
 
 void Daemon::on_mem_rebalance_cliffhanger() {
   if (!kEnableDynamicRebalance)
