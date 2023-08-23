@@ -15,6 +15,9 @@ LIBS += $(libmidas_lib)
 
 INC += -Iinc
 LIBS += -lcrypto -pthread
+# For stacktrace logging
+LIBS += -rdynamic -ggdb -no-pie -fno-pie
+LIBS += -ldl
 
 SRC = $(wildcard src/*.cpp)
 
@@ -29,7 +32,7 @@ $(APP_BIN) : $(BUILD_DIR)/$(APP_BIN)
 
 $(BUILD_DIR)/$(APP_BIN) : $(APP_OBJ)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
+	$(LDXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 $(BUILD_DIR)/%.o : %.cpp Makefile
 	@mkdir -p $(@D)
