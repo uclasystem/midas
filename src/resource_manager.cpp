@@ -292,6 +292,8 @@ void ResourceManager::do_force_reclaim(CtrlMsg &msg) {
                     << "->" << new_region_limit;
   region_limit_ = new_region_limit;
 
+  force_reclaim();
+
   CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = CtrlRetCode::MEM_SUCC};
   ack.mmsg.size = region_map_.size() + freelist_.size();
   rxqp_.send(&ack, sizeof(ack));
@@ -313,6 +315,8 @@ void ResourceManager::do_disconnect(CtrlMsg &msg) {
 }
 
 bool ResourceManager::reclaim() {
+  if (NumRegionInUse() > NumRegionLimit() + kForceReclaimThresh)
+    return force_reclaim();
   if (NumRegionInUse() < NumRegionLimit())
     return true;
 

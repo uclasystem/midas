@@ -152,6 +152,8 @@ void Client::set_weight(int32_t weight) {
 }
 
 bool Client::update_limit(uint64_t new_limit) {
+  if (new_limit + kForceReclaimThresh < region_limit_)
+    return force_reclaim(new_limit);
   if (new_limit == region_limit_)
     return true;
   daemon_->charge(new_limit - region_limit_);

@@ -28,6 +28,7 @@ constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 /** Evacuator related */
 constexpr static float kAliveThreshHigh = 0.9;
 constexpr static int kNumEvacThds = 12;
+constexpr static int kForceReclaimThresh = 512; // #(regions to be reclaimed)
 /** High-Level Data Structures & Interfaces related */
 constexpr static bool kEnableConstruct = true;
 
