@@ -355,8 +355,18 @@ inline EvacState Evacuator::scan_segment(LogSegment *segment, bool deactivate) {
             }
           } else { // continued segment
             // An inner segment of a large object. Skip it.
-            alive_bytes += obj_size;
-            nr_contd_objs++;
+            LargeObjectHdr lhdr;
+            if (!load_hdr(lhdr, obj_ptr))
+              goto faulted;
+            auto head = lhdr.get_head();
+            MetaObjectHdr head_hdr;
+            if (head.null() || !load_hdr(head_hdr, head) ||
+                !head_hdr.is_valid() || !head_hdr.is_present()) {
+              nr_freed++;
+            } else {
+              alive_bytes += obj_size;
+              nr_contd_objs++;
+            }
           }
         } else
           nr_non_present++;
@@ -472,11 +482,17 @@ inline EvacState Evacuator::evac_segment(LogSegment *segment) {
         } else
           nr_failed++;
       } else { // an inner segment of a large obj
-        // TODO: remap this segment directly if (obj_size == kLogsegmentSize).
-        /* For now, let's skip it and let the head segment handle all the
-         * continued segments together.
-         */
-        nr_contd_objs++;
+        LargeObjectHdr lhdr;
+        if (!load_hdr(lhdr, obj_ptr))
+          goto faulted;
+        auto head = lhdr.get_head();
+        MetaObjectHdr head_hdr;
+        if (head.null() || !load_hdr(head_hdr, head) || !head_hdr.is_valid() ||
+            !head_hdr.is_present()) {
+          nr_freed++;
+        } else {
+          nr_contd_objs++;
+        }
       }
     }
     obj_ptr.unlock(lock_id);
