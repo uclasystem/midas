@@ -47,14 +47,10 @@ bool ObjectPtr::copy_from_small(const void *src, size_t len, int64_t offset) {
     return false;
   if (!null()) {
     MetaObjectHdr meta_hdr;
-    if (!load_hdr(meta_hdr, *this)) {
-      MIDAS_LOG(kError);
+    if (!load_hdr(meta_hdr, *this))
       goto done;
-    }
-    if (!meta_hdr.is_present()) {
-      MIDAS_LOG(kError);
+    if (!meta_hdr.is_present())
       goto done;
-    }
     meta_hdr.inc_accessed();
     if (!store_hdr(meta_hdr, *this))
       goto done;
@@ -101,7 +97,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
     MetaObjectHdr meta_hdr;
     if (!load_hdr(meta_hdr, *this))
       goto done;
-    if (meta_hdr.is_continue() || !meta_hdr.is_present())
+    if (meta_hdr.is_continue() || !meta_hdr.is_present()) // invalid head chunk
       goto done;
     meta_hdr.inc_accessed();
     if (!store_hdr(meta_hdr, *this))
@@ -111,13 +107,13 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
     ObjectPtr optr = *this;
     while (remaining_offset > 0) {
       if (optr.null())
-        goto done;
+        goto fail_free;
       if (remaining_offset < optr.data_size_in_segment())
         break;
       remaining_offset -= optr.data_size_in_segment();
 
       if (iter_large(optr) != RetCode::Succ)
-        goto done;
+        goto fail_free;
     }
     assert(remaining_offset < optr.data_size_in_segment());
     // Now optr is pointing to the first part for copy
@@ -127,7 +123,7 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
           remaining_len, optr.data_size_in_segment() - remaining_offset);
       if (!optr.obj_.copy_from(src, copy_len,
                                sizeof(LargeObjectHdr) + remaining_offset))
-        goto done;
+        goto fail_free;
       remaining_offset = 0; // copy from the beginning for the following parts
       remaining_len -= copy_len;
       if (remaining_len <= 0)
@@ -136,12 +132,17 @@ bool ObjectPtr::copy_from_large(const void *src, size_t len, int64_t offset) {
                                            copy_len);
 
       if (iter_large(optr) != RetCode::Succ)
-        goto done;
+        goto fail_free;
     }
     ret = true;
   }
 
 done:
+  unlock(lock_id);
+  return ret;
+
+fail_free:
+  free_large();
   unlock(lock_id);
   return ret;
 }
@@ -167,13 +168,13 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
     ObjectPtr optr = *this;
     while (remaining_offset > 0) {
       if (optr.null())
-        goto done;
+        goto fail_free;
       if (remaining_offset < optr.data_size_in_segment())
         break;
       remaining_offset -= optr.data_size_in_segment();
 
       if (iter_large(optr) != RetCode::Succ)
-        goto done;
+        goto fail_free;
     }
     // Now optr is pointing to the first part for copy
     int64_t remaining_len = len;
@@ -182,7 +183,7 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
           remaining_len, optr.data_size_in_segment() - remaining_offset);
       if (!optr.obj_.copy_to(dst, copy_len,
                              sizeof(LargeObjectHdr) + remaining_offset))
-        goto done;
+        goto fail_free;
       remaining_offset = 0; // copy from the beginning for the following parts
       remaining_len -= copy_len;
       if (remaining_len <= 0)
@@ -191,12 +192,17 @@ bool ObjectPtr::copy_to_large(void *dst, size_t len, int64_t offset) {
           reinterpret_cast<void *>(reinterpret_cast<uint64_t>(dst) + copy_len);
 
       if (iter_large(optr) != RetCode::Succ)
-        goto done;
+        goto fail_free;
     }
     ret = true;
   }
 
 done:
+  unlock(lock_id);
+  return ret;
+
+fail_free:
+  free_large();
   unlock(lock_id);
   return ret;
 }
