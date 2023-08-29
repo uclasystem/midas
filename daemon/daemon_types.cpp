@@ -146,7 +146,7 @@ bool Client::free_region(int64_t region_id) {
   return ret == CtrlRetCode::MEM_SUCC;
 }
 
-void Client::set_weight(int32_t weight) {
+void Client::set_weight(float weight) {
   weight_ = weight;
   MIDAS_LOG(kInfo) << "Client " << id << " set weight to " << weight_;
 }
