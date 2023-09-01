@@ -244,6 +244,11 @@ void Client::destroy() {
   }
 }
 
+bool Client::almost_full() noexcept {
+  auto threshold = std::max<int64_t>(kMaxExpandThresh, 4 * stats.headroom);
+  return region_cnt_ >= region_limit_ - threshold;
+}
+
 /** Daemon */
 Daemon::Daemon(const std::string ctrlq_name)
     : ctrlq_name_(utils::get_rq_name(ctrlq_name, true)),

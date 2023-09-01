@@ -57,6 +57,7 @@ public:
   void set_lat_critical(bool value);
   bool force_reclaim(uint64_t new_limit);
   bool profile_stats();
+  bool almost_full() noexcept;
 
 private:
   inline int64_t new_region_id_() noexcept;
