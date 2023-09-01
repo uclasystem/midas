@@ -41,6 +41,10 @@ inline void CachePool::set_weight(float weight) {
   rmanager_->SetWeight(weight);
 }
 
+inline void CachePool::set_lat_critical(bool value) {
+  rmanager_->SetLatCritical(value);
+}
+
 inline void CachePool::set_construct_func(ConstructFunc callback) {
   if (construct_)
     MIDAS_LOG(kWarning) << "Cache pool " << name_

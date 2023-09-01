@@ -17,6 +17,7 @@ enum CtrlOpCode {
   FORCE_RECLAIM,
   PROF_STATS,
   SET_WEIGHT,
+  SET_LAT_CRITICAL,
 };
 
 enum CtrlRetCode {
@@ -31,6 +32,7 @@ struct MemMsg {
   union {
     uint64_t size;
     float weight;
+    bool lat_critical;
   };
 };
 

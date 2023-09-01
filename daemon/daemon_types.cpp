@@ -51,7 +51,7 @@ constexpr static uint32_t kServeTimeout = 1;   // in seconds
 Client::Client(Daemon *daemon, uint64_t id_, uint64_t region_limit)
     : daemon_(daemon), status(ClientStatusCode::INIT), id(id_), region_cnt_(0),
       region_limit_(region_limit), weight_(1), warmup_ttl_(0),
-      cq(utils::get_ackq_name(kNameCtrlQ, id), false),
+      lat_critical_(false), cq(utils::get_ackq_name(kNameCtrlQ, id), false),
       txqp(std::to_string(id), false) {
   daemon_->charge(region_limit_);
 }
@@ -149,6 +149,12 @@ bool Client::free_region(int64_t region_id) {
 void Client::set_weight(float weight) {
   weight_ = weight;
   MIDAS_LOG(kInfo) << "Client " << id << " set weight to " << weight_;
+}
+
+void Client::set_lat_critical(bool value) {
+  lat_critical_ = value;
+  MIDAS_LOG(kInfo) << "Client " << id << " set lat_critical to "
+                   << lat_critical_;
 }
 
 bool Client::update_limit(uint64_t new_limit) {
@@ -394,6 +400,21 @@ int Daemon::do_set_weight(const CtrlMsg &msg) {
   float weight = msg.mmsg.weight;
   auto &client = client_iter->second;
   client->set_weight(weight);
+  return 0;
+}
+
+int Daemon::do_set_lat_critical(const CtrlMsg &msg) {
+  std::unique_lock<std::mutex> ul(mtx_);
+  auto client_iter = clients_.find(msg.id);
+  if (client_iter == clients_.cend()) {
+    /* TODO: same as in do_disconnect */
+    MIDAS_LOG(kError) << "Client " << msg.id << " doesn't exist!";
+    return -1;
+  }
+  ul.unlock();
+  bool lat_critical = msg.mmsg.lat_critical;
+  auto &client = client_iter->second;
+  client->set_lat_critical(lat_critical);
   return 0;
 }
 
@@ -862,6 +883,9 @@ void Daemon::serve() {
       break;
     case SET_WEIGHT:
       do_set_weight(msg);
+      break;
+    case SET_LAT_CRITICAL:
+      do_set_lat_critical(msg);
       break;
     default:
       MIDAS_LOG(kError) << "Recved unknown message: " << msg.op;

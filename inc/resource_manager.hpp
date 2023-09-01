@@ -74,6 +74,7 @@ public:
 
   void UpdateLimit(size_t size) noexcept;
   void SetWeight(float weight) noexcept;
+  void SetLatCritical(bool value) noexcept;
 
   uint64_t NumRegionInUse() const noexcept;
   uint64_t NumRegionLimit() const noexcept;

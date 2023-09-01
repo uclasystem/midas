@@ -370,6 +370,13 @@ void ResourceManager::SetWeight(float weight) noexcept {
   txqp_.send(&msg, sizeof(msg));
 }
 
+void ResourceManager::SetLatCritical(bool value) noexcept {
+  CtrlMsg msg{.id = id_,
+              .op = CtrlOpCode::SET_LAT_CRITICAL,
+              .mmsg = {.lat_critical = value}};
+  txqp_.send(&msg, sizeof(msg));
+}
+
 void ResourceManager::UpdateLimit(size_t size) noexcept {
   CtrlMsg msg{
       .id = id_, .op = CtrlOpCode::UPDLIMIT_REQ, .mmsg = {.size = size}};

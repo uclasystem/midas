@@ -54,6 +54,7 @@ public:
   bool free_region(int64_t region_id);
   bool update_limit(uint64_t new_limit);
   void set_weight(float weight);
+  void set_lat_critical(bool value);
   bool force_reclaim(uint64_t new_limit);
   bool profile_stats();
 
@@ -75,6 +76,7 @@ private:
   uint64_t region_limit_;
   float weight_;
   int32_t warmup_ttl_;
+  bool lat_critical_;
 
   friend class Daemon;
 };
@@ -105,6 +107,7 @@ private:
   int do_free(const CtrlMsg &msg);
   int do_update_limit_req(const CtrlMsg &msg);
   int do_set_weight(const CtrlMsg &msg);
+  int do_set_lat_critical(const CtrlMsg &msg);
 
   void charge(int64_t nr_regions);
   void uncharge(int64_t nr_regions);
