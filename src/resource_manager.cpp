@@ -21,9 +21,11 @@
 
 namespace midas {
 constexpr static int32_t kMaxAllocRetry = 5;
-constexpr static int32_t kReclaimRepeat = 10;
+constexpr static int32_t kReclaimRepeat = 20;
 constexpr static auto kReclaimTimeout =
     std::chrono::milliseconds(100);           // milliseconds
+constexpr static auto kAllocRetryDelay =
+    std::chrono::microseconds(100);           // microseconds
 constexpr static int32_t kMonitorTimeout = 1; // seconds
 constexpr static int32_t kDisconnTimeout = 3; // seconds
 constexpr static bool kEnableFreeList = true;
@@ -121,7 +123,7 @@ int32_t ResourceManager::reclaim_headroom() noexcept {
     scale_factor = 10;
   auto headroom = std::min<int32_t>(
       region_limit_ * 0.5,
-      std::max<int32_t>(16,
+      std::max<int32_t>(32,
                         scale_factor * stats_.reclaim_dur * stats_.alloc_tput));
   stats_.headroom = headroom;
   // MIDAS_LOG(kInfo) << "headroom: " << headroom;
@@ -394,7 +396,7 @@ retry:
   retry_cnt++;
   if (!overcommit && reclaim_trigger()) {
     if (NumRegionAvail() <= 0) { // block waiting for reclamation
-      if (kEnableFaultHandler && retry_cnt >= kMaxAllocRetry)
+      if (kEnableFaultHandler && retry_cnt >= kMaxAllocRetry / 2)
         force_reclaim();
       else
         reclaim();
@@ -416,6 +418,7 @@ retry:
   // 2) Local alloc path. Do reclamation and try local allocation again
   if (!overcommit && NumRegionAvail() <= 0) {
     lk.unlock();
+    std::this_thread::sleep_for(kAllocRetryDelay);
     goto retry;
   }
   // 3) Remote alloc path. Comm with daemon and try to alloc
@@ -428,7 +431,7 @@ retry:
   CtrlMsg ret_msg;
   int ret = txqp_.recv(&ret_msg, sizeof(ret_msg));
   if (ret) {
-    MIDAS_LOG(kError) << ": in recv msg, ret: " << ret;
+    MIDAS_LOG(kError) << "Allocation error: " << ret;
     return -1;
   }
   if (ret_msg.ret != CtrlRetCode::MEM_SUCC) {
