@@ -444,9 +444,8 @@ void Daemon::uncharge(int64_t nr_regions) {
 void Daemon::monitor() {
   while (!terminated_) {
     // monitor & update mem limit
-    auto upd_mem_limit = kEnableMemPressureSimu
-                             ? utils::check_file_avail_mem()
-                             : utils::check_sys_avail_mem();
+    auto upd_mem_limit = kEnableMemPressureSimu ? utils::check_file_avail_mem()
+                                                : utils::check_sys_avail_mem();
     uint64_t upd_region_limit = upd_mem_limit / kRegionSize;
     if (region_limit_ != upd_region_limit) {
       if (kEnableMemPressureSimu)
@@ -631,31 +630,19 @@ void Daemon::on_mem_expand() {
   std::vector<std::shared_ptr<Client>> active_clients;
   std::unique_lock<std::mutex> ul(mtx_);
   for (auto &[_, client] : clients_) {
-    if (client->stats.perf_gain > kPerfZeroThresh)
+    if (client->stats.perf_gain > kPerfZeroThresh && client->almost_full())
       active_clients.emplace_back(client);
   }
   ul.unlock();
   if (active_clients.empty())
     return;
   double total_gain = 0.0;
-  for (auto client : active_clients) {
-    auto thresh = std::max<int64_t>(
-        client->region_limit_ * kFullFactor,
-        client->region_limit_ - std::max(256, 4 * client->stats.headroom));
-    MIDAS_LOG(kError) << client->stats.headroom << " " << thresh << " "
-                      << client->region_cnt_;
-    if (client->region_cnt_ < thresh)
-      continue;
+  for (auto client : active_clients)
     total_gain += client->stats.perf_gain;
-  }
   if (total_gain < kPerfZeroThresh)
     return;
+
   for (auto client : active_clients) {
-    auto thresh =
-        std::max<int64_t>(client->region_limit_ * kFullFactor,
-                          client->region_limit_ - client->stats.headroom);
-    if (client->region_cnt_ < thresh)
-      continue;
     auto gain = client->stats.perf_gain;
     auto old_limit = client->region_limit_;
     int64_t nr_granted = std::min<int64_t>(
