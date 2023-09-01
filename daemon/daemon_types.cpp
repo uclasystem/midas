@@ -834,8 +834,18 @@ void Daemon::on_mem_rebalance_cliffhanger() {
   int victim_idx = 0;
   int winner_idx = clients.size() - 1;
   while (victim_idx < winner_idx) {
-    std::shared_ptr<Client> winner = clients[winner_idx];
-    std::shared_ptr<Client> victim = clients[victim_idx];
+    // find a winner candidate
+    while (winner_idx > victim_idx) {
+      auto winner = clients[winner_idx];
+      if (winner->almost_full())
+        break;
+      winner_idx--;
+    }
+    if (winner_idx == victim_idx)
+      break;
+
+    auto winner = clients[winner_idx];
+    auto victim = clients[victim_idx];
 
     auto nr_to_reclaim = std::min(victim->region_limit_ - 1, kStepSize);
     victim->update_limit(victim->region_limit_ - nr_to_reclaim);
@@ -844,7 +854,6 @@ void Daemon::on_mem_rebalance_cliffhanger() {
       rebalanced = true;
 
     victim_idx++;
-    winner_idx--;
   }
   if (rebalanced) {
     MIDAS_LOG(kInfo) << "Memory rebalance done! Total regions: " << region_cnt_
