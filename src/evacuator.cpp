@@ -66,12 +66,12 @@ int64_t Evacuator::gc(SegmentList &stash_list) {
       continue;
     }
     EvacState ret = scan_segment(segment.get(), true);
+    nr_scanned++;
     if (ret == EvacState::Fault)
       continue;
     else if (ret == EvacState::Fail)
       goto put_back;
     // must have ret == EvacState::Succ now
-    nr_scanned++;
 
     if (segment->get_alive_ratio() >= kAliveThreshHigh)
       goto put_back;
@@ -118,7 +118,7 @@ bool Evacuator::serial_gc() {
     if (!segment) {
       nr_skipped++;
       if (nr_skipped > rmanager_->NumRegionLimit()) // be in loop for too long
-        return -1;
+        goto done;
       continue;
     }
     if (!segment->sealed()) { // put in-used segment back to list
@@ -127,17 +127,18 @@ bool Evacuator::serial_gc() {
       if (nr_skipped > rmanager_->NumRegionLimit()) { // be in loop for too long
         MIDAS_LOG(kDebug) << "Encountered too many unsealed segments during "
                              "GC, skip GC this round.";
-        return -1;
+        goto done;
       }
       continue;
     }
     EvacState ret = scan_segment(segment.get(), true);
+    nr_scanned++;
     if (ret == EvacState::Fault)
       continue;
     else if (ret == EvacState::Fail)
       goto put_back;
     // must have ret == EvacState::Succ now
-    nr_scanned++;
+    assert(ret == EvacState::Succ);
 
     if (segment->get_alive_ratio() >= kAliveThreshHigh)
       goto put_back;
@@ -145,7 +146,7 @@ bool Evacuator::serial_gc() {
     if (ret == EvacState::Fail)
       goto put_back;
     else if (ret == EvacState::DelayRelease) {
-      MIDAS_LOG(kWarning);
+      // MIDAS_LOG(kWarning);
       segment->destroy();
     }
     // must have ret == EvacState::Succ or ret == EvacState::Fault now
@@ -155,8 +156,9 @@ bool Evacuator::serial_gc() {
     segments.push_back(segment);
     continue;
   }
-  auto end = chrono_utils::now();
 
+done:
+  auto end = chrono_utils::now();
   auto nr_avail = rmanager_->NumRegionAvail();
 
   if (nr_scanned)
@@ -164,7 +166,7 @@ bool Evacuator::serial_gc() {
                       << " evacuated, " << nr_avail << " available ("
                       << chrono_utils::duration(stt, end) << "s).";
 
-  return nr_avail < 0;
+  return nr_avail >= 0;
 }
 
 bool Evacuator::parallel_gc(int nr_workers) {
@@ -200,7 +202,7 @@ bool Evacuator::parallel_gc(int nr_workers) {
 
   auto end = chrono_utils::now();
   rmanager_->prof_reclaim_end(nr_workers, chrono_utils::duration(stt, end));
-  return nr_failed > 0;
+  return rmanager_->NumRegionAvail() >= 0;
 }
 
 int64_t Evacuator::force_reclaim() {
