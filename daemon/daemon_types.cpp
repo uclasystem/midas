@@ -1,6 +1,7 @@
 #include <atomic>
 #include <boost/interprocess/exceptions.hpp>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <future>
@@ -30,7 +31,7 @@ constexpr static bool kEnableRebalancer = true;
 /** Monitor related */
 constexpr static uint32_t kMonitorInteral = 1; // in seconds
 /** Profiler related */
-constexpr static float kPerfZeroThresh = 0.1;
+constexpr static float kPerfZeroThresh = 1;
 constexpr static uint32_t kProfInterval = 5; // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
@@ -229,9 +230,9 @@ bool Client::profile_stats() {
   stats.hits = stats.hits * KProfWDecay + statsmsg.hits * (1 - KProfWDecay);
   stats.misses =
       stats.misses * KProfWDecay + statsmsg.misses * (1 - KProfWDecay);
+  stats.vhits = stats.vhits * KProfWDecay + statsmsg.vhits * (1 - KProfWDecay);
   stats.penalty =
       stats.penalty * KProfWDecay + statsmsg.miss_penalty * (1 - KProfWDecay);
-  stats.vhits = stats.vhits * KProfWDecay + statsmsg.vhits * (1 - KProfWDecay);
   stats.perf_gain = weight_ * stats.penalty * stats.vhits;
   stats.headroom = std::max<int32_t>(1, statsmsg.headroom);
   return true;
@@ -670,14 +671,14 @@ void Daemon::on_mem_expand() {
 }
 
 void Daemon::on_mem_rebalance() {
-  constexpr static int kNumRepeats = 1;
-  constexpr static uint64_t kMaxDemand = 128;
-  constexpr static uint64_t kMaxReclaim = 64;
+  constexpr static int64_t kMaxReclaim = 64;
+  int64_t kMaxGrant = 128;
   if (!kEnableDynamicRebalance)
     return;
 
-  std::vector<std::shared_ptr<Client>> gainers;
+  std::vector<std::shared_ptr<Client>> idles;
   std::vector<std::shared_ptr<Client>> victims;
+  std::vector<std::shared_ptr<Client>> candidates;
   {
     std::unique_lock<std::mutex> ul(mtx_);
     for (auto &[_, client] : clients_) {
@@ -687,89 +688,126 @@ void Daemon::on_mem_rebalance() {
         client->warmup_ttl_--;
         continue;
       }
-      if (client->stats.perf_gain > kPerfZeroThresh &&
-          client->region_cnt_ >= client->region_limit_ * kFullFactor) {
-        gainers.emplace_back(client);
+
+      if (client->stats.perf_gain < kPerfZeroThresh) {
+        if (client->lat_critical_ && client->almost_full())
+          continue;
+        idles.emplace_back(client);
       } else
-        victims.emplace_back(client);
+        candidates.emplace_back(client);
     }
   }
-  std::sort(gainers.begin(), gainers.end(),
+  if (candidates.empty())
+    return;
+  if (idles.empty())
+    kMaxGrant /= 4; // 32;
+
+  // planning
+  std::sort(candidates.begin(), candidates.end(),
             [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
-              return c1->stats.perf_gain < c2->stats.perf_gain;
+              return c1->stats.perf_gain > c2->stats.perf_gain;
             });
-  std::sort(victims.begin(), victims.end(),
-            [](std::shared_ptr<Client> c1, std::shared_ptr<Client> c2) {
-              return c1->region_limit_ > c2->region_limit_;
-            });
-  bool rebalanced = false;
-  while (!gainers.empty()) {
-    auto gainer = gainers.back();
-    gainers.pop_back();
-    auto demand = kMaxDemand;
-    int64_t total_reclaimed = 0;
-    // mild reclaim: only reclaim idle memory
-    for (int i = 0; i < kNumRepeats; i++) {
-      for (auto victim : victims) {
-        int64_t avail = victim->region_limit_ - victim->region_cnt_;
-        if (avail < 0)
+  float max_gain = std::log2(candidates.front()->stats.perf_gain);
+  float min_gain = std::log2(candidates.back()->stats.perf_gain);
+  std::vector<int64_t> plan_idle_reclaims(idles.size());
+  std::vector<int64_t> plan_adjusts(candidates.size());
+
+  // planning
+  int64_t nr_plan_reclaimed = 0;
+  auto nr_idles = idles.size();
+  auto nr_candidates = candidates.size();
+  for (int i = 0; i < nr_idles; i++) {
+    auto idle = idles[i];
+    int64_t max_reclaim = idle->lat_critical_ ? kMaxReclaim / 8 : kMaxReclaim;
+    int64_t nr_to_reclaim =
+        std::min<int64_t>(max_reclaim, idle->region_limit_ - 1);
+    plan_idle_reclaims[i] = -nr_to_reclaim;
+    nr_plan_reclaimed += nr_to_reclaim;
+  }
+
+  int64_t nr_plan_granted = 0;
+  int gainer_idx = 0;
+  int victim_idx = candidates.size();
+  while (gainer_idx < victim_idx) {
+    if (nr_plan_granted < nr_plan_reclaimed) {
+      auto candidate = candidates[gainer_idx];
+      int64_t nr_to_grant =
+          candidate->almost_full()
+              ? kMaxGrant * std::log2(candidate->stats.perf_gain) / max_gain
+              : 0;
+      plan_adjusts[gainer_idx] = nr_to_grant;
+      nr_plan_granted += nr_to_grant;
+      gainer_idx++;
+    } else {
+      victim_idx--;
+      auto victim = candidates[victim_idx];
+      int64_t max_reclaim =
+          victim->lat_critical_ ? kMaxReclaim / 8 : kMaxReclaim;
+      int64_t nr_to_reclaim = std::min<int64_t>(
+          max_reclaim * std::log2(victim->stats.perf_gain) / min_gain,
+          victim->region_limit_ - 1);
+      plan_adjusts[victim_idx] = -nr_to_reclaim;
+      nr_plan_reclaimed += nr_to_reclaim;
+    }
+  }
+  assert(gainer_idx == victim_idx);
+  if (gainer_idx == candidates.size()) {
+    if (nr_plan_granted < nr_plan_reclaimed) {
+      // All active clients get their portion but still too much reclaimed
+      // memory. So we return them back to idle clients evenly.
+      int64_t nr_overchaged = nr_plan_reclaimed - nr_plan_granted;
+      int64_t nr_remain = nr_overchaged;
+      for (int i = 0; i < nr_idles; i++) {
+        if (plan_idle_reclaims[i] == 0)
           continue;
-        auto reclaim = std::min<int64_t>(avail * 0.5, kMaxReclaim);
-        if (reclaim > 0) {
-          bool succ = victim->update_limit(victim->region_limit_ - reclaim);
-          total_reclaimed += reclaim;
-          if (total_reclaimed >= demand)
-            break;
-        }
+        int64_t nr_to_return = std::min(
+            nr_remain,
+            (nr_overchaged * (-plan_idle_reclaims[i]) + nr_plan_reclaimed) /
+                nr_plan_reclaimed); // proportionally return over charged memory
+        plan_idle_reclaims[i] += nr_to_return;
+        nr_remain -= nr_to_return;
+        if (nr_remain <= 0)
+          break;
       }
-      if (total_reclaimed >= demand)
-        break;
+    } else {
+      plan_adjusts[gainer_idx - 1] += nr_plan_reclaimed - nr_plan_granted;
     }
-    if (total_reclaimed >= demand) {
-      rebalanced = true;
-      gainer->update_limit(gainer->region_limit_ + total_reclaimed);
-      gainer->warmup_ttl_ = kWarmupRounds;
-      continue;
-    }
-    // normal reclaim: reclaim all memory of victims
-    for (int i = 0; i < kNumRepeats; i++) {
-      for (auto victim : victims) {
-        auto avail = victim->region_limit_;
-        auto reclaim = std::min<int64_t>(avail * 0.5, kMaxReclaim);
-        if (reclaim > 0) {
-          bool succ = victim->update_limit(victim->region_limit_ - reclaim);
-          total_reclaimed += reclaim;
-          if (total_reclaimed >= demand)
-            break;
-        }
-      }
-      if (total_reclaimed >= demand)
-        break;
-    }
-    demand /= 2;
-    if (total_reclaimed >= demand) {
-      rebalanced = true;
-      gainer->update_limit(gainer->region_limit_ + total_reclaimed);
-      gainer->warmup_ttl_ = kWarmupRounds;
-      continue;
-    }
-    // eager reclaim: reclaim other gainers' memory
-    for (auto victim : gainers) {
-      auto avail = victim->region_limit_;
-      auto reclaim = std::min<int64_t>(avail - 1, kMaxReclaim);
-      if (reclaim > 0) {
-        bool succ = victim->update_limit(victim->region_limit_ - reclaim);
-        total_reclaimed += reclaim;
-        if (total_reclaimed >= demand)
+  } else { // adjust the last client's grant
+           // granted more than reclaimed. Try to reclaim more.
+    if (!candidates[gainer_idx]->lat_critical_) {
+      plan_adjusts[gainer_idx] += nr_plan_reclaimed - nr_plan_granted;
+    } else { // protect the lat-critical app
+      int64_t nr_overgranted = nr_plan_granted - nr_plan_reclaimed;
+      int64_t nr_remain = nr_overgranted;
+      int64_t nr_per_client = (nr_remain + gainer_idx - 1) / gainer_idx;
+      for (int i = gainer_idx - 1; i >= 0; i--) {
+        plan_adjusts[i] -= std::min(nr_remain, nr_per_client);
+        nr_remain -= nr_per_client;
+        if (nr_remain <= 0)
           break;
       }
     }
-    if (total_reclaimed > 0) {
-      rebalanced = true;
-      gainer->update_limit(gainer->region_limit_ + total_reclaimed);
-      gainer->warmup_ttl_ = kWarmupRounds;
-    }
   }
+
+  // applying
+  bool rebalanced = false;
+  for (int i = 0; i < nr_idles; i++) {
+    auto idle = idles[i];
+    MIDAS_LOG(kError) << idle->stats.perf_gain << " " << plan_idle_reclaims[i];
+    if (plan_idle_reclaims[i] == 0)
+      continue;
+    idle->update_limit(idle->region_limit_ + plan_idle_reclaims[i]);
+    rebalanced = true;
+  }
+  for (int i = 0; i < nr_candidates; i++) {
+    auto candidate = candidates[i];
+    MIDAS_LOG(kError) << candidate->stats.perf_gain << " " << plan_adjusts[i];
+    if (plan_adjusts[i] == 0)
+      continue;
+    candidate->update_limit(candidate->region_limit_ + plan_adjusts[i]);
+    rebalanced = true;
+  }
+
   if (rebalanced) {
     MIDAS_LOG(kInfo) << "Memory rebalance done! Total regions: " << region_cnt_
                      << "/" << region_limit_;
@@ -781,7 +819,6 @@ void Daemon::on_mem_rebalance() {
     }
   }
 }
-
 
 void Daemon::on_mem_rebalance_cliffhanger() {
   if (!kEnableDynamicRebalance)
