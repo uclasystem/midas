@@ -20,7 +20,7 @@ namespace midas {
 /* by default set to "false" and Midas deamon will automatically detect system
  * avail memory. Set it to "true" to simulate memory pressure by arbitrarily
  * update the memory cfg file. */
-constexpr static bool kEnableMemPressureSimu = false;
+constexpr static bool kEnableMemPressureSimu = true;
 constexpr static bool kEnableDynamicRebalance = true;
 constexpr static Daemon::Policy kDefaultPolicy = Daemon::Policy::Midas;
 // WARNING: two flags below should always be enabled to adapt clients' memory
