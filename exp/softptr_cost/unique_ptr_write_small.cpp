@@ -76,7 +76,8 @@ void unique_ptr_write_small_cost() {
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;
-    durs.push_back(dur_cycles);
+    if (dur_cycles > kRawMemAccessCycles)
+      durs.push_back(dur_cycles);
   }
   printf("Access unique_ptr<SmallObject> latency distribution (cycles):\n");
   print_lats(durs);
