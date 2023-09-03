@@ -66,7 +66,7 @@ void unique_ptr_read_large_cost() {
     objs.push_back(std::make_unique<LargeObject>());
   }
 
-  static LargeObject obj;
+  auto obj = std::make_unique<LargeObject>();
   uint64_t stt, end;
   std::vector<uint64_t> durs;
   for (int i = 0; i < kMeasureTimes; i++) {
@@ -78,7 +78,7 @@ void unique_ptr_read_large_cost() {
       const data_t *ptr = reinterpret_cast<data_t *>(objs[idx].get()->data);
       ACCESS_ONCE(ptr[off]);
     } else {
-      std::memcpy(&obj.data, objs[idx].get(), sizeof(obj));
+      std::memcpy(obj->data, objs[idx].get(), kLargeObjSize);
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;

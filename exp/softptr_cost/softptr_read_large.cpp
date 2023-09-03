@@ -76,13 +76,13 @@ void softptr_read_large_cost() {
     assert(succ);
   }
   for (int i = 0; i < kNumLargeObjs; i++) {
-    LargeObject obj;
-    auto succ = objs[i].copy_from(obj.data, kLargeObjSize);
+    auto obj = std::make_unique<LargeObject>();
+    auto succ = objs[i].copy_from(obj->data, kLargeObjSize);
     assert(succ);
   }
 
-  static LargeObject obj;
-  static LargeObject scratch;
+  auto obj = std::make_unique<LargeObject>();
+  auto scratch = std::make_unique<LargeObject>();
   uint64_t stt, end;
   std::vector<uint64_t> durs;
   for (int i = 0; i < kMeasureTimes; i++) {
@@ -96,8 +96,8 @@ void softptr_read_large_cost() {
       objs[idx].copy_to(&dst_, sizeof(dst_), off);
       dst = dst_;
     } else {
-      objs[idx].copy_to(scratch.data, kLargeObjSize);
-      std::memcpy(&obj, &scratch, sizeof(obj));
+      objs[idx].copy_to(scratch->data, kLargeObjSize);
+      std::memcpy(obj->data, scratch->data, kLargeObjSize);
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;
