@@ -71,7 +71,8 @@ void unique_ptr_write_small_cost() {
 
     stt = midas::Time::get_cycles_stt();
     {
-      *objs[idx].get() = obj;
+      /* *objs[idx].get() = obj; */
+      std::memcpy(objs[idx].get(), &obj, sizeof(obj));
     }
     end = midas::Time::get_cycles_end();
     auto dur_cycles = end - stt;
