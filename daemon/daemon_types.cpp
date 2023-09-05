@@ -35,11 +35,6 @@ constexpr static float kPerfZeroThresh = 1;
 constexpr static uint32_t kProfInterval = 5; // in seconds
 constexpr static float KProfWDecay = 0.3;
 /** Rebalancer related */
-// constexpr static float kFullFactor = 0.6;
-// constexpr static float kExpandFactor = 0.5;
-// constexpr static uint32_t kMaxExpandThresh = 512;
-// constexpr static int32_t kWarmupRounds = 2;
-constexpr static float kFullFactor = 0.9;
 constexpr static float kExpandFactor = 0.5;
 constexpr static uint32_t kMaxExpandThresh = 128;
 constexpr static int32_t kWarmupRounds = 2;
@@ -611,53 +606,89 @@ void Daemon::on_mem_shrink() {
 void Daemon::on_mem_expand() {
   if (policy == Policy::Static)
     return;
-  if (policy == Policy::ExpandOnly) {
-    int64_t nr_to_grant = region_limit_ - region_cnt_;
-    auto nr_clients = clients_.size();
-    if (nr_clients == 0)
-      return;
-    auto delta = nr_to_grant / nr_clients;
-    for (auto &[_, client] : clients_) {
-      client->update_limit(client->region_limit_ + delta);
-    }
-    return;
-  }
+
   bool expanded = false;
   int64_t nr_to_grant = region_limit_ - region_cnt_;
   if (nr_to_grant <= 0)
     return;
-  double nr_grant_ratio = static_cast<double>(nr_to_grant) / region_limit_;
 
   std::vector<std::shared_ptr<Client>> active_clients;
-  std::unique_lock<std::mutex> ul(mtx_);
-  for (auto &[_, client] : clients_) {
-    if (client->stats.perf_gain > kPerfZeroThresh && client->almost_full())
-      active_clients.emplace_back(client);
+  std::vector<std::shared_ptr<Client>> empty_clients;
+  {
+    std::unique_lock<std::mutex> ul(mtx_);
+    for (auto &[_, client] : clients_) {
+      if (client->stats.perf_gain > kPerfZeroThresh && client->almost_full())
+        active_clients.emplace_back(client);
+      else if (client->region_limit_ <= 10)
+        empty_clients.emplace_back(client);
+    }
   }
-  ul.unlock();
-  if (active_clients.empty())
-    return;
-  double total_gain = 0.0;
-  for (auto client : active_clients)
-    total_gain += client->stats.perf_gain;
-  if (total_gain < kPerfZeroThresh)
-    return;
 
-  for (auto client : active_clients) {
-    auto gain = client->stats.perf_gain;
-    auto old_limit = client->region_limit_;
-    int64_t nr_granted = std::min<int64_t>(
-        std::min<int64_t>(std::ceil(gain / total_gain * nr_to_grant),
-                          std::ceil(old_limit * (1 - kExpandFactor))),
-        nr_to_grant);
-    nr_granted = std::min<int64_t>(nr_granted, kMaxExpandThresh);
-    auto new_limit = old_limit + nr_granted;
-    bool succ = client->update_limit(new_limit);
-    nr_to_grant -= nr_granted;
-    expanded = true;
-    MIDAS_LOG_PRINTF(kInfo, "Grant client %lu %ld regions, %lu -> %lu\n",
-                     client->id, nr_granted, old_limit, new_limit);
+  if (policy == Policy::ExpandOnly) {
+    if (!empty_clients.empty()) { // re-enable an empty pool
+      int64_t nr_per_client = nr_to_grant / empty_clients.size();
+      nr_per_client = std::min<int64_t>(kMaxExpandThresh, nr_per_client);
+      for (auto client : empty_clients) {
+        nr_to_grant -= nr_per_client;
+        auto old_limit = client->region_limit_;
+        auto new_limit = old_limit + nr_per_client;
+        client->update_limit(new_limit);
+        expanded = true;
+        MIDAS_LOG_PRINTF(kInfo, "Grant client %lu %ld regions, %lu -> %lu\n",
+                         client->id, nr_per_client, old_limit, new_limit);
+      }
+    }
+
+    int64_t nr_per_client = nr_to_grant / active_clients.size();
+    double total_gain = 0.0;
+    for (auto client : active_clients)
+      total_gain += std::log2(client->stats.perf_gain);
+
+    for (auto client : active_clients) {
+      auto gain = std::log2(client->stats.perf_gain);
+      int64_t nr_per_client = gain / total_gain * nr_to_grant;
+
+      auto old_limit = client->region_limit_;
+      auto new_limit = old_limit + nr_per_client;
+      client->update_limit(client->region_limit_ + nr_per_client);
+      expanded = true;
+      MIDAS_LOG_PRINTF(kInfo, "Grant client %lu %ld regions, %lu -> %lu\n",
+                      client->id, nr_per_client, old_limit, new_limit);
+    }
+  } else {
+    if (active_clients.empty()) {
+      if (!empty_clients.empty()) {
+        // re-enable an empty pool
+        int64_t nr_per_client = nr_to_grant / empty_clients.size();
+        nr_per_client = std::min<int64_t>(kMaxExpandThresh, nr_per_client);
+        for (auto client : empty_clients) {
+          client->update_limit(client->region_limit_ + nr_per_client);
+          expanded = true;
+        }
+      }
+    } else { // expand soft memory grant among active clients
+      double total_gain = 0.0;
+      for (auto client : active_clients)
+        total_gain += std::log2(client->stats.perf_gain);
+
+      for (auto client : active_clients) {
+        auto gain = std::log2(client->stats.perf_gain);
+        auto old_limit = client->region_limit_;
+        int64_t nr_granted = std::min<int64_t>(
+            std::min<int64_t>(std::ceil(gain / total_gain * nr_to_grant),
+                              std::ceil(old_limit * (1 - kExpandFactor))),
+            nr_to_grant);
+        nr_granted = std::min<int64_t>(nr_granted, kMaxExpandThresh);
+        auto new_limit = old_limit + nr_granted;
+        bool succ = client->update_limit(new_limit);
+        nr_to_grant -= nr_granted;
+        expanded = true;
+        MIDAS_LOG_PRINTF(kInfo, "Grant client %lu %ld regions, %lu -> %lu\n",
+                         client->id, nr_granted, old_limit, new_limit);
+      }
+    }
   }
+
   if (expanded) {
     MIDAS_LOG(kInfo) << "Memory expansion done! Total regions: " << region_cnt_
                      << "/" << region_limit_;
