@@ -103,7 +103,7 @@ private:
   friend class CacheManager;
   friend class ResourceManager;
 
-  static constexpr uint64_t kVCacheSizeLimit = 32 * 1024 * 1024; // 32 MB
+  static constexpr uint64_t kVCacheSizeLimit = 64 * 1024 * 1024; // 64 MB
   static constexpr uint64_t kVCacheCountLimit = 500000;
 };
 
