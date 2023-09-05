@@ -689,7 +689,7 @@ void Daemon::on_mem_rebalance() {
         continue;
       }
 
-      if (client->stats.perf_gain < kPerfZeroThresh) {
+      if (client->stats.perf_gain <= kPerfZeroThresh) {
         if (client->lat_critical_ && client->almost_full())
           continue;
         idles.emplace_back(client);
