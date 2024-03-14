@@ -38,6 +38,7 @@ template <typename T> std::unique_ptr<T> Array<T>::get(int idx) {
   pool_->inc_cache_hit();
   pool_->get_allocator()->count_access();
   return std::unique_ptr<T>(t);
+
 faulted:
   if (t)
     ::operator delete(t);
@@ -55,9 +56,9 @@ template <typename T> bool Array<T>::set(int idx, const T &t) {
   auto allocator = pool_->get_allocator();
   if (!optr.null())
     pool_->free(optr);
-  pool_->get_allocator()->count_access();
   if (!allocator->alloc_to(sizeof(T), &optr) || !optr.copy_from(&t, sizeof(T)))
     return false;
+  pool_->get_allocator()->count_access();
   return true;
 }
 } // namespace midas
