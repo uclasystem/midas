@@ -1,4 +1,8 @@
 # Midas
+![Status](https://img.shields.io/badge/Version-Experimental-green.svg)
+[![Build](https://github.com/ivanium/cachebank/actions/workflows/build.yml/badge.svg)](https://github.com/ivanium/cachebank/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 
 Midas is a memory management system that enables applications to efficiently and safely harvest idle memory to store their soft state (e.g., caches, memoization results, etc.). It frees the developers from the burden of manually managing applications' soft state and stores the soft state the is most beneficial to each application, thereby improving both application performance and memory utilization.
 
@@ -62,6 +66,7 @@ We are free to run applications now. Here we take the storage server as an examp
 cd apps/storage
 ./storage_server
 ```
+Users can start more applications in a similar manner.
 
 ## Repo Structure
 
