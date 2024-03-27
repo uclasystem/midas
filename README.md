@@ -4,19 +4,20 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
-Midas is a memory management system that enables applications to efficiently and safely harvest idle memory to store their soft state (e.g., caches, memoization results, etc.). It frees the developers from the burden of manually managing applications' soft state and stores the soft state the is most beneficial to each application, thereby improving both application performance and memory utilization.
+Midas is a memory management system that enables applications to efficiently and safely harvest idle memory to store their soft state (e.g., caches, memoization results, etc.). It frees the developers from the burden of manually managing applications' soft state and stores the soft state that is most beneficial to each application, thereby improving both application performance and memory utilization.
 
-Currently, Midas supports C and C++ applications on Linux. Please refer to the [NSDI'24 paper](https://www.usenix.org/conference/nsdi24/presentation/qiao) for technical details about Midas.
+Midas currently supports C and C++ applications on Linux, with several real-world applications we have ported serving as practical references to demonstrate its simplicity and effectiveness.
+For technical details about Midas, please refer to the [NSDI'24 paper](https://www.usenix.org/conference/nsdi24/presentation/qiao).
 
 
 ## Getting Started
 
 ### System Requirements
-Midas' code base assumes an x86-64 CPU architecture and the system as well as applications are running atop Linux. Midas has been extensively tested on Ubuntu 18.04 and 20.04, but it should support other Linux distributions as well.
+Midas' code base assumes an x86-64 CPU architecture and the system is designed to run on Linux. Midas has been extensively tested on Ubuntu 18.04, 20.04, and 22.04, but it should also be compatible with other Linux distributions.
 
 ### Dependencies
 
-Midas is developed in C++ and requires compilers that support C++ 17 (`std=c++1z`). It has the following dependencies:
+Midas is developed in C++ and requires compilers with C++ 17 support (`std=c++1z`). To deploy Midas, the following dependencies are required:
 
 * gcc (>= 11)
 * g++ (>= 11)
@@ -27,7 +28,7 @@ We have provided a push-button script to build Midas:
 ```bash
 ./scripts/build.sh
 ```
-The script will build the Midas library, the Midas coordinator (daemon), and all unit tests. The compile time is usually less than one minute.
+The script will build the Midas library, the Midas coordinator (daemon), and all associated unit tests. This compilation typically completes within less than one minute.
 
 Users can also build Midas manually:
 ```bash
@@ -41,7 +42,7 @@ make install # this will install the lib into bindings/c/lib
 ```
 
 ### Compile Ported Applications
-We have ported several applications to Midas under `apps`. We also offered the `apps/build_all.sh` script for users to automatically build them.
+We have also ported several applications to Midas under the `apps` directory. We have also offered the `apps/build_all.sh` script for automated compilation.
 
 ```bash
 cd apps/
@@ -50,23 +51,24 @@ cd apps/
 ```
 
 ### Run
-Before running any application, one needs to start the Midas coordinator on the host machine:
+Before running any application, one needs to start the Midas coordinator on the host machine. The coordinator is responsible for managing the memory allocation and coordinate all running applications.
+
 ```bash
 ./scripts/run_daemon.sh
 # Example terminal outputs:
 # [kInfo]: Daemon starts listening...
 ```
-By default, the Midas coordinator can harvest all available memory on the server. This offers the most utility to applications and it is safe because Midas only allocates memory on demand and can promptly scale down its memory usage upon memory pressure. However, users can set a hard limit on the maximum memory capacity that Midas can harvest:
+By default, the Midas coordinator is configured to utilize all available memory on the server. This is recommended because it maximized the utility for applications. However, for users who wish to manage system resources more conservatively, there is an option to set a hard limit on the maximum memory capacity that Midas can harvest:
 ```bash
 ./scripts/set_memory_limit.sh <memory limit in MB>
 ```
 
-We are free to run applications now. Here we take the storage server as an example.
+With the Midas coordinator running, users can launch applications and take advantage of soft state. Below is an example of how to start a storage server application ported to work with Midas:
 ```bash
 cd apps/storage
 ./storage_server
 ```
-Users can start more applications in a similar manner.
+Users can run more applications following a similar process.
 
 ## Repo Structure
 
