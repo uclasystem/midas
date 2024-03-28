@@ -66,6 +66,7 @@ By default, the Midas coordinator is configured to utilize all available memory 
 With the Midas coordinator running, users can launch applications and take advantage of soft state. Below is an example of how to start a storage server application ported to work with Midas:
 ```bash
 cd apps/storage
+./setup_disk.sh  # Setup the disk to be served.
 ./storage_server
 ```
 Users can run more applications following a similar process.
