@@ -21,7 +21,7 @@ constexpr static float kWriteRatio = 1.0 - kReadRatio;
 
 constexpr static uint64_t kPageSize = 4096; // 4KB
 constexpr static uint64_t kNumPages = 4 * 1024 * 1024; // 4M pages = 16GB
-constexpr static char kDiskPath[] = "fake_disk.bin";
+constexpr static char kDiskPath[] = "disk.bin";
 
 using Page = char[kPageSize];
 
