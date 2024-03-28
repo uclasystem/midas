@@ -82,6 +82,7 @@ Github Repo Root
 ├── daemon      # Midas coordinator that runs as a daemon process.
 ├── exp         # Scripts and instructions to reproduce results in the paper.
 ├── inc         # Midas header files.
+├── koord       # Midas coordinator kernel module.
 ├── lib         # Compiled Midas library.
 ├── LICENSE     # Midas is open-sourced under the Apache-2.0 License.
 ├── Makefile    # For building the Midas library and unit tests.
