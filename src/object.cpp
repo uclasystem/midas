@@ -35,6 +35,7 @@ RetCode ObjectPtr::free(bool locked) noexcept {
   if (!null())
     ret = is_small_obj() ? free_small() : free_large();
   unlock(lock_id);
+  reset();
   return ret;
 }
 

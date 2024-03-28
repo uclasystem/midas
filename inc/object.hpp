@@ -184,6 +184,7 @@ public:
   RetCode init_from_soft(TransientPtr soft_addr);
   RetCode free(bool locked = false) noexcept;
   bool null() const noexcept;
+  void reset() noexcept;
 
   /** Header related */
   bool is_small_obj() const noexcept;

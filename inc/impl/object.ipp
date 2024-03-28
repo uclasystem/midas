@@ -193,6 +193,15 @@ inline ObjectPtr::ObjectPtr()
 
 inline bool ObjectPtr::null() const noexcept { return obj_.null(); }
 
+inline void ObjectPtr::reset() noexcept {
+  small_obj_ = true;
+  head_obj_ = true;
+  victim_ = false;
+  size_ = 0;
+  deref_cnt_ = 0;
+  obj_.reset();
+}
+
 inline size_t ObjectPtr::obj_size(size_t data_size) noexcept {
   data_size = round_up_to_align(data_size, kSmallObjSizeUnit);
   return data_size < kSmallObjThreshold ? sizeof(SmallObjectHdr) + data_size
