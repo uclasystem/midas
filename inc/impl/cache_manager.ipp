@@ -1,8 +1,8 @@
 #pragma once
 
 namespace midas {
-inline CachePool::CachePool(std::string name)
-    : name_(name), construct_(nullptr) {
+inline CachePool::CachePool(std::string name) : construct_(nullptr) {
+  name_ = name;
   vcache_ = std::make_unique<VictimCache>(kVCacheSizeLimit, kVCacheCountLimit);
   allocator_ = std::make_shared<LogAllocator>(this);
   rmanager_ = std::make_shared<ResourceManager>(this);
@@ -31,18 +31,6 @@ inline CachePool *CachePool::global_cache_pool() {
   ul.lock();
   pool_ = cache_mgr->get_pool(CacheManager::default_pool_name);
   return pool_;
-}
-
-inline void CachePool::update_limit(size_t limit_in_bytes) {
-  rmanager_->UpdateLimit(limit_in_bytes);
-}
-
-inline void CachePool::set_weight(float weight) {
-  rmanager_->SetWeight(weight);
-}
-
-inline void CachePool::set_lat_critical(bool value) {
-  rmanager_->SetLatCritical(value);
 }
 
 inline void CachePool::set_construct_func(ConstructFunc callback) {
@@ -90,37 +78,6 @@ inline bool CachePool::free(ObjectPtr &ptr) {
   return allocator_->free(ptr);
 }
 
-inline void CachePool::inc_cache_hit() noexcept { stats.hits++; }
-
-inline void CachePool::inc_cache_miss() noexcept { stats.misses++; }
-
-inline void CachePool::inc_cache_victim_hit(ObjectPtr *optr_addr) noexcept {
-  stats.victim_hits++;
-  if (optr_addr)
-    vcache_->get(optr_addr);
-}
-
-inline void CachePool::record_miss_penalty(uint64_t cycles,
-                                           uint64_t bytes) noexcept {
-  stats.miss_cycles += cycles;
-  stats.miss_bytes += bytes;
-}
-
-inline VictimCache *CachePool::get_vcache() const noexcept {
-  return vcache_.get();
-}
-
-inline LogAllocator *CachePool::get_allocator() const noexcept {
-  return allocator_.get();
-}
-
-inline Evacuator *CachePool::get_evacuator() const noexcept {
-  return evacuator_.get();
-}
-
-inline ResourceManager *CachePool::get_rmanager() const noexcept {
-  return rmanager_.get();
-}
 
 inline CacheManager::~CacheManager() {
   terminated_ = true;

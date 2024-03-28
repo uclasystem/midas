@@ -1,64 +1,10 @@
 #include <chrono>
 
 #include "cache_manager.hpp"
-#include "shm_types.hpp"
 #include "sig_handler.hpp"
-#include "time.hpp"
 #include "utils.hpp"
 
 namespace midas {
-void CachePool::profile_stats(StatsMsg *msg) noexcept {
-  auto curr_ts = Time::get_us_stt();
-  auto hit_ratio = static_cast<float>(stats.hits) / (stats.hits + stats.misses);
-  auto miss_penalty =
-      stats.miss_bytes
-          ? (static_cast<float>(stats.miss_cycles) / stats.miss_bytes)
-          : 0.0;
-  auto recon_time =
-      static_cast<float>(stats.miss_cycles) / stats.misses / kCPUFreq;
-  auto victim_hit_ratio = static_cast<float>(stats.hits + stats.victim_hits) /
-                          (stats.hits + stats.victim_hits + stats.misses);
-  auto victim_hits = stats.victim_hits.load();
-  auto perf_gain = victim_hits * miss_penalty;
-
-  if (msg) {
-    msg->hits = stats.hits;
-    msg->misses = stats.misses;
-    msg->miss_penalty = miss_penalty;
-    msg->vhits = victim_hits;
-  }
-
-  if (stats.hits > 0 || stats.misses > 0 || stats.victim_hits > 0)
-    MIDAS_LOG_PRINTF(kInfo,
-                     "CachePool %s:\n"
-                     "\t     Region used: %ld/%ld\n"
-                     "\tCache hit ratio:  %.4f\n"
-                     "\t   miss penalty:  %.2f\n"
-                     "\t construct time:  %.2f\n"
-                     "\t     hit counts:  %lu\n"
-                     "\t    miss counts:  %lu\n"
-                     "\tVictim hit ratio: %.4f\n"
-                     "\t       hit count: %lu\n"
-                     "\t       perf gain: %.4f\n"
-                     "\t           count: %lu\n"
-                     "\t            size: %lu\n",
-                     name_.c_str(), get_rmanager()->NumRegionInUse(),
-                     get_rmanager()->NumRegionLimit(), hit_ratio, miss_penalty,
-                     recon_time, stats.hits.load(), stats.misses.load(),
-                     victim_hit_ratio, victim_hits, perf_gain, vcache_->count(),
-                     vcache_->size());
-
-  stats.timestamp = curr_ts;
-  stats.reset();
-}
-
-inline void CachePool::CacheStats::reset() noexcept {
-  hits = 0;
-  misses = 0;
-  miss_cycles = 0;
-  miss_bytes = 0;
-  victim_hits = 0;
-}
 
 CacheManager::CacheManager() : terminated_(false), profiler_(nullptr) {
   // assert(create_pool(default_pool_name));

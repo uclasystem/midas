@@ -8,10 +8,8 @@
 #include <thread>
 #include <unordered_map>
 
-#include "evacuator.hpp"
-#include "log.hpp"
+#include "base_soft_mem_pool.hpp"
 #include "object.hpp"
-#include "resource_manager.hpp"
 #include "shm_types.hpp"
 #include "time.hpp"
 #include "victim_cache.hpp"
@@ -30,15 +28,10 @@ struct ConstructPlug {
   }
 };
 
-class CachePool {
+class CachePool : public BaseSoftMemPool {
 public:
   CachePool(std::string name);
   ~CachePool();
-
-  // Config
-  void update_limit(size_t limit_in_bytes);
-  void set_weight(float weight);
-  void set_lat_critical(bool value);
 
   // Callback Functions
   using ConstructFunc = std::function<int(void *)>;
@@ -63,48 +56,12 @@ public:
   inline bool alloc_to(size_t size, ObjectPtr *dst);
   inline bool free(ObjectPtr &ptr);
 
-  // Profiling
-  void inc_cache_hit() noexcept;
-  void inc_cache_miss() noexcept;
-  void inc_cache_victim_hit(ObjectPtr *optr_addr = nullptr) noexcept; // TODO: check all callsites
-  void record_miss_penalty(uint64_t cycles, uint64_t bytes) noexcept;
-  void profile_stats(StatsMsg *msg = nullptr) noexcept;
-
-  inline VictimCache *get_vcache() const noexcept;
-  inline ResourceManager *get_rmanager() const noexcept;
-  inline LogAllocator *get_allocator() const noexcept;
-  inline Evacuator *get_evacuator() const noexcept;
-
   static inline CachePool *global_cache_pool();
 
 private:
-  std::string name_;
   ConstructFunc construct_;
   PreevictFunc preevict_;
   DestructFunc destruct_;
-
-  // Stats & Counters
-  struct CacheStats {
-    std::atomic_uint_fast64_t hits{0};
-    std::atomic_uint_fast64_t misses{0};
-    std::atomic_uint_fast64_t miss_cycles{0};
-    std::atomic_uint_fast64_t miss_bytes{0};
-    std::atomic_uint_fast64_t victim_hits{0};
-    uint64_t timestamp{0};
-
-    void reset() noexcept;
-  } stats;
-
-  std::unique_ptr<VictimCache> vcache_;
-  std::shared_ptr<ResourceManager> rmanager_;
-  std::shared_ptr<LogAllocator> allocator_;
-  std::unique_ptr<Evacuator> evacuator_;
-
-  friend class CacheManager;
-  friend class ResourceManager;
-
-  static constexpr uint64_t kVCacheSizeLimit = 64 * 1024 * 1024; // 64 MB
-  static constexpr uint64_t kVCacheCountLimit = 500000;
 };
 
 class CacheManager {
