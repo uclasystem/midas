@@ -21,7 +21,7 @@ namespace midas {
 /* by default set to "false" and Midas deamon will automatically detect system
  * avail memory. Set it to "true" to simulate memory pressure by arbitrarily
  * update the memory cfg file. */
-constexpr static bool kEnableMemPressureSimu = false;
+constexpr static bool kEnableMemPressureSimu = true;
 constexpr static bool kEnableDynamicRebalance = true;
 constexpr static Daemon::Policy kDefaultPolicy = Daemon::Policy::Midas;
 // WARNING: two flags below should always be enabled to adapt clients' memory
@@ -981,8 +981,7 @@ uint64_t check_sys_avail_mem() {
 uint64_t check_file_avail_mem() {
   std::ifstream mem_cfg(kMemoryCfgFile);
   if (!mem_cfg.is_open()) {
-    MIDAS_LOG(kError) << "open " << kMemoryCfgFile << " failed!";
-    return -1;
+    return check_sys_avail_mem();
   }
   uint64_t upd_mem_limit;
   mem_cfg >> upd_mem_limit;
@@ -992,6 +991,10 @@ uint64_t check_file_avail_mem() {
 
 Daemon::Policy check_policy() {
   std::ifstream policy_cfg(kPolicyCfgFile);
+  if (!policy_cfg.is_open()) {
+    return kDefaultPolicy;
+  }
+
   int new_policy;
   policy_cfg >> new_policy;
   policy_cfg.close();
