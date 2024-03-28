@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
+#include <mutex>
 #include <random>
 
 // [midas]
@@ -30,6 +31,27 @@ struct PgReq : public midas::PerfRequest {
   int pg_idx;
 };
 
+template <typename T> class SyncArray {
+public:
+  SyncArray(int n) : array_(n) {}
+  SyncArray(midas::CachePool *pool, int n) : array_(pool, n) {}
+  std::unique_ptr<T> get(int idx) {
+    auto &lock = locks_[idx % kNumChunks];
+    std::unique_lock<std::mutex> ul(lock);
+    return array_.get(idx);
+  }
+  bool set(int idx, const T &t) {
+    auto &lock = locks_[idx % kNumChunks];
+    std::unique_lock<std::mutex> ul(lock);
+    return array_.set(idx, t);
+  }
+
+private:
+  constexpr static int kNumChunks = 1 << 10;
+  std::mutex locks_[kNumChunks];
+  midas::Array<T> array_;
+};
+
 class Server : public midas::PerfAdapter  {
 public:
   Server();
@@ -46,7 +68,7 @@ public:
 
 private:
   midas::CachePool *pool_;
-  std::unique_ptr<midas::Array<Page>> page_cache_;
+  std::unique_ptr<SyncArray<Page>> page_cache_;
   std::mutex disk_mtx_;
   std::fstream disk_file_;
 
