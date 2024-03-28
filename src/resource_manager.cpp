@@ -23,10 +23,8 @@
 namespace midas {
 constexpr static int32_t kMaxAllocRetry = 5;
 constexpr static int32_t kReclaimRepeat = 20;
-constexpr static auto kReclaimTimeout =
-    std::chrono::milliseconds(100);           // milliseconds
-constexpr static auto kAllocRetryDelay =
-    std::chrono::microseconds(100);           // microseconds
+constexpr static auto kReclaimTimeout = std::chrono::milliseconds(100);  // ms
+constexpr static auto kAllocRetryDelay = std::chrono::microseconds(100); // us
 constexpr static int32_t kMonitorTimeout = 1; // seconds
 constexpr static int32_t kDisconnTimeout = 3; // seconds
 constexpr static bool kEnableFreeList = true;
@@ -118,7 +116,8 @@ int32_t ResourceManager::reclaim_headroom() noexcept {
   auto scale_factor = 5;
   if (stats_.alloc_tput > 1000 || stats_.alloc_tput > 8 * stats_.reclaim_tput)
     scale_factor = 20;
-  else if (stats_.alloc_tput > 500  || stats_.alloc_tput > 6 * stats_.reclaim_tput)
+  else if (stats_.alloc_tput > 500 ||
+           stats_.alloc_tput > 6 * stats_.reclaim_tput)
     scale_factor = 15;
   else if (stats_.alloc_tput > 300)
     scale_factor = 10;
@@ -145,7 +144,6 @@ int32_t ResourceManager::reclaim_nr_thds() noexcept {
   return nr_evac_thds;
 }
 
-
 /** Profiling for stats */
 inline void ResourceManager::prof_alloc_tput() {
   auto time = Time::get_us();
@@ -161,7 +159,8 @@ inline void ResourceManager::prof_alloc_tput() {
     MIDAS_LOG(kDebug) << "Allocation Tput: " << alloc_tput;
   }
 
-  if (stats_.accum_evac_dur > 1e-6 && stats_.accum_nr_reclaimed >= 1) { // > 1us && reclaimed > 1 segment
+  if (stats_.accum_evac_dur > 1e-6 &&
+      stats_.accum_nr_reclaimed >= 1) { // > 1us && reclaimed > 1 segment
     stats_.reclaim_tput = stats_.accum_nr_reclaimed / stats_.accum_evac_dur;
     stats_.reclaim_dur = stats_.accum_evac_dur / stats_.evac_cnt;
     MIDAS_LOG(kDebug) << "Reclamation Tput: " << stats_.reclaim_tput
@@ -172,7 +171,7 @@ inline void ResourceManager::prof_alloc_tput() {
     stats_.accum_evac_dur = 0;
   }
   MIDAS_LOG(kDebug) << "Evacuator params: headroom = " << reclaim_headroom()
-                   << ", nr_thds = " << reclaim_nr_thds();
+                    << ", nr_thds = " << reclaim_nr_thds();
 }
 
 void ResourceManager::prof_reclaim_stt() {
@@ -239,7 +238,7 @@ int ResourceManager::disconnect() noexcept {
 }
 
 void ResourceManager::pressure_handler() {
-  MIDAS_LOG(kError) << "pressure handler thd is running...";
+  MIDAS_LOG(kInfo) << "pressure handler thd is running...";
 
   while (!stop_) {
     CtrlMsg msg;
@@ -268,8 +267,8 @@ void ResourceManager::pressure_handler() {
 void ResourceManager::do_update_limit(CtrlMsg &msg) {
   assert(msg.mmsg.size != 0);
   auto new_region_limit = msg.mmsg.size;
-  MIDAS_LOG(kError) << "Client " << id_ << " update limit: " << region_limit_
-                    << "->" << new_region_limit;
+  MIDAS_LOG(kInfo) << "Client " << id_ << " update limit: " << region_limit_
+                   << "->" << new_region_limit;
   region_limit_ = new_region_limit;
 
   CtrlMsg ack{.op = CtrlOpCode::UPDLIMIT, .ret = CtrlRetCode::MEM_SUCC};
@@ -281,7 +280,7 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
       ack.ret = CtrlRetCode::MEM_FAIL;
     auto after_usage = NumRegionInUse();
     auto nr_reclaimed = before_usage - after_usage;
-    MIDAS_LOG_PRINTF(kError, "Memory shrinkage: %ld reclaimed (%ld/%ld).\n",
+    MIDAS_LOG_PRINTF(kInfo, "Memory shrinkage: %ld reclaimed (%ld/%ld).\n",
                      nr_reclaimed, NumRegionInUse(), NumRegionLimit());
   } else if (reclaim_trigger()) { // concurrent GC if needed
     cpool_->get_evacuator()->signal_gc();
@@ -293,8 +292,8 @@ void ResourceManager::do_update_limit(CtrlMsg &msg) {
 void ResourceManager::do_force_reclaim(CtrlMsg &msg) {
   assert(msg.mmsg.size != 0);
   auto new_region_limit = msg.mmsg.size;
-  MIDAS_LOG(kError) << "Client " << id_ << " update limit: " << region_limit_
-                    << "->" << new_region_limit;
+  MIDAS_LOG(kInfo) << "Client " << id_ << " update limit: " << region_limit_
+                   << "->" << new_region_limit;
   region_limit_ = new_region_limit;
 
   force_reclaim();
@@ -315,7 +314,7 @@ void ResourceManager::do_profile_stats(CtrlMsg &msg) {
 void ResourceManager::do_disconnect(CtrlMsg &msg) {
   stop_ = true;
   handler_thd_->join();
-  MIDAS_LOG(kError) << "Client " << id_ << " Disconnected!";
+  MIDAS_LOG(kInfo) << "Client " << id_ << " Disconnected!";
   exit(-1);
 }
 
@@ -367,9 +366,8 @@ bool ResourceManager::force_reclaim() {
 }
 
 void ResourceManager::SetWeight(float weight) noexcept {
-  CtrlMsg msg{.id = id_,
-              .op = CtrlOpCode::SET_WEIGHT,
-              .mmsg = {.weight = weight}};
+  CtrlMsg msg{
+      .id = id_, .op = CtrlOpCode::SET_WEIGHT, .mmsg = {.weight = weight}};
   txqp_.send(&msg, sizeof(msg));
 }
 
