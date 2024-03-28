@@ -1,6 +1,6 @@
 # Midas
 ![Status](https://img.shields.io/badge/Version-Experimental-green.svg)
-[![Build](https://github.com/ivanium/cachebank/actions/workflows/build.yml/badge.svg)](https://github.com/ivanium/cachebank/actions/workflows/build.yml)
+[![Build](actions/workflows/build.yml/badge.svg)](actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
