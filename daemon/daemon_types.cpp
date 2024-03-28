@@ -445,7 +445,7 @@ void Daemon::monitor() {
     uint64_t upd_region_limit = upd_mem_limit / kRegionSize;
     if (region_limit_ != upd_region_limit) {
       if (kEnableMemPressureSimu)
-        MIDAS_LOG(kInfo) << region_limit_ << " != " << upd_region_limit;
+        MIDAS_LOG(kDebug) << region_limit_ << " -> " << upd_region_limit;
       region_limit_ = upd_region_limit;
       if (region_cnt_ > region_limit_) { // invoke rebalancer
         std::unique_lock<std::mutex> ul(rbl_mtx_);
