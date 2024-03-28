@@ -18,9 +18,9 @@ enum LogVerbosity {
   kAll = 4,   // log all information
 };
 
-constexpr LogVerbosity kGlobalVerbose = kInfo;
+constexpr LogVerbosity kGlobalVerbose = kWarning;
 constexpr bool kLogFlagTime = false;
-constexpr bool kLogFlagLoc = true;
+constexpr bool kLogFlagLoc = false;
 
 class Logger {
 public:
@@ -34,7 +34,7 @@ public:
           std::chrono::system_clock::now());
       std::cerr << "[" << std::put_time(std::localtime(&now), "%c") << "]";
     }
-    std::cerr << "[" << verbose_str << "]";
+    std::cerr << "[" << verbose_str.data() + 1 << "]";
     if (kLogFlagLoc) {
       std::cerr << "(" << file << ":" << std::dec << line << ", in " << func
                 << "()):";
@@ -65,8 +65,8 @@ private:
 #define MIDAS_LOG_PRINTF(verbose, ...)                                         \
   do {                                                                         \
     if ((verbose) <= kGlobalVerbose) {                                         \
-      fprintf(stderr, "[%s](%s:%d, in %s()): ", #verbose, __FILE__, __LINE__,  \
-              __func__);                                                       \
+      fprintf(stderr, "[%s](%s:%d, in %s()): ", (#verbose) + 1, __FILE__,      \
+              __LINE__, __func__);                                             \
       fprintf(stderr, ##__VA_ARGS__);                                          \
     }                                                                          \
   } while (0)
