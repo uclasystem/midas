@@ -91,4 +91,4 @@ Github Repo Root
 ```
 
 ## Contact
-Please contact [Yifan Qiao](yifanqiao@g.ucla.edu) for any questions.
+Please contact [Yifan Qiao](mailto:yifanqiao@g.ucla.edu) for any questions.
