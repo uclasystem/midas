@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 
+#include "base_soft_mem_pool.hpp"
 #include "cache_manager.hpp"
 #include "evacuator.hpp"
 #include "logging.hpp"
@@ -64,7 +65,7 @@ void Region::free() noexcept {
   SharedMemObj::remove(utils::get_region_name(pid_, prid_).c_str());
 }
 
-ResourceManager::ResourceManager(CachePool *cpool,
+ResourceManager::ResourceManager(BaseSoftMemPool *cpool,
                                  const std::string &daemon_name) noexcept
     : cpool_(cpool), id_(get_unique_id()), region_limit_(0),
       txqp_(std::make_shared<QSingle>(utils::get_sq_name(daemon_name, false),

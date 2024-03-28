@@ -68,11 +68,11 @@ private:
   std::list<std::shared_ptr<LogSegment>> segments_;
 };
 
-class CachePool; // defined in cache_manager.hpp
+class BaseSoftMemPool; // defined in base_soft_mem_pool.hpp
 
 class LogAllocator {
 public:
-  LogAllocator(CachePool *pool);
+  LogAllocator(BaseSoftMemPool *pool);
   std::optional<ObjectPtr> alloc(size_t size);
   bool alloc_to(size_t size, ObjectPtr *dst);
   bool free(ObjectPtr &ptr);
@@ -97,7 +97,7 @@ private:
   std::shared_ptr<LogSegment> allocSegment(bool overcommit = false);
 
   /** Management */
-  CachePool *pool_;
+  BaseSoftMemPool *pool_;
 
   /** Allocation */
   SegmentList segments_;

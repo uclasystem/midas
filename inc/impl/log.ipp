@@ -62,7 +62,7 @@ inline size_t SegmentList::size() noexcept { return segments_.size(); }
 inline bool SegmentList::empty() const noexcept { return segments_.empty(); }
 
 /** LogAllocator */
-inline LogAllocator::LogAllocator(CachePool *pool) : pool_(pool) {
+inline LogAllocator::LogAllocator(BaseSoftMemPool *pool) : pool_(pool) {
   assert(pool_);
 }
 

@@ -60,10 +60,10 @@ private:
   constexpr static uint64_t INVALID_VRID = -1ul;
 };
 
-class CachePool;
+class BaseSoftMemPool; // defined in base_soft_mem_pool.hpp
 class ResourceManager {
 public:
-  ResourceManager(CachePool *cpool = nullptr,
+  ResourceManager(BaseSoftMemPool *cpool = nullptr,
                   const std::string &daemon_name = kNameCtrlQ) noexcept;
   ~ResourceManager() noexcept;
 
@@ -109,7 +109,7 @@ private:
   bool reclaim();
   bool force_reclaim();
 
-  CachePool *cpool_;
+  BaseSoftMemPool *cpool_;
 
   // inter-process comm
   uint64_t id_;

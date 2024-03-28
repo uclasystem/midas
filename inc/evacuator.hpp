@@ -18,13 +18,13 @@ class LogSegment;   // defined in log.hpp
 class SegmentList;  // defined in log.hpp
 class LogAllocator; // defined in log.hpp
 
-class CachePool; // defined in cache_manager.hpp
+class BaseSoftMemPool; // defined in base_soft_mem_pool.hpp
 
 class ResourceManager; // defined in resource_manager.hpp
 
 class Evacuator {
 public:
-  Evacuator(CachePool *pool, std::shared_ptr<ResourceManager> rmanager,
+  Evacuator(BaseSoftMemPool *pool, std::shared_ptr<ResourceManager> rmanager,
             std::shared_ptr<LogAllocator> allocator);
   ~Evacuator();
   void signal_gc();
@@ -47,7 +47,7 @@ private:
   using RetCode = ObjectPtr::RetCode;
   RetCode iterate_segment(LogSegment *segment, uint64_t &pos, ObjectPtr &optr);
 
-  CachePool *pool_;
+  BaseSoftMemPool *pool_;
   std::shared_ptr<LogAllocator> allocator_;
   std::shared_ptr<ResourceManager> rmanager_;
 
