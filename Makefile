@@ -76,6 +76,8 @@ test_softptr_read_cost_src = test/test_softptr_read_cost.cpp
 test_softptr_read_cost_obj = $(test_softptr_read_cost_src:.cpp=.o)
 test_softptr_write_cost_src = test/test_softptr_write_cost.cpp
 test_softptr_write_cost_obj = $(test_softptr_write_cost_src:.cpp=.o)
+test_soft_unique_ptr_src = test/test_soft_unique_ptr.cpp
+test_soft_unique_ptr_obj = $(test_soft_unique_ptr_src:.cpp=.o)
 
 test_feat_extractor_src = test/test_feat_extractor.cpp
 test_feat_extractor_obj = $(test_feat_extractor_src:.cpp=.o)
@@ -97,6 +99,7 @@ bin: bin/test_resource_manager bin/test_object bin/test_parallel_evacuator \
 	bin/test_fs_shim \
 	bin/test_sighandler \
 	bin/test_memcpy \
+	bin/test_soft_unique_ptr \
 	bin/test_softptr_read_cost bin/test_softptr_write_cost
 
 # bin/test_feat_extractor bin/test_feat_extractor_kv
@@ -174,6 +177,9 @@ bin/test_softptr_read_cost: $(test_softptr_read_cost_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 bin/test_softptr_write_cost: $(test_softptr_write_cost_obj) $(lib_obj)
+	$(LDXX) -o $@ $^ $(LDFLAGS)
+
+bin/test_soft_unique_ptr: $(test_soft_unique_ptr_obj) $(lib_obj)
 	$(LDXX) -o $@ $^ $(LDFLAGS)
 
 lib/libmidas++.a: $(lib_obj)
