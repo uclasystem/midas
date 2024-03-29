@@ -52,7 +52,9 @@ int main() {
     }
 
     /* This will trigger seg fault */
+    // printf("We will trigger a seg fault intentionally.\n");
     // touch_region(addr);
+    // printf("This line after seg fault is hence unreachable.\n");
 
     // Unregister
     if (ioctl(fd, KOORD_UNREG, pid) < 0) {

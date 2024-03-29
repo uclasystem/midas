@@ -59,9 +59,8 @@ static int map_zero_page(pte_t *pte, unsigned long addr, void *arg)
 static int unmap_page(pte_t *pte, unsigned long addr, void *arg)
 {
 	struct mm_struct *mm = (struct mm_struct *)arg;
-	// struct page *page = pte_page(*pte);
-	// __free_page(page);
-	free_page((unsigned long)pte);
+	struct page *page = pte_page(*pte);
+	put_page(page);
 	pte_clear(NULL, 0, pte);
 	pte_unmap(pte);
 	dec_mm_counter(mm, MM_ANONPAGES);
@@ -175,6 +174,7 @@ static int koord_unmap_regions(struct koord_region_req __user *ureq)
 		return -ESRCH;
 	}
 	mm = get_task_mm(t);
+	rcu_read_unlock();
 	if (!mm)
 		goto fail_mmput;
 
@@ -187,6 +187,7 @@ static int koord_unmap_regions(struct koord_region_req __user *ureq)
 			ret = -EINVAL;
 			goto fail_mmput;
 		}
+
 		ret = apply_to_page_range(mm, addr, req.region_size, unmap_page,
 					  mm);
 		if (unlikely(ret))
@@ -198,7 +199,6 @@ static int koord_unmap_regions(struct koord_region_req __user *ureq)
 
 fail_mmput:
 	mmput(mm);
-	rcu_read_unlock();
 	__flush_tlb_all();
 	return ret;
 }
