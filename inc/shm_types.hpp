@@ -68,10 +68,21 @@ struct VRange {
   }
 };
 
+struct RegionList {
+  RegionList() = delete;
+  uint64_t size;      // number of elements
+  uint64_t regions[]; // a list of region start addresses
+};
+
 namespace utils {
 static inline const std::string get_region_name(uint64_t pid, uint64_t rid) {
   return "region-" + std::to_string(pid) + "-" + std::to_string(rid);
 }
+
+static inline const std::string get_region_list_shm_name(uint64_t uuid) {
+  return "regions-" + std::to_string(uuid);
+}
+
 } // namespace utils
 
 } // namespace midas

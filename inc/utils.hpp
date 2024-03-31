@@ -23,6 +23,8 @@ constexpr static uint32_t kLogSegmentSize = kHugePageSize;
 constexpr static uint64_t kLogSegmentMask = ~(kLogSegmentSize - 1ull);
 constexpr static uint32_t kRegionSize = kLogSegmentSize;
 constexpr static uint64_t kRegionMask = ~(kRegionSize - 1ull);
+constexpr static uint64_t kMaxSoftMemLimit = 1024 * (1ull << 30); // 1TB
+constexpr static uint64_t kMaxRegionNum = kMaxSoftMemLimit / kRegionSize;
 
 constexpr static int32_t kMaxAliveBytes = std::numeric_limits<int32_t>::max();
 /** Evacuator related */
