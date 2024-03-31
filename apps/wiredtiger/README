@@ -1,0 +1,43 @@
+# WiredTiger with Midas Support
+
+## Dependencies
+* CMake (>= 3.20.0)
+* Midas (https://github.com/ivanium/cachebank)
+
+## Compile
+1. Compile Midas library and its c bindings.
+2. Edit `MIDAS_PATH` in `build.sh` to the location to Midas codebase.
+3. `./build.sh`
+
+## Run
+1. Follow the same steps to start Midas daemon.
+2. `cd run && ./run.sh`. Check the script for details.
+3. Check the results: `tail -f run/WT_TEST/test.stat`.
+
+## Below is the original README
+
+WiredTiger 11.2.0: (November 10, 2022)
+
+This is version 11.2.0 of WiredTiger.
+
+WiredTiger release packages and documentation can be found at:
+
+	https://source.wiredtiger.com
+
+The WiredTiger source code can be found at:
+
+	https://github.com/wiredtiger/wiredtiger
+
+WiredTiger uses JIRA for issue management:
+
+	https://jira.mongodb.org/browse/WT
+
+Please do not report issues through GitHub.
+
+WiredTiger licensing information can be found at:
+
+	https://source.wiredtiger.com/license.html
+
+For general questions and discussion, there's a WiredTiger group:
+
+	https://groups.google.com/group/wiredtiger-users
