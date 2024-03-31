@@ -11,3 +11,7 @@ function build() {
 build HDSearch
 build storage
 build synthetic
+
+pushd $SCRIPT_DIR/wiredtiger
+./build.sh
+popd
