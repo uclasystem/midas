@@ -1,0 +1,12 @@
+conn_config="cache_size=3200M,log=(enabled=false),block_cache=(enabled=true,size=40G,type=midas)"
+pareto=20
+table_config="type=file"
+key_sz=100
+value_sz=512
+icount=20000000
+run_time=30000
+threads=((count=12,reads=998,update=2,insert=0))
+warmup=60
+sample_interval=5
+populate_threads=24
+report_interval=5
