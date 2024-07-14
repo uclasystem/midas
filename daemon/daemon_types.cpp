@@ -824,7 +824,7 @@ void Daemon::on_mem_rebalance() {
   bool rebalanced = false;
   for (int i = 0; i < nr_idles; i++) {
     auto idle = idles[i];
-    MIDAS_LOG(kError) << idle->stats.perf_gain << " " << plan_idle_reclaims[i];
+    MIDAS_LOG(kDebug) << idle->stats.perf_gain << " " << plan_idle_reclaims[i];
     if (plan_idle_reclaims[i] == 0)
       continue;
     idle->update_limit(idle->region_limit_ + plan_idle_reclaims[i]);
@@ -832,7 +832,7 @@ void Daemon::on_mem_rebalance() {
   }
   for (int i = 0; i < nr_candidates; i++) {
     auto candidate = candidates[i];
-    MIDAS_LOG(kError) << candidate->stats.perf_gain << " " << plan_adjusts[i];
+    MIDAS_LOG(kDebug) << candidate->stats.perf_gain << " " << plan_adjusts[i];
     if (plan_adjusts[i] == 0)
       continue;
     candidate->update_limit(candidate->region_limit_ + plan_adjusts[i]);
