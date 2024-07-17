@@ -1,0 +1,28 @@
+# HDSearch with Midas
+
+## Compile
+
+```bash
+# Here we assume that Midas runtime has been compiled.
+# Or else please compile Midas runtime first.
+make -j$(nproc)
+```
+
+## Usage
+
+We first need to prepare the dataset: `./prepare_dataset.sh`.
+The script will create a `data/` directory and prepare the ImageNet dataset.
+
+Then we can launch Midas coordinator (if it has not been launched yet):
+
+```bash
+cd $MIDAS_REPO_ROOT_PATH # replace it with the path to the repo root directory.
+./scripts/run_daemon.sh
+```
+
+And finally launch HDSearch:
+
+```bash
+# In the current directory
+./run.sh
+```
