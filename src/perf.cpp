@@ -287,7 +287,8 @@ const std::vector<Trace> &Perf::get_traces() const { return traces_; }
 
 void Perf::report_tput(uint64_t duration_us) {
   float tput = succ_ops * 1000.0 / duration_us;
-  MIDAS_LOG(kInfo) << "Tput: " << tput << " Kops";
+  // MIDAS_LOG(kInfo) << "Tput: " << tput << " Kops";
+  printf("Midas perf - current throughput: %.2f Kops", tput);
   tputs_.emplace_back(tput);
   succ_ops = 0;
 }
