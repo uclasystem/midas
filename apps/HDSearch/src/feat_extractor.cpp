@@ -160,17 +160,26 @@ size_t FeatExtractor::load_feats() {
   raw_feats = new char[nr_imgs * kFeatDim * sizeof(float)];
   size_t nr_feat_vecs = 0;
 
-  std::ifstream feat_file(feat_filename, std::ifstream::binary);
-  if (feat_file.good()) {
-    feat_file.read(raw_feats, nr_imgs * sizeof(float) * kFeatDim);
-  }
+  if (kSimulate) { // Simulation mode. Generate fake feature tensors.
+    for (int i = 0; i < nr_imgs; i++) {
+      auto new_feat = std::make_shared<Feature>();
+      feats.emplace_back(new_feat);
+      new_feat->data[0] = i;
+      new_feat->data[kFeatDim - 1] = i;
+    }
+  } else { // Load feature tensors from files.
+    std::ifstream feat_file(feat_filename, std::ifstream::binary);
+    if (feat_file.good()) {
+      feat_file.read(raw_feats, nr_imgs * sizeof(float) * kFeatDim);
+    }
 
-  char *ptr = raw_feats;
-  for (int i = 0; i < nr_imgs; i++) {
-    auto new_feat = std::make_shared<Feature>();
-    feats.emplace_back(new_feat);
-    std::memcpy(new_feat->data, ptr, sizeof(float) * kFeatDim);
-    ptr += sizeof(float) * kFeatDim;
+    char *ptr = raw_feats;
+    for (int i = 0; i < nr_imgs; i++) {
+      auto new_feat = std::make_shared<Feature>();
+      feats.emplace_back(new_feat);
+      std::memcpy(new_feat->data, ptr, sizeof(float) * kFeatDim);
+      ptr += sizeof(float) * kFeatDim;
+    }
   }
 
   return feats.size();
