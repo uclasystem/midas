@@ -2,7 +2,7 @@
 
 ## Dependencies
 * CMake (>= 3.20.0)
-* Midas (https://github.com/ivanium/cachebank)
+* Midas (https://github.com/uclasystem/midas)
 
 ## Compile
 1. Compile Midas library and its c bindings.
