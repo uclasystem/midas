@@ -18,7 +18,7 @@ enum LogVerbosity {
   kAll = 4,   // log all information
 };
 
-constexpr LogVerbosity kGlobalVerbose = kWarning;
+constexpr LogVerbosity kGlobalVerbose = kInfo;
 constexpr bool kLogFlagTime = false;
 constexpr bool kLogFlagLoc = false;
 
