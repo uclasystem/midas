@@ -1,0 +1,70 @@
+global: 
+  replicas: 1
+  imagePullPolicy: "IfNotPresent"
+  restartPolicy: Always
+  serviceType: ClusterIP
+  dockerRegistry: docker.io
+  defaultImageVersion: latest
+  redis:
+    cluster:
+      enabled: false
+    standalone:
+      enabled: true
+  memcached:
+    cluster:
+      enabled: false
+      port: &memcached-cluster-port 5000
+    standalone:
+      enabled: true
+  mongodb:
+    standalone:
+      enabled: true
+    sharding:
+      enabled: false
+      svc:
+        name: "mongodb-sharded"
+        user: "root"
+        password: &mongodb-sharded-password "password"
+        port: 27017
+  nginx:
+    resolverName: kube-dns.kube-system.svc.cluster.local
+  jaeger:
+    localAgentHostPort: jaeger:6831
+    queueSize: 1000000
+    bufferFlushInterval: 10
+    samplerType: probabilistic
+    samplerParam: 0.01
+    disabled: false
+    logSpans: false
+
+mongodb-sharded:
+  fullnameOverride: mongodb-sharded
+  shards: 3
+  mongodbRootPassword: *mongodb-sharded-password
+  shardsvr:
+    dataNode:
+      replicas: 3
+
+mcrouter:
+  controller: statefulset
+  memcached:
+    replicaCount: 3
+  mcrouterCommandParams.port: *memcached-cluster-port
+
+redis:
+  auth:
+    enabled: false
+  architecture: replication
+  replica:
+    replicaCount: 5
+    persistence:
+      enabled: false
+  master:
+    persistence:
+      enabled: false
+    startupProbe:
+      initialDelaySeconds: 60
+      timeoutSeconds: 30
+    livenessProbe:
+      initialDelaySeconds: 60
+      timeoutSeconds: 30

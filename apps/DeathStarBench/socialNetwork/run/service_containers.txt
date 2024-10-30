@@ -1,0 +1,15 @@
+socialnetwork-sn-client-1
+socialnetwork-jaeger-agent-1
+socialnetwork-user-service-1
+socialnetwork-media-service-1
+socialnetwork-media-frontend-1
+socialnetwork-home-timeline-service-1
+socialnetwork-nginx-thrift-1
+socialnetwork-text-service-1
+socialnetwork-url-shorten-service-1
+socialnetwork-user-mention-service-1
+socialnetwork-user-timeline-service-1
+socialnetwork-post-storage-service-1
+socialnetwork-unique-id-service-1
+socialnetwork-social-graph-service-1
+socialnetwork-compose-post-service-1

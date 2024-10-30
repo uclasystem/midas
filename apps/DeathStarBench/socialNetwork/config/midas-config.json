@@ -1,0 +1,22 @@
+{
+  "user-timeline-service": {
+    "size_mb": 10240,
+    "weight": 1
+  },
+  "post-storage-service": {
+    "size_mb": 10240,
+    "weight": 1
+  },
+  "home-timeline-service": {
+    "size_mb": 10240,
+    "weight": 1
+  },
+  "user-mention-service": {
+    "size_mb": 10240,
+    "weight": 1
+  },
+  "social-graph-service": {
+    "size_mb": 10240,
+    "weight": 1
+  }
+}

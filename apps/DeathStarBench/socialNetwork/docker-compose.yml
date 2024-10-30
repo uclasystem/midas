@@ -1,0 +1,372 @@
+version: "3.9"
+services:
+  social-graph-service:
+    image: socialnet_buildbase:latest
+    hostname: social-graph-service
+    #    ports:
+    #      - 10000:9090
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+      social-graph-mongodb:
+        condition: service_started
+    # restart: always
+    entrypoint: /services/SocialGraphService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  social-graph-mongodb:
+    image: mongo:4.4.6
+    hostname: social-graph-mongodb
+    # ports:
+    #   - 27018:27017
+    restart: always
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./dbs/social-graph-mongodb-1/db:/data/db
+
+  social-graph-redis:
+    image: redis
+    hostname: social-graph-redis
+    # ports:
+    #   - 6380:6379
+    restart: always
+
+  home-timeline-redis:
+    image: redis
+    hostname: home-timeline-redis
+    # ports:
+    #   - 6381:6379
+    restart: always
+    volumes:
+      - /dev/shm:/dev/shm
+      # - ./config:/social-network-microservices/config
+
+  compose-post-service:
+    image: socialnet_buildbase:latest
+    hostname: compose-post-service
+    #    ports:
+    #      - 10001:9090
+    restart: always
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+    entrypoint: /services/ComposePostService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  post-storage-service:
+    image: socialnet_buildbase:latest
+    hostname: post-storage-service
+    ports:
+      - 10002:9090
+    restart: always
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+      post-storage-mongodb:
+        condition: service_started
+    entrypoint: /services/PostStorageService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  post-storage-memcached:
+    image: memcached
+    hostname: post-storage-memcached
+    #    ports:
+    #      - 11212:11211
+    restart: always
+    command:
+      - "-m 68"
+      - "-t 8"
+      - "-I 32m"
+      - "-c 4096"
+
+  post-storage-mongodb:
+    image: mongo:4.4.6
+    hostname: post-storage-mongodb
+    #    ports:
+    #      - 27019:27017
+    restart: always
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./dbs/post-storage-mongodb-1/db:/data/db
+
+  user-timeline-service:
+    image: socialnet_buildbase:latest
+    hostname: user-timeline-service
+    #    ports:
+    #      - 10003:9090
+    restart: always
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+      user-timeline-mongodb:
+        condition: service_started
+    entrypoint: /services/UserTimelineService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  user-timeline-redis:
+    image: redis
+    hostname: user-timeline-redis
+    #    ports:
+    #      - 6383:6379
+    restart: always
+    command: "redis-server /social-network-microservices/config/midas-redis.conf"
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./config:/social-network-microservices/config
+
+
+  user-timeline-mongodb:
+    image: mongo:4.4.6
+    hostname: user-timeline-mongodb
+    #    ports:
+    #      - 27020:27017
+    restart: always
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./dbs/user-timeline-mongodb-1/db:/data/db
+
+  url-shorten-service:
+    image: socialnet_buildbase:latest
+    hostname: url-shorten-service
+    #    ports:
+    #      - 10004:9090
+    restart: always
+    entrypoint: /services/UrlShortenService
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+      url-shorten-mongodb:
+        condition: service_started
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  url-shorten-memcached:
+    image: memcached
+    hostname: url-shorten-memcached
+    #    ports:
+    #      - 11213:11211
+    restart: always
+    command:
+      - "-m 16384"
+      - "-t 8"
+      - "-I 32m"
+      - "-c 4096"
+
+  url-shorten-mongodb:
+    image: mongo:4.4.6
+    hostname: url-shorten-mongodb
+    #    ports:
+    #      - 27021:27017
+    restart: always
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./dbs/url-shorten-mongodb-1/db:/data/db
+
+  user-service:
+    image: socialnet_buildbase:latest
+    hostname: user-service
+    #    ports:
+    #      - 10005:9090
+    restart: always
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+      user-mongodb:
+        condition: service_started
+    entrypoint: /services/UserService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  user-memcached:
+    image: memcached
+    hostname: user-memcached
+    #    ports:
+    #      - 11214:11211
+    restart: always
+    command:
+      - "-m 16384"
+      - "-t 8"
+      - "-I 32m"
+      - "-c 4096"
+
+  user-mongodb:
+    image: mongo:4.4.6
+    hostname: user-mongodb
+    # ports:
+    #   - 27023:27017
+    restart: always
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./dbs/user-mongodb-1/db:/data/db
+
+  media-service:
+    image: socialnet_buildbase:latest
+    hostname: media-service
+    #    ports:
+    #      - 10006:9090
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+      media-mongodb:
+        condition: service_started
+    restart: always
+    entrypoint: /services/MediaService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  media-memcached:
+    image: memcached
+    hostname: media-memcached
+    #    ports:
+    #      - 11215:11211
+    restart: always
+    command:
+      - "-m 16384"
+      - "-t 8"
+      - "-I 32m"
+      - "-c 4096"
+
+  media-mongodb:
+    image: mongo:4.4.6
+    hostname: media-mongodb
+    #    ports:
+    #      - 27024:27017
+    restart: always
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./dbs/media-mongodb-1/db:/data/db
+
+  text-service:
+    image: socialnet_buildbase:latest
+    hostname: text-service
+    #    ports:
+    #      - 10007:9090
+    restart: always
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+    entrypoint: /services/TextService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  unique-id-service:
+    image: socialnet_buildbase:latest
+    hostname: unique-id-service
+    #    ports:
+    #      - 10008:9090
+    restart: always
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+    entrypoint: /services/UniqueIdService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  user-mention-service:
+    image: socialnet_buildbase:latest
+    hostname: user-mention-service
+    #    ports:
+    #      - 10009:9090
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+    restart: always
+    entrypoint: /services/UserMentionService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  home-timeline-service:
+    image: socialnet_buildbase:latest
+    hostname: home-timeline-service
+    #    ports:
+    #      - 10010:9090
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+    restart: always
+    entrypoint: /services/HomeTimelineService
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./config:/config
+
+  nginx-thrift:
+    image: yg397/openresty-thrift:xenial
+    hostname: nginx-thrift
+    ports:
+      - 8080:8080
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+    restart: always
+    volumes:
+      - ./nginx-web-server/lua-scripts:/usr/local/openresty/nginx/lua-scripts
+      - ./nginx-web-server/pages:/usr/local/openresty/nginx/pages
+      - ./nginx-web-server/conf/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
+      - ./nginx-web-server/jaeger-config.json:/usr/local/openresty/nginx/jaeger-config.json
+      - ./gen-lua:/gen-lua
+      - ./docker/openresty-thrift/lua-thrift:/usr/local/openresty/lualib/thrift
+
+  media-frontend:
+    image: yg397/media-frontend:xenial
+    hostname: media-frontend
+    ports:
+      - 8081:8080
+    restart: always
+    depends_on:
+      jaeger-agent:
+        condition: service_started
+    volumes:
+      - ./media-frontend/lua-scripts:/usr/local/openresty/nginx/lua-scripts
+      - ./media-frontend/conf/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
+
+  jaeger-agent:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      #      - 5775:5775/udp
+      #      - 6831:6831/udp
+      #      - 6832:6832/udp
+      #      - 5778:5778
+      - 16686:16686
+      #      - 14268:14268
+      #      - 9411:9411
+    restart: always
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
+
+  sn-client:
+    image: socialnet_buildbase:latest
+    hostname: sn-client
+    #    ports:
+    #      - 10009:9090
+    restart: always
+    command: "tail -f /dev/null"
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services:/services
+      - ./datasets:/datasets
+      - ./config:/config

@@ -50,6 +50,8 @@ cd apps/
 # The compiled executables are under each application's directory, respectively.
 ```
 
+For SocialNet, please refer to README [here](apps/DeathStarBench/socialNetwork/README.md) for detailed instructions.
+
 ### Run
 Before running any application, one needs to start the Midas coordinator on the host machine. The coordinator is responsible for managing the memory allocation and coordinate all running applications.
 
